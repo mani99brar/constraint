@@ -1,0 +1,157 @@
+{
+  "version": "1.2.0",
+  "feature": "Okiya playtest-ready",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "engine",
+      "role": "engine",
+      "required_check_kinds": [
+        "typecheck",
+        "unit"
+      ],
+      "owned_paths": [
+        "packages/rules/src/core",
+        "packages/rules/src/abilities",
+        "packages/content/src",
+        "packages/bot/src",
+        "tests/unit/bot.test.ts"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        }
+      ]
+    },
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "tests/e2e"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 900,
+          "scenarios": [
+            {
+              "id": "start-match",
+              "description": "Kept from full-rules: the landing page leads to the setup screen and a match starts against the bot."
+            },
+            {
+              "id": "legal-turn",
+              "description": "Kept from full-rules: a legal deploy updates the constraint, the bot replies, and a non-matching cell shows its refusal reason."
+            },
+            {
+              "id": "setup-flow",
+              "description": "Kept from full-rules: the player picks four distinct fighters, places the setup traps and starts."
+            },
+            {
+              "id": "turn-feedback",
+              "description": "Kept from full-rules: the log, status panel and rules panel follow a turn and the bot's reply."
+            },
+            {
+              "id": "preset-and-scenario",
+              "description": "At match start the player chooses the preset spec-v0.2-two-displacers, and picking a third displacer is refused with its reason; choosing the paper test 01 scenario shows the fixture board and A to move."
+            },
+            {
+              "id": "log-export-replay",
+              "description": "After a few turns the player exports the match log (with a warning that it reveals the bot's secrets), loads it again, steps back and forward through it with the full referee view, and continues playing from an earlier step."
+            },
+            {
+              "id": "full-match",
+              "description": "A match loaded from a log one action before the human's Square win is finished in the browser, and the end screen shows the result, both objectives, both rosters and every trap with its fate."
+            },
+            {
+              "id": "phone-layout",
+              "description": "At a 390 px wide viewport the board, the constraint and the action controls fit without horizontal scrolling, and every cell and button is at least 44 px in both dimensions."
+            },
+            {
+              "id": "keyboard-play",
+              "description": "Using the keyboard only, the player moves focus across the board, selects a reserve fighter and deploys it on a highlighted cell."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
