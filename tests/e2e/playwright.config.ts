@@ -14,7 +14,7 @@ export default defineConfig({
   outputDir: '../../test-results',
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
-    // Animations are off under reduced motion, so no test ever waits on one (PRD U6).
+    // Animations are off under reduced motion, so no test ever waits on one (PRD U8).
     contextOptions: { reducedMotion: 'reduce' },
     screenshot: 'off',
     trace: 'off',

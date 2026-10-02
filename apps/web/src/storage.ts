@@ -1,5 +1,5 @@
 /**
- * Browser storage for the settings, the saved match and the results (PRD E4–E7). Every read and
+ * Browser storage for the settings, the saved game and the results (PRD E3–E5, L2). Every read and
  * write is wrapped, so private modes, full quotas and blocked storage leave the game playable.
  */
 

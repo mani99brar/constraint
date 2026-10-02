@@ -1,71 +1,62 @@
-import type { ObjectiveId, PlayerId, PlayerView, Terrain, TileSymbol } from '@okiya/rules';
-import { objectiveName } from './howto';
-import { constraintText, describeResult } from './text';
+import { otherPlayer, TOKENS_PER_PLAYER, type GameState, type Player, type Terrain, type TileSymbol } from '@okiya/game';
+import { resultSummary, tileName } from './text';
 
-/** One half of the constraint as the top bar draws it: an emblem with its name (PRD T4, U1). */
-export type ConstraintEmblem =
+/** One half of the last tile as the top bar draws it: an emblem with its name (PRD I1, U2). */
+export type LastTileEmblem =
   | { readonly kind: 'terrain'; readonly terrain: Terrain; readonly name: string }
   | { readonly kind: 'symbol'; readonly symbol: TileSymbol; readonly name: string };
 
-/** One side's shared recharge actions as pips: `true` for each one still left. */
-export interface RechargePips {
-  readonly player: PlayerId;
+/** One player's tokens still to place, out of 8. */
+export interface TokenCount {
+  readonly player: Player;
   readonly side: 'You' | 'Bot';
   readonly left: number;
   readonly total: number;
-  readonly pips: readonly boolean[];
   readonly label: string;
 }
 
-/** Everything the slim top bar shows (PRD T4, U5). */
+/** Everything the slim top bar shows (PRD U2). */
 export interface TopBarModel {
-  /** "Your turn", "Bot is thinking", or the result once the match has ended. */
+  /** "Your turn", "Bot is thinking", or the result once the game has ended. */
   readonly turnText: string;
   readonly humanTurn: boolean;
   readonly botThinking: boolean;
-  /** Terrain then symbol; null before the opening deployment, which has no constraint. */
-  readonly constraint: readonly [ConstraintEmblem, ConstraintEmblem] | null;
-  /** The constraint in words, for screen readers and the opening, for example "Forest or Moon". */
-  readonly constraintLabel: string;
+  /** "You start" or "Bot starts" before the opening take; null afterwards. */
+  readonly starterText: string | null;
+  /** Terrain then symbol; null before the opening take. */
+  readonly lastTile: readonly [LastTileEmblem, LastTileEmblem] | null;
+  /** The last tile in words, or "Any edge tile" at the opening. */
+  readonly lastTileLabel: string;
   /** Yours first, then the bot's. */
-  readonly recharges: readonly [RechargePips, RechargePips];
-  readonly goal: { readonly objective: ObjectiveId; readonly label: string };
+  readonly counts: readonly [TokenCount, TokenCount];
 }
 
-export const OPENING_LABEL = 'Opening: any edge cell';
+export const OPENING_LABEL = 'Any edge tile';
 
-function pips(view: PlayerView, player: PlayerId, human: PlayerId): RechargePips {
-  const total = Math.max(view.preset.rechargesPerPlayer, view.recharges[player]);
-  const left = view.recharges[player];
+function tokenCount(state: GameState, player: Player, human: Player): TokenCount {
+  const placed = state.tokens.filter((token) => token === player).length;
+  const left = TOKENS_PER_PLAYER - placed;
   const side = player === human ? 'You' : 'Bot';
   const whose = player === human ? 'Your' : "Bot's";
-  return {
-    player,
-    side,
-    left,
-    total,
-    pips: Array.from({ length: total }, (_, index) => index < left),
-    label: `${whose} recharges: ${left} of ${total} left`,
-  };
+  return { player, side, left, total: TOKENS_PER_PLAYER, label: `${whose} tokens: ${left} of ${TOKENS_PER_PLAYER} left` };
 }
 
-export function topBarModel(view: PlayerView, human: PlayerId): TopBarModel {
-  const bot: PlayerId = human === 'A' ? 'B' : 'A';
-  const over = view.result !== null;
-  const humanTurn = !over && view.activePlayer === human;
-  const { constraint } = view;
+export function topBarModel(state: GameState, human: Player): TopBarModel {
+  const over = state.result !== null;
+  const humanTurn = !over && state.toMove === human;
+  const { lastTile } = state;
   return {
-    turnText: view.result ? describeResult(view.result, human) : humanTurn ? 'Your turn' : 'Bot is thinking',
+    turnText: state.result ? resultSummary(state.result, human) : humanTurn ? 'Your turn' : 'Bot is thinking',
     humanTurn,
     botThinking: !over && !humanTurn,
-    constraint: constraint
+    starterText: state.takes.length === 0 ? (state.starter === human ? 'You start' : 'Bot starts') : null,
+    lastTile: lastTile
       ? [
-          { kind: 'terrain', terrain: constraint.terrain, name: constraint.terrain },
-          { kind: 'symbol', symbol: constraint.symbol, name: constraint.symbol },
+          { kind: 'terrain', terrain: lastTile.terrain, name: lastTile.terrain },
+          { kind: 'symbol', symbol: lastTile.symbol, name: lastTile.symbol },
         ]
       : null,
-    constraintLabel: constraint ? `Constraint: ${constraintText(constraint)}` : OPENING_LABEL,
-    recharges: [pips(view, human, human), pips(view, bot, human)],
-    goal: { objective: view.objective, label: `Goal: ${objectiveName(view.objective)}` },
+    lastTileLabel: lastTile ? `Last tile: ${tileName(lastTile)}` : OPENING_LABEL,
+    counts: [tokenCount(state, human, human), tokenCount(state, otherPlayer(human), human)],
   };
 }

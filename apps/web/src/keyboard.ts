@@ -1,4 +1,4 @@
-import { ALL_CELLS, cellAt, cellColumn, cellRow, type CellId } from '@okiya/rules';
+import { ALL_CELLS, cellColumn, cellRow, type CellId } from '@okiya/game';
 
 const STEPS: Readonly<Record<string, readonly [number, number]>> = {
   ArrowUp: [-1, 0],
@@ -7,7 +7,7 @@ const STEPS: Readonly<Record<string, readonly [number, number]>> = {
   ArrowRight: [0, 1],
 };
 
-/** Enter and Space select the focused cell or fighter (PRD U3). */
+/** Enter and Space take the focused tile (PRD U7). */
 export function isActivationKey(key: string): boolean {
   return key === 'Enter' || key === ' ' || key === 'Spacebar';
 }
@@ -16,7 +16,9 @@ export function isActivationKey(key: string): boolean {
 export function nextCell(cell: CellId, key: string): CellId {
   const step = STEPS[key];
   if (!step) return cell;
-  return cellAt(cellRow(cell) + step[0], cellColumn(cell) + step[1]) ?? cell;
+  const row = cellRow(cell) + step[0];
+  const column = cellColumn(cell) + step[1];
+  return row < 0 || row > 3 || column < 0 || column > 3 ? cell : ALL_CELLS[row * 4 + column]!;
 }
 
 export type BoardKey = { readonly kind: 'focus'; readonly cell: CellId } | { readonly kind: 'activate'; readonly cell: CellId } | null;
@@ -32,7 +34,7 @@ export function boardKey(cell: CellId, key: string): BoardKey {
 
 /**
  * The board's single Tab stop (roving tabindex): the cell last focused, else the first
- * highlighted cell, else A1, so Tab lands where the selected fighter can act.
+ * highlighted cell, else A1, so Tab lands on a legal take.
  */
 export function tabStop(focused: CellId | null, highlighted: Iterable<CellId>): CellId {
   if (focused) return focused;

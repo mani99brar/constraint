@@ -1,6 +1,6 @@
 import { isRecord, readJson, writeJson, type KeyValueStorage } from './storage';
 
-/** The player's settings (PRD E4, E5): legal-move highlights and sound, both on by default. */
+/** The player's settings (PRD E3, E4): legal-take highlights and sound, both on by default. */
 export interface Settings {
   readonly highlights: boolean;
   readonly sound: boolean;

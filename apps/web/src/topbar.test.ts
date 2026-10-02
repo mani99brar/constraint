@@ -1,49 +1,60 @@
 import { describe, expect, it } from 'vitest';
-import { SPEC_V0_2 } from '@okiya/content';
-import { playerView, type PlayerView } from '@okiya/rules';
-import { createMatch, HUMAN, prepare } from './match';
-import { defaultHumanSetup } from './setup';
+import { ALL_CELLS, newGame, type GameState, type Player } from '@okiya/game';
 import { OPENING_LABEL, topBarModel } from './topbar';
 
-const base = playerView(createMatch(prepare(1), defaultHumanSetup(1, SPEC_V0_2), 3), HUMAN);
-// Hand-built: the player to move under Forest or Moon, with recharges spent on both sides.
-const view: PlayerView = { ...base, activePlayer: 'A', constraint: { terrain: 'Forest', symbol: 'Moon' }, recharges: { A: 2, B: 0 }, result: null };
+const base = newGame({ seed: 11, starter: 'A' });
 
-describe('top bar model (PRD T4, U5)', () => {
-  it('gives the turn text, the two constraint emblems and both sides’ recharge pips', () => {
-    const model = topBarModel(view, HUMAN);
-    expect(model.turnText).toBe('Your turn');
-    expect(model.humanTurn).toBe(true);
-    expect(model.botThinking).toBe(false);
-    expect(model.constraint).toEqual([
-      { kind: 'terrain', terrain: 'Forest', name: 'Forest' },
+/** A hand-built state: the given tokens on the first cells, the last tile and the player to move. */
+function handBuilt(tokens: readonly (Player | null)[], toMove: Player, lastTile: GameState['lastTile'], starter: Player = 'A'): GameState {
+  const padded = [...tokens, ...Array<Player | null>(16 - tokens.length).fill(null)];
+  return { ...base, tokens: padded, toMove, starter, lastTile, takes: ALL_CELLS.filter((_, i) => padded[i] !== null) };
+}
+
+describe('top bar model (PRD U2, I1)', () => {
+  it('says whose turn it is and who starts, with "Any edge tile" at the opening', () => {
+    const yours = topBarModel(handBuilt([], 'A', null), 'A');
+    expect(yours.turnText).toBe('Your turn');
+    expect(yours.humanTurn).toBe(true);
+    expect(yours.botThinking).toBe(false);
+    expect(yours.starterText).toBe('You start');
+    expect(yours.lastTile).toBeNull();
+    expect(yours.lastTileLabel).toBe(OPENING_LABEL);
+    expect(OPENING_LABEL).toBe('Any edge tile');
+
+    const bots = topBarModel(handBuilt([], 'B', null, 'B'), 'A');
+    expect(bots.turnText).toBe('Bot is thinking');
+    expect(bots.humanTurn).toBe(false);
+    expect(bots.botThinking).toBe(true);
+    expect(bots.starterText).toBe('Bot starts');
+  });
+
+  it('shows the last tile as its terrain and symbol emblems with their names', () => {
+    const model = topBarModel(handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' }), 'A');
+    expect(model.turnText).toBe('Bot is thinking');
+    expect(model.starterText).toBeNull();
+    expect(model.lastTile).toEqual([
+      { kind: 'terrain', terrain: 'Desert', name: 'Desert' },
       { kind: 'symbol', symbol: 'Moon', name: 'Moon' },
     ]);
-    expect(model.constraintLabel).toBe('Constraint: Forest or Moon');
-    expect(model.recharges).toEqual([
-      { player: 'A', side: 'You', left: 2, total: 3, pips: [true, true, false], label: 'Your recharges: 2 of 3 left' },
-      { player: 'B', side: 'Bot', left: 0, total: 3, pips: [false, false, false], label: "Bot's recharges: 0 of 3 left" },
+    expect(model.lastTileLabel).toBe('Last tile: Desert–Moon');
+  });
+
+  it('counts each player’s remaining tokens out of 8, yours first', () => {
+    const model = topBarModel(handBuilt(['A', 'B', 'A', 'B', 'A'], 'B', { terrain: 'Forest', symbol: 'Star' }), 'A');
+    expect(model.counts.map((count) => [count.side, count.left, count.total])).toEqual([
+      ['You', 5, 8],
+      ['Bot', 6, 8],
     ]);
-    expect(model.goal).toEqual({ objective: 'Square', label: 'Goal: Square' });
+    expect(model.counts[0].label).toBe('Your tokens: 5 of 8 left');
+    expect(model.counts[1].label).toBe("Bot's tokens: 6 of 8 left");
+    const full = topBarModel({ ...handBuilt(Array.from({ length: 16 }, (_, i) => (i % 2 ? 'B' : 'A')), 'A', { terrain: 'Water', symbol: 'Sun' }), result: { kind: 'draw', by: 'full-board' } }, 'A');
+    expect(full.counts.map((count) => count.left)).toEqual([0, 0]);
   });
 
-  it('says the bot is thinking on its turn', () => {
-    const model = topBarModel({ ...view, activePlayer: 'B' }, HUMAN);
-    expect(model.turnText).toBe('Bot is thinking');
-    expect(model.botThinking).toBe(true);
-    expect(model.humanTurn).toBe(false);
-  });
-
-  it('shows the opening instead of emblems before the first deployment', () => {
-    const model = topBarModel({ ...view, constraint: null }, HUMAN);
-    expect(model.constraint).toBeNull();
-    expect(model.constraintLabel).toBe(OPENING_LABEL);
-  });
-
-  it('gives the result once the match has ended', () => {
-    const model = topBarModel({ ...view, result: { kind: 'win', winner: 'B', reason: 'objective' } }, HUMAN);
-    expect(model.turnText).toBe('The bot wins by completing a square.');
-    expect(model.humanTurn).toBe(false);
-    expect(model.botThinking).toBe(false);
+  it('shows the result instead of a turn once the game has ended', () => {
+    const won = topBarModel({ ...handBuilt(['A'], 'B', { terrain: 'Forest', symbol: 'Sun' }), result: { kind: 'win', winner: 'A', by: 'blockade' } }, 'A');
+    expect(won.turnText).toBe('You win by blockade');
+    expect(won.humanTurn).toBe(false);
+    expect(won.botThinking).toBe(false);
   });
 });

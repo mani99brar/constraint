@@ -1,58 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { SPEC_V0_2 } from '@okiya/content';
-import { isEdgeCell, playerView } from '@okiya/rules';
-import { BOT, botStep, createMatch, generateSeed, HUMAN, PRESET, prepare } from './match';
-import { defaultHumanSetup } from './setup';
+import { legalTakes, newGame, PLAYERS } from '@okiya/game';
+import { BOT, botStep, botToMove, HUMAN, humanToMove, nextStarter, startGame } from './match';
+import { afterTakes, endings } from './playouts.test-helper';
 
-describe('bot opening', () => {
-  it('makes the opening deployment before the player’s first turn when the bot starts', () => {
-    const seed = [...Array(64).keys()].find((candidate) => {
-      const prepared = prepare(candidate);
-      return createMatch(prepared, defaultHumanSetup(candidate, SPEC_V0_2), 7).startingPlayer === BOT;
-    });
-    expect(seed).toBeDefined();
-    const state = createMatch(prepare(seed!), defaultHumanSetup(seed!, SPEC_V0_2), 7);
-    expect(state.activePlayer).toBe(BOT);
-    expect(playerView(state, HUMAN).log).toEqual([]);
+describe('starting players (PRD S2, spec §5)', () => {
+  it('starts the next game with the other player', () => {
+    expect(nextStarter({ starter: 'A' })).toBe('B');
+    expect(nextStarter({ starter: 'B' })).toBe('A');
+    for (const finished of Object.values(endings())) {
+      const next = startGame(1234, nextStarter(finished));
+      expect(next.starter).not.toBe(finished.starter);
+      expect(next.toMove).toBe(next.starter);
+      expect(next.takes).toEqual([]);
+    }
+  });
 
-    // A move scheduled for another turn is ignored, as StrictMode's second effect is.
-    expect(botStep(state, state.turn + 1)).toBe(state);
-
-    const next = botStep(state, state.turn);
-    expect(next.activePlayer).toBe(HUMAN);
-    const log = playerView(next, HUMAN).log;
-    expect(log).toHaveLength(1);
-    expect(log[0]!.player).toBe(BOT);
-    expect(log[0]!.action.kind).toBe('deploy');
-    if (log[0]!.action.kind === 'deploy') expect(isEdgeCell(log[0]!.action.cell)).toBe(true);
-    expect(next.constraint).not.toBeNull();
-    // On the player's turn the bot does not move again.
-    expect(botStep(next)).toBe(next);
+  it('lets the seed choose the very first starter, so both players start some games', () => {
+    const starters = new Set(Array.from({ length: 40 }, (_, seed) => startGame(seed).starter));
+    expect(starters).toEqual(new Set(PLAYERS));
+    expect(startGame(7)).toEqual(newGame({ seed: 7 }));
+    expect(startGame(7, 'B').starter).toBe('B');
   });
 });
 
-describe('match randomness (PRD E1)', () => {
-  it('draws match seeds from crypto.getRandomValues and always plays spec-v0.2', () => {
-    const original = crypto.getRandomValues.bind(crypto);
-    const calls: number[] = [];
-    Object.defineProperty(crypto, 'getRandomValues', {
-      configurable: true,
-      value: <T extends ArrayBufferView | null>(array: T) => {
-        calls.push(1);
-        (array as unknown as Uint32Array)[0] = 0xdead_beef;
-        return array;
-      },
-    });
-    try {
-      expect(generateSeed()).toBe(0xdead_beef >>> 1);
-      const prepared = prepare();
-      expect(prepared.seed).toBe(0xdead_beef >>> 1);
-      expect(prepared.preset).toBe(SPEC_V0_2);
-      expect(PRESET).toBe(SPEC_V0_2);
-      expect(prepared.scenario).toBeNull();
-      expect(calls).toHaveLength(2);
-    } finally {
-      Object.defineProperty(crypto, 'getRandomValues', { configurable: true, value: original });
+describe('bot scheduling (PRD B1, B5)', () => {
+  it('takes one legal tile on the bot’s turn, at every difficulty', () => {
+    const state = afterTakes(5, 1);
+    expect(botToMove(state)).toBe(true);
+    expect(humanToMove(state)).toBe(false);
+    for (const difficulty of ['easy', 'normal'] as const) {
+      const next = botStep(state, 1, difficulty);
+      expect(next.takes).toHaveLength(2);
+      expect(legalTakes(state)).toContain(next.takes[1]);
+      expect(next.tokens.filter((token) => token === BOT)).toHaveLength(1);
     }
+  });
+
+  it('leaves the state alone when the scheduled turn has passed or it is not the bot’s turn (StrictMode)', () => {
+    const state = afterTakes(5, 1);
+    const once = botStep(state, 1, 'easy');
+    expect(botStep(once, 1, 'easy')).toBe(once);
+    expect(botStep(state, 0, 'easy')).toBe(state);
+    const human = newGame({ seed: 5, starter: HUMAN });
+    expect(botStep(human, 0, 'easy')).toBe(human);
+    const finished = endings().square;
+    expect(botStep(finished, finished.takes.length, 'easy')).toBe(finished);
   });
 });

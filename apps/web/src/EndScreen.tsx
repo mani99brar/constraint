@@ -1,33 +1,22 @@
 import type { ReactNode } from 'react';
-import type { PlayerId, PlayerView } from '@okiya/rules';
-import { objectiveSummary } from './howto';
-import { describeResult, describeTrap, fighterName } from './text';
+import type { GameState, Player } from '@okiya/game';
+import { outcomeOf } from './results';
+import { resultDetail, resultSummary } from './text';
 
-/** The end screen (PRD R6): the result, then both objectives, both rosters and every trap. */
-export function EndScreen({ view, human, children }: { view: PlayerView; human: PlayerId; children?: ReactNode }) {
-  if (!view.result || !view.reveal) return null;
-  const { reveal } = view;
-  const bot: PlayerId = human === 'A' ? 'B' : 'A';
+/**
+ * The end of the game (PRD R4): who won and how (a line, a square, a blockade or the full-board
+ * draw), beside the board, which keeps the winning shape marked.
+ */
+export function EndScreen({ state, human, children }: { state: GameState; human: Player; children?: ReactNode }) {
+  const { result } = state;
+  if (!result) return null;
   return (
-    <section aria-label="Match over" data-testid="end-screen" className="end-screen">
-      <div className="end-card">
-      <h2 data-testid="result">{describeResult(view.result, human)}</h2>
-      <p data-testid="objectives">
-        Objectives: you {reveal.objectives[human]}, bot {reveal.objectives[bot]}
-      </p>
-      <p className="muted">{objectiveSummary(reveal.objectives[human])}</p>
-      <p data-testid="roster-human">Your roster: {reveal.rosters[human].map(fighterName).join(', ')}</p>
-      <p data-testid="roster-bot">Bot roster: {reveal.rosters[bot].map(fighterName).join(', ')}</p>
-      <h3>Every trap</h3>
-      <ul data-testid="traps">
-        {reveal.trapHistory.map((trap) => (
-          <li key={trap.id} data-owner={trap.owner} data-cell={trap.cell} data-fate={trap.fate.kind}>
-            {describeTrap(trap, human)}
-          </li>
-        ))}
-      </ul>
+    <section aria-labelledby="result" data-testid="end-screen" className="end-screen" data-outcome={outcomeOf(result, human)} data-by={result.by}>
+      <h2 id="result" data-testid="result">
+        {resultSummary(result, human)}
+      </h2>
+      <p data-testid="result-detail">{resultDetail(state, human)}</p>
       {children && <div className="button-row">{children}</div>}
-      </div>
     </section>
   );
 }

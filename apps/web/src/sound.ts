@@ -1,10 +1,10 @@
 /**
- * Short, quiet sound effects synthesized with the Web Audio API (PRD E5). Nothing is created or
+ * Short, quiet sound effects synthesized with the Web Audio API (PRD E4). Nothing is created or
  * played before the player's first gesture, nothing plays while muted, and every sound goes with
  * a visible change on screen, so sound is never the only signal of an event.
  */
 
-export type SoundEffect = 'select' | 'place' | 'bot' | 'trap' | 'refuse' | 'win' | 'loss' | 'draw';
+export type SoundEffect = 'select' | 'place' | 'bot' | 'refuse' | 'win' | 'loss' | 'draw';
 
 /** One tone: a frequency in Hz, a start offset and a length in seconds. */
 export interface Tone {
@@ -23,7 +23,6 @@ export const EFFECTS: Readonly<Record<SoundEffect, readonly Tone[]>> = {
   select: [tone(660, 0, 0.06, 'triangle')],
   place: [tone(523, 0, 0.08, 'triangle'), tone(784, 0.07, 0.1, 'triangle')],
   bot: [tone(392, 0, 0.08), tone(330, 0.07, 0.1)],
-  trap: [tone(220, 0, 0.09, 'square'), tone(185, 0.09, 0.14, 'square')],
   refuse: [tone(196, 0, 0.12, 'triangle')],
   win: [tone(523, 0, 0.1), tone(659, 0.1, 0.1), tone(784, 0.2, 0.22)],
   loss: [tone(392, 0, 0.12), tone(311, 0.12, 0.12), tone(262, 0.24, 0.22)],

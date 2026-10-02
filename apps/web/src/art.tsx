@@ -1,7 +1,7 @@
-import type { FighterType, Terrain, TileSymbol } from '@okiya/rules';
+import type { Terrain, TileSymbol } from '@okiya/game';
 
-// All art is drawn in code (PRD T6, U4): a small scene per terrain, an emblem per symbol and per
-// fighter, each with its own shape, so colour is never the only signal. Colours are theme tokens.
+// All art is drawn in code (PRD U1): a small scene per terrain, an emblem per symbol and a mark per
+// player's token, each with its own shape, so colour is never the only signal. Colours are theme tokens.
 
 const glyph = { 'aria-hidden': true, focusable: false, viewBox: '0 0 24 24' } as const;
 
@@ -123,77 +123,15 @@ export function SymbolEmblem({ symbol }: { symbol: TileSymbol }) {
   );
 }
 
-/** Each fighter's emblem on its token: a portal, a push, a swap, chevrons, a lens, a magnet, an anchor, a weave, a jaw. */
-export function FighterEmblem({ type }: { type: FighterType }) {
-  const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
-  let mark;
-  switch (type) {
-    case 'Teleporter':
-      mark = <path {...stroke} d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5M12 7.5a4.5 4.5 0 1 0 4.5 4.5M12 11.2a.8.8 0 1 1-.8.8" />;
-      break;
-    case 'Pusher':
-      mark = <path {...stroke} d="M4.5 5v14M8.5 12h11M15 7.5l4.5 4.5-4.5 4.5" />;
-      break;
-    case 'Swapper':
-      mark = <path {...stroke} d="M4 8.5h15l-3.5-3.5M20 15.5H5l3.5 3.5" />;
-      break;
-    case 'Upgrader':
-      mark = <path {...stroke} d="M6 13.5l6-6 6 6M6 19l6-6 6 6M12 2.5v3" />;
-      break;
-    case 'TrapChecker':
-      mark = <path {...stroke} d="M10.5 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zM15 15l5.5 5.5" />;
-      break;
-    case 'Puller':
-      mark = <path {...stroke} d="M6.5 4v8a5.5 5.5 0 0 0 11 0V4M4.5 4h4M15.5 4h4" />;
-      break;
-    case 'Anchor':
-      mark = <path {...stroke} d="M12 7.2a2 2 0 1 1 0-4 2 2 0 0 1 0 4zM12 7.2V21M8 10.5h8M4.5 14a7.5 7 0 0 0 15 0" />;
-      break;
-    case 'TerrainWeaver':
-      mark = <path {...stroke} d="M3 8.5c3-3 6 3 9 0s6-3 9 0M3 15.5c3-3 6 3 9 0s6-3 9 0M8 4v16M16 4v16" />;
-      break;
-    case 'Trapper':
-      mark = <path {...stroke} d="M3 16.5h18M4 16.5l2-6 2 6 2-6 2 6 2-6 2 6 2-6 2 6M6 20.5h12" />;
-      break;
-  }
+/** The mark on a player's token: a ring on yours, a diamond on the bot's. */
+export function TokenMark({ owner }: { owner: 'you' | 'bot' }) {
   return (
-    <svg {...glyph} className="fighter-emblem" data-shape={type}>
-      {mark}
-    </svg>
-  );
-}
-
-/** The back of a face-down token: a leaf in a ring, the same for every fighter. */
-export function TokenBack() {
-  return (
-    <svg {...glyph} className="token-back-art">
-      <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray="2 2.2" />
-      <path d="M8 15.5c0-5 3-7.5 8-7.5 0 5-3 7.5-8 7.5zM8 15.5l4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function LockIcon() {
-  return (
-    <svg {...glyph} className="glyph">
-      <rect x="4.5" y="10.5" width="15" height="11" rx="2" fill="currentColor" />
-      <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="2.5" />
-    </svg>
-  );
-}
-
-export function ShieldIcon() {
-  return (
-    <svg {...glyph} className="glyph">
-      <path d="M12 1.5 3.5 5v6c0 6 3.8 9.6 8.5 11.5 4.7-1.9 8.5-5.5 8.5-11.5V5z" fill="currentColor" />
-    </svg>
-  );
-}
-
-export function TrapIcon() {
-  return (
-    <svg {...glyph} className="glyph">
-      <path d="M3 18.5h18M4 18.5l2-7 2 7 2-7 2 7 2-7 2 7 2-7 2 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+    <svg {...glyph} className="token-mark" data-shape={owner === 'you' ? 'ring' : 'diamond'}>
+      {owner === 'you' ? (
+        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="3" />
+      ) : (
+        <path d="M12 4.5 19.5 12 12 19.5 4.5 12z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+      )}
     </svg>
   );
 }
@@ -206,7 +144,7 @@ export function MenuIcon() {
   );
 }
 
-/** The game's mark: four tiles forming the 2×2 square of the objective, each with a token. */
+/** The game's mark: four tiles forming a 2×2 square, each with a token. */
 export function Logo({ size = 72 }: { size?: number }) {
   return (
     <svg aria-hidden focusable={false} viewBox="0 0 64 64" width={size} height={size} className="logo" data-testid="logo">

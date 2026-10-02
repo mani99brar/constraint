@@ -1,4 +1,4 @@
-/** Focus handling of a modal dialog (PRD U3, E3), as pure functions over anything focusable. */
+/** Focus handling of a modal dialog (PRD U7, E2), as pure functions over anything focusable. */
 
 export interface Focusable {
   focus(): void;

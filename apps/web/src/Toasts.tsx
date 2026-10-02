@@ -1,6 +1,6 @@
 import type { QueuedToast } from './toasts';
 
-/** Short notices over the top of the board (PRD T1); they never take a tap or focus. */
+/** Short notices over the top of the board (PRD U3); they never take a tap or focus. */
 export function Toasts({ toasts }: { toasts: readonly { toast: QueuedToast; leaving: boolean }[] }) {
   return (
     <div className="toasts" role="status" aria-live="polite" data-testid="toasts">

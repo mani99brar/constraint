@@ -4,21 +4,22 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   attachScreenshot,
   board,
-  deployFirst,
+  cellAt,
+  chooseDifficulty,
   glowing,
   lowContrastText,
-  openSetup,
   openTitle,
-  ownTray,
-  trayTokens,
-  turnNumber,
+  readBoard,
+  refusalToast,
+  takeCount,
+  takeGlowing,
   waitForHumanTurn,
 } from './helpers';
 
 test.describe('dark colour scheme', () => {
   test.use({ colorScheme: 'dark' });
 
-  test('[scenario:dark-theme] the board, tiles, emblems and tokens stay distinguishable and all text is readable in dark', async ({ page }, testInfo) => {
+  test('[scenario:dark-theme] the board, tiles, emblems and both players’ tokens stay distinguishable and all text is readable in dark', async ({ page }, testInfo) => {
     await openTitle(page);
     expect(await lowContrastText(page)).toEqual([]);
     await page.getByTestId('title-screen').getByRole('button', { name: 'How to play' }).click();
@@ -29,10 +30,12 @@ test.describe('dark colour scheme', () => {
     expect(await lowContrastText(page)).toEqual([]);
     await page.keyboard.press('Escape');
 
-    await openSetup(page, 'Easy');
+    await page.getByRole('button', { name: /^New game/ }).click();
     expect(await lowContrastText(page)).toEqual([]);
-    await page.getByRole('button', { name: 'Use default setup' }).click();
-    await deployFirst(page);
+    await page.getByRole('button', { name: /^Easy\b/ }).click();
+    await expect(board(page)).toBeVisible();
+    expect(await lowContrastText(page)).toEqual([]);
+    await takeGlowing(page);
     await waitForHumanTurn(page);
 
     // The dark set is in use.
@@ -41,8 +44,8 @@ test.describe('dark colour scheme', () => {
     expect(r! + g! + b!).toBeLessThan(120);
 
     // Four terrains, each with its own colour and scene; four symbols, each with its own emblem.
-    const cells = await board(page)
-      .locator('[data-cell]')
+    const tiles = await board(page)
+      .locator('[data-cell]:not([data-owner])')
       .evaluateAll((elements) =>
         elements.map((cell) => ({
           terrain: cell.getAttribute('data-terrain')!,
@@ -53,39 +56,46 @@ test.describe('dark colour scheme', () => {
           emblemSize: cell.querySelector('.tile-symbol')!.getBoundingClientRect().width,
         })),
       );
-    const byTerrain = new Map(cells.map((cell) => [cell.terrain, cell]));
+    expect(tiles).toHaveLength(14);
+    const byTerrain = new Map(tiles.map((cell) => [cell.terrain, cell]));
     expect(byTerrain.size).toBe(4);
     expect(new Set([...byTerrain.values()].map((cell) => cell.colour)).size).toBe(4);
     expect(new Set([...byTerrain.values()].map((cell) => cell.scene)).size).toBe(4);
-    for (const cell of cells) {
-      expect(new Set(cells.filter((other) => other.terrain === cell.terrain).map((other) => other.scene)).size).toBe(1);
-      expect(new Set(cells.filter((other) => other.symbol === cell.symbol).map((other) => other.emblem)).size).toBe(1);
+    for (const cell of tiles) {
+      expect(new Set(tiles.filter((other) => other.terrain === cell.terrain).map((other) => other.scene)).size).toBe(1);
+      expect(new Set(tiles.filter((other) => other.symbol === cell.symbol).map((other) => other.emblem)).size).toBe(1);
       expect(cell.emblemSize).toBeGreaterThanOrEqual(20);
     }
-    expect(new Set(cells.map((cell) => cell.emblem)).size).toBe(4);
+    expect(new Set(tiles.map((cell) => cell.emblem)).size).toBe(4);
 
-    // Your tokens and the bot's differ in colour, rim and name; every token shows its own emblem.
-    const tokens = await page.locator('[data-testid="token"]').evaluateAll((elements) =>
-      elements.map((token) => ({
-        owner: token.getAttribute('data-owner'),
-        rim: token.getAttribute('data-rim'),
-        colour: getComputedStyle(token).backgroundColor,
-        emblem: token.querySelector('svg.fighter-emblem')!.getAttribute('data-shape'),
-        label: token.getAttribute('data-label')!,
-      })),
-    );
+    // Your token and the bot's differ in colour, rim and mark, and stand out from the tiles and the bare slot.
+    const tokens = await board(page)
+      .getByTestId('token')
+      .evaluateAll((elements) =>
+        elements.map((token) => ({
+          owner: token.getAttribute('data-owner'),
+          rim: getComputedStyle(token).borderTopStyle,
+          colour: getComputedStyle(token).backgroundColor,
+          mark: token.querySelector('svg.token-mark')!.getAttribute('data-shape'),
+          slot: getComputedStyle(token.closest('[data-cell]')!).backgroundColor,
+          label: token.closest('[data-cell]')!.getAttribute('aria-label')!,
+        })),
+      );
     const own = tokens.find((token) => token.owner === 'you')!;
     const bot = tokens.find((token) => token.owner === 'bot')!;
     expect(own.rim).not.toBe(bot.rim);
     expect(own.colour).not.toBe(bot.colour);
-    expect(own.label).toMatch(/^Your /);
-    expect(bot.label).toMatch(/^Bot's /);
-    expect(new Set(tokens.filter((token) => token.owner === 'you').map((token) => token.emblem)).size).toBe(tokens.filter((token) => token.owner === 'you').length);
+    expect(own.mark).not.toBe(bot.mark);
+    expect(own.label).toMatch(/, your token/);
+    expect(bot.label).toMatch(/, bot's token/);
+    for (const token of [own, bot]) {
+      expect(token.colour).not.toBe(token.slot);
+      expect([...byTerrain.values()].map((cell) => cell.colour)).not.toContain(token.colour);
+    }
 
-    // All text meets 4.5:1 with a token selected, a refusal toast and the event toasts shown, and in the menu.
-    await trayTokens(page).first().click();
-    await board(page).locator('[data-owner="B"]').click();
-    await expect(page.locator('[data-testid="toast"][data-kind="refusal"]')).toBeVisible();
+    // All text meets 4.5:1 with a refusal toast shown, and in the menu.
+    await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'bot')!.cell).click();
+    await expect(refusalToast(page)).toBeVisible();
     expect(await lowContrastText(page)).toEqual([]);
     await attachScreenshot(page, testInfo, 'dark-theme');
     await page.getByTestId('menu-button').click();
@@ -94,9 +104,9 @@ test.describe('dark colour scheme', () => {
   });
 });
 
-/** Every cell, token and button smaller than 44 px in either dimension. */
+/** Every tile, cell and button smaller than 44 px in either dimension. */
 async function smallTargets(page: Page): Promise<string[]> {
-  return page.locator('button, [role="gridcell"], [role="switch"], [data-testid="token"], [data-testid="face-down-token"]').evaluateAll((elements) =>
+  return page.locator('button, [role="gridcell"], [role="switch"]').evaluateAll((elements) =>
     elements.flatMap((element) => {
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) return [];
@@ -127,41 +137,37 @@ async function expectInside(page: Page, testIds: readonly string[]) {
 test.describe('phone viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('[scenario:phone-layout] at 390 px the board, both trays and the top bar fit without scrolling, and every target is at least 44 px', async ({ page }, testInfo) => {
+  test('[scenario:phone-layout] at 390 px the board, the token counts and the top bar fit without scrolling, and every tile and button is at least 44 px', async ({ page }, testInfo) => {
     await openTitle(page);
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
     await page.getByTestId('title-screen').getByRole('button', { name: 'How to play' }).tap();
     await expect(page.getByRole('dialog')).toBeVisible();
+    expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
     await page.getByRole('button', { name: 'Close How to play' }).tap();
 
     await page.getByRole('button', { name: /^New game/ }).tap();
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
-    await page.getByRole('button', { name: /^Easy\b/ }).tap();
-    await expect(page.getByTestId('setup-board')).toBeVisible();
-    expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
-    await page.getByRole('button', { name: 'Use default setup' }).tap();
+    await page.getByRole('button', { name: /^Easy\b/ }).tap();
     await expect(board(page)).toBeVisible();
 
     // At the start: the whole tabletop fits with no scrolling in either direction.
+    const fits = ['top-bar', 'board-frame', 'token-counts', 'tokens-you', 'tokens-bot', 'turn', 'last-tile', 'menu-button'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
-    await expectInside(page, ['top-bar', 'bot-tray', 'board-frame', 'own-tray', 'menu-button', 'goal-chip']);
+    await expectInside(page, fits);
     expect(await smallTargets(page)).toEqual([]);
 
-    // Play by touch so the constraint is set, then select a token on the board to show its buttons.
-    await trayTokens(page).first().tap();
-    const before = await turnNumber(page);
+    // Take a tile by touch so the last tile shows its emblems; the bot replies.
+    const before = await takeCount(page);
     await glowing(page).first().tap();
-    await expect.poll(() => turnNumber(page)).toBeGreaterThan(before);
+    await expect.poll(() => takeCount(page)).toBeGreaterThan(before);
     await waitForHumanTurn(page);
-    await board(page).locator('[data-owner="A"]').first().tap();
-    await expect(page.getByTestId('token-actions')).toBeVisible();
+    await expect(page.getByTestId('last-tile-terrain')).toBeVisible();
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
-    await expectInside(page, ['top-bar', 'bot-tray', 'board-frame', 'own-tray', 'constraint', 'recharges', 'token-actions']);
+    await expectInside(page, [...fits, 'last-tile-terrain', 'last-tile-symbol']);
     expect(await smallTargets(page)).toEqual([]);
-    await expect(ownTray(page)).toBeVisible();
     await attachScreenshot(page, testInfo, 'phone-layout');
 
     // The menu fits too.
@@ -193,17 +199,23 @@ async function arrowTo(page: Page, cell: string) {
   expect(await focusedCell(page)).toBe(cell);
 }
 
-test('[scenario:keyboard-play] with the keyboard only, the player starts a game, uses the menu and How to Play, deploys a tray token and uses an ability button', async ({ page }, testInfo) => {
+test('[scenario:keyboard-play] with the keyboard only, the player starts a game, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
   await openTitle(page);
 
-  // Start a game: New game, Easy, default setup.
-  await tabTo(page, '[data-testid="new-game"]');
+  // How to Play from the title screen opens with Enter and closes with Escape.
+  await tabTo(page, '[data-testid="open-how-to-play"]');
   await page.keyboard.press('Enter');
-  await tabTo(page, 'button[data-depth="easy"]');
+  await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('open-how-to-play')).toBeFocused();
+
+  // Start a game: New game, then Easy.
+  await tabTo(page, '[data-testid="new-game"]', true);
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('setup-board')).toBeVisible();
-  await tabTo(page, '[data-testid="default-setup"]');
+  await tabTo(page, 'button[data-difficulty="easy"]');
   await page.keyboard.press('Enter');
+  await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('turn')).toHaveText('Your turn');
 
   // The menu opens with Enter and closes with Escape, and focus comes back to its button.
@@ -227,49 +239,34 @@ test('[scenario:keyboard-play] with the keyboard only, the player starts a game,
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('menu-button')).toBeFocused();
 
-  // Select the first tray token with Tab and Space.
-  const first = trayTokens(page).first();
-  const fighter = (await first.getAttribute('data-fighter'))!;
-  await tabTo(page, `[data-testid="own-tray"] button[data-fighter="${fighter}"]`);
-  await page.keyboard.press('Space');
-  await expect(first).toHaveAttribute('aria-pressed', 'true');
-
-  // Into the board, which lands on a glowing cell; arrow keys never leave the 4×4 grid.
-  await tabTo(page, '[data-testid="board"] [data-cell]', true);
-  const target = (await glowing(page).first().getAttribute('data-cell'))!;
-  expect(await focusedCell(page)).toBe(target);
+  // Into the board, which lands on the first glowing tile; arrow keys never leave the 4×4 grid.
+  await tabTo(page, '[data-testid="board"] [data-cell]');
+  const lit = (await readBoard(page)).filter((cell) => cell.glow).map((cell) => cell.cell);
+  expect(await focusedCell(page)).toBe(lit[0]);
   for (let i = 0; i < 5; i += 1) await page.keyboard.press('ArrowDown');
   for (let i = 0; i < 5; i += 1) await page.keyboard.press('ArrowRight');
   expect(await focusedCell(page)).toBe('D4');
   await page.keyboard.press('Home');
   expect(await focusedCell(page)).toBe('A1');
 
-  // Deploy on the glowing cell with Enter.
+  // Enter on an inner tile is refused; Enter on a glowing edge tile takes it.
+  await arrowTo(page, 'B2');
+  await page.keyboard.press('Enter');
+  await expect(refusalToast(page)).toContainText('is not an edge tile');
+  expect(await takeCount(page)).toBe(0);
+  const target = lit[lit.length - 1]!;
   await arrowTo(page, target);
   await page.keyboard.press('Enter');
-  await expect(board(page).locator(`[data-cell="${target}"] [data-fighter="${fighter}"]`)).toHaveCount(1);
-  await expect(trayTokens(page)).toHaveCount(3);
+  await expect(cellAt(page, target)).toHaveAttribute('data-owner', 'you');
+  expect(await takeCount(page)).toBe(1);
   await waitForHumanTurn(page);
-
-  // Select the deployed token with Enter, Tab to its ability button and press it; its targets glow.
-  expect(await focusedCell(page)).toBe(target);
-  await page.keyboard.press('Enter');
-  await expect(board(page).locator(`[data-cell="${target}"]`)).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('Tab');
-  const ability = page.getByTestId('token-actions').getByRole('button', { name: /ability/ });
-  await expect(ability).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(ability).toHaveAttribute('aria-pressed', 'true');
-  const destination = (await glowing(page).first().getAttribute('data-cell'))!;
   await attachScreenshot(page, testInfo, 'keyboard-play');
 
-  // Back on the board, walk to a target and use the ability with Enter.
-  await page.keyboard.press('Shift+Tab');
+  // After the bot's reply, focus is still on the board: walk to a glowing tile and take it with Space.
   expect(await focusedCell(page)).toBe(target);
-  const turn = await turnNumber(page);
-  await arrowTo(page, destination);
-  await page.keyboard.press('Enter');
-  await expect.poll(() => turnNumber(page)).toBe(turn + 1);
-  await expect(board(page).locator(`[data-cell="${destination}"] [data-fighter="${fighter}"]`)).toHaveCount(1);
-  await expect(board(page).locator(`[data-cell="${destination}"] [data-testid="token"]`)).toHaveAttribute('data-charge', '0');
+  const next = (await readBoard(page)).find((cell) => cell.glow)!.cell;
+  await arrowTo(page, next);
+  await page.keyboard.press('Space');
+  await expect(cellAt(page, next)).toHaveAttribute('data-owner', 'you');
+  expect(await takeCount(page)).toBeGreaterThanOrEqual(3);
 });

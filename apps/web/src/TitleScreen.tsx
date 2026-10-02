@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Logo } from './art';
-import { BOT_DEPTHS, depthLabel, type BotDepthId } from './difficulty';
+import { DIFFICULTY_OPTIONS, difficultyLabel, type Difficulty } from './difficulty';
 import { MenuDialog } from './MenuDialog';
 import type { Results } from './results';
 import type { Settings } from './settings';
 import { TAGLINE, TITLE } from './title';
 
 export interface TitleScreenProps {
-  /** The saved unfinished match, if any: its difficulty and turn. */
-  readonly saved: { readonly depth: BotDepthId; readonly turn: number } | null;
+  /** The saved unfinished game, if any: its difficulty and how many tiles were taken. */
+  readonly saved: { readonly difficulty: Difficulty; readonly takes: number } | null;
   readonly results: Results;
   readonly settings: Settings;
   readonly onContinue: () => void;
@@ -18,10 +18,10 @@ export interface TitleScreenProps {
   readonly onSettings: (settings: Settings) => void;
 }
 
-/** The title screen (PRD E2): Continue, New game, How to play, results by difficulty and a settings menu. */
+/** The title screen (PRD E1): Continue, New game, How to play, results by difficulty and a settings menu. */
 export function TitleScreen({ saved, results, settings, onContinue, onNewGame, onHowTo, onResetResults, onSettings }: TitleScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
-  const played = BOT_DEPTHS.some(({ id }) => results[id].wins + results[id].losses + results[id].draws > 0);
+  const played = DIFFICULTY_OPTIONS.some(({ id }) => results[id].wins + results[id].losses + results[id].draws > 0);
   return (
     <main className="title-screen" data-testid="title-screen">
       <div className="hero">
@@ -36,12 +36,14 @@ export function TitleScreen({ saved, results, settings, onContinue, onNewGame, o
         {saved && (
           <button type="button" className="primary" data-testid="continue" onClick={onContinue}>
             Continue
-            <span className="menu-note">{depthLabel(saved.depth)} bot, turn {saved.turn}</span>
+            <span className="menu-note">
+              {difficultyLabel(saved.difficulty)} bot, {saved.takes} {saved.takes === 1 ? 'tile' : 'tiles'} taken
+            </span>
           </button>
         )}
         <button type="button" className={saved ? '' : 'primary'} data-testid="new-game" onClick={onNewGame}>
           New game
-          {saved && <span className="menu-note">replaces the saved match</span>}
+          {saved && <span className="menu-note">replaces the saved game</span>}
         </button>
         <button type="button" data-testid="open-how-to-play" onClick={(event) => onHowTo(event.currentTarget)}>
           How to play
@@ -63,8 +65,8 @@ export function TitleScreen({ saved, results, settings, onContinue, onNewGame, o
             </tr>
           </thead>
           <tbody>
-            {BOT_DEPTHS.map(({ id, label }) => (
-              <tr key={id} data-depth={id} data-wins={results[id].wins} data-losses={results[id].losses} data-draws={results[id].draws}>
+            {DIFFICULTY_OPTIONS.map(({ id, label }) => (
+              <tr key={id} data-difficulty={id} data-wins={results[id].wins} data-losses={results[id].losses} data-draws={results[id].draws}>
                 <th scope="row">{label}</th>
                 <td>{results[id].wins}</td>
                 <td>{results[id].losses}</td>

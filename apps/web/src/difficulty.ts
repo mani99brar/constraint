@@ -1,23 +1,20 @@
-import type { SearchOptions } from '@okiya/bot';
+import type { Difficulty } from '@okiya/bot';
 
-/** Bot strength as search depth (decisions: Easy 1, Normal 2, Hard 3), passed to `chooseAction`. */
-export const BOT_DEPTHS = [
-  { id: 'easy', label: 'Easy', maxDepth: 1, description: 'Looks at its own actions only.' },
-  { id: 'normal', label: 'Normal', maxDepth: 2, description: 'Also weighs your best reply.' },
-  { id: 'hard', label: 'Hard', maxDepth: 3, description: 'Searches one move further ahead.' },
-] as const;
+export type { Difficulty };
 
-export type BotDepthId = (typeof BOT_DEPTHS)[number]['id'];
-export const DEFAULT_DEPTH: BotDepthId = 'normal';
+/** The bot's three strengths (PRD B2), passed to `chooseTake` as they are. */
+export const DIFFICULTY_OPTIONS = [
+  { id: 'easy', label: 'Easy', description: 'Takes a winning tile when it sees one, otherwise any legal tile.' },
+  { id: 'normal', label: 'Normal', description: 'Looks three takes ahead and avoids handing you a win.' },
+  { id: 'hard', label: 'Hard', description: 'Plays perfectly from its second take on.' },
+] as const satisfies readonly { readonly id: Difficulty; readonly label: string; readonly description: string }[];
 
-export function isBotDepth(value: unknown): value is BotDepthId {
-  return BOT_DEPTHS.some((depth) => depth.id === value);
+export const DEFAULT_DIFFICULTY: Difficulty = 'normal';
+
+export function isDifficulty(value: unknown): value is Difficulty {
+  return DIFFICULTY_OPTIONS.some((option) => option.id === value);
 }
 
-export function searchOptionsFor(depth: BotDepthId): SearchOptions {
-  return { maxDepth: BOT_DEPTHS.find((candidate) => candidate.id === depth)!.maxDepth };
-}
-
-export function depthLabel(depth: BotDepthId): string {
-  return BOT_DEPTHS.find((candidate) => candidate.id === depth)!.label;
+export function difficultyLabel(difficulty: Difficulty): string {
+  return DIFFICULTY_OPTIONS.find((option) => option.id === difficulty)!.label;
 }

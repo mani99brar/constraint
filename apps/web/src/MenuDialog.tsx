@@ -17,19 +17,19 @@ function Switch({ label, on, hint, onToggle, testId }: { label: string; on: bool
 }
 
 export interface MenuDialogProps {
-  /** "Menu" during a match, "Settings" on the title screen. */
+  /** "Menu" during a game, "Settings" on the title screen. */
   readonly title: string;
   readonly settings: Settings;
   readonly onSettings: (settings: Settings) => void;
   readonly onClose: () => void;
   readonly returnFocusTo: HTMLElement | null;
-  /** Present during a match: How to Play opens over the menu. */
+  /** Present during a game: How to Play opens over the menu. */
   readonly onHowTo?: ((opener: HTMLElement) => void) | undefined;
-  /** Present during a match: back to the title screen; the saved match is kept. */
+  /** Present during a game: back to the title screen; the saved game is kept. */
   readonly onQuit?: (() => void) | undefined;
 }
 
-/** The menu (PRD T4): resume, How to Play, the highlight and sound settings, and quit to title. */
+/** The menu (PRD U4): resume, How to Play, the highlight and sound settings, and quit to title. */
 export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
   return (
@@ -48,24 +48,24 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
         )}
         <section aria-label="Settings" className="menu-settings" data-testid="menu-settings">
           <Switch
-            label="Move highlights"
+            label="Highlight legal tiles"
             testId="setting-highlights"
             on={settings.highlights}
-            hint="Cells and tokens glow where you can act. Illegal moves are explained either way."
+            hint="The tiles you may take glow on your turn. A refused take is explained either way."
             onToggle={() => onSettings({ ...settings, highlights: !settings.highlights })}
           />
           <Switch
             label="Sound"
             testId="setting-sound"
             on={settings.sound}
-            hint="Short effects for actions, traps and the result. Everything they signal is also shown."
+            hint="Short effects for takes, refusals and the result. Everything they signal is also shown."
             onToggle={() => onSettings({ ...settings, sound: !settings.sound })}
           />
         </section>
         {onQuit && (
           <button type="button" data-testid="menu-quit" onClick={onQuit}>
             Quit to title
-            <span className="menu-note">Your match is saved; Continue picks it up.</span>
+            <span className="menu-note">Your game is saved; Continue picks it up.</span>
           </button>
         )}
       </div>

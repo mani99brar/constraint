@@ -14,7 +14,7 @@ export interface DialogProps {
 }
 
 /**
- * A modal dialog (PRD U3): focus moves in on open and stays inside, Escape or a tap on the
+ * A modal dialog (PRD U4, U7): focus moves in on open and stays inside, Escape or a tap on the
  * backdrop closes it, and focus returns to the button that opened it.
  */
 export function Dialog({ titleId, className, testId, onClose, returnFocusTo, initialFocus, children }: DialogProps) {

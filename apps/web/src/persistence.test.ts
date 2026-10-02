@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SPEC_V0_2 } from '@okiya/content';
-import { applyAction, listLegalActions, matchLogOf, type MatchState } from '@okiya/rules';
+import { gameLogOf } from '@okiya/game';
 import { App } from './App';
-import { botStep, createMatch, prepare } from './match';
+import { afterTakes, endings } from './playouts.test-helper';
 import { emptyResults, loadResults, outcomeOf, recordResult, resetResults, RESULTS_KEY } from './results';
-import { clearSavedMatch, loadSavedMatch, restoreSavedMatch, SAVE_KEY, SAVE_VERSION, saveMatch } from './save';
+import { clearSavedGame, loadSavedGame, restoreSavedGame, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from './settings';
-import { defaultHumanSetup } from './setup';
 import type { KeyValueStorage } from './storage';
 
 function memoryStorage(): KeyValueStorage & { readonly data: Map<string, string> } {
@@ -33,74 +31,77 @@ const throwing: KeyValueStorage = {
   },
 };
 
-/** A match a few actions in: the human plays its first legal action, the bot replies. */
-function playedMatch(): MatchState {
-  let state = createMatch(prepare(12), defaultHumanSetup(12, SPEC_V0_2), 77);
-  for (let i = 0; i < 6 && !state.result; i += 1) {
-    if (state.activePlayer === 'B') state = botStep(state, state.turn, { maxDepth: 1 });
-    else {
-      const applied = applyAction(state, listLegalActions(state)[0]!);
-      if (!applied.ok) throw new Error('refused');
-      state = applied.state;
-    }
-  }
-  return state;
-}
+describe('saved game (PRD L2)', () => {
+  const state = afterTakes(12, 5);
 
-describe('saved match (PRD E6)', () => {
-  const state = playedMatch();
-
-  it('round-trips through storage to the same state and difficulty', () => {
-    expect(state.history.length).toBeGreaterThanOrEqual(4);
+  it('round-trips through storage as its game log and difficulty, to the same state', () => {
+    expect(state.takes).toHaveLength(5);
     const storage = memoryStorage();
-    expect(saveMatch(storage, state, 'hard')).toBe(true);
-    const saved = loadSavedMatch(storage);
-    expect(saved?.depth).toBe('hard');
+    expect(saveGame(storage, state, 'hard')).toBe(true);
+    expect(JSON.parse(storage.data.get(SAVE_KEY)!)).toEqual({ version: SAVE_VERSION, difficulty: 'hard', log: gameLogOf(state) });
+    const saved = loadSavedGame(storage);
+    expect(saved?.difficulty).toBe('hard');
     expect(saved?.state).toEqual(state);
   });
 
-  it('removes the save once the match is finished, and on request', () => {
-    const storage = memoryStorage();
-    saveMatch(storage, state, 'easy');
-    saveMatch(storage, { ...state, result: { kind: 'draw', reason: 'repetition' } }, 'easy');
-    expect(storage.data.has(SAVE_KEY)).toBe(false);
-    saveMatch(storage, state, 'easy');
-    clearSavedMatch(storage);
-    expect(loadSavedMatch(storage)).toBeNull();
+  it('round-trips a game before its first take, whoever starts', () => {
+    for (const starter of ['A', 'B'] as const) {
+      const fresh = afterTakes(3, 0, starter);
+      const storage = memoryStorage();
+      saveGame(storage, fresh, 'easy');
+      expect(loadSavedGame(storage)?.state).toEqual(fresh);
+    }
   });
 
-  const good = JSON.stringify({ version: SAVE_VERSION, depth: 'normal', log: matchLogOf(state) });
-  const log = matchLogOf(state);
+  it('removes the save once the game is finished, and on request', () => {
+    const storage = memoryStorage();
+    saveGame(storage, state, 'easy');
+    saveGame(storage, endings().blockade, 'easy');
+    expect(storage.data.has(SAVE_KEY)).toBe(false);
+    saveGame(storage, state, 'easy');
+    clearSavedGame(storage);
+    expect(loadSavedGame(storage)).toBeNull();
+  });
+
+  const log = gameLogOf(state);
+  const good = JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log });
+  const finished = endings().line;
   const corrupt: Record<string, string> = {
-    'not JSON': '{"version":1,',
+    'not JSON': '{"version":2,',
     truncated: good.slice(0, Math.floor(good.length / 2)),
-    'an unknown save version': JSON.stringify({ version: SAVE_VERSION + 1, depth: 'normal', log }),
-    'an unknown log format': JSON.stringify({ version: SAVE_VERSION, depth: 'normal', log: { ...log, formatVersion: 99 } }),
-    'an unknown difficulty': JSON.stringify({ version: SAVE_VERSION, depth: 'extreme', log }),
-    'other rules': JSON.stringify({ version: SAVE_VERSION, depth: 'normal', log: { ...log, preset: { ...log.preset, id: 'spec-v0.1' } } }),
-    'a refused action': JSON.stringify({
-      version: SAVE_VERSION,
+    'an unknown save version': JSON.stringify({ version: SAVE_VERSION + 1, difficulty: 'normal', log }),
+    'a fighter-game save': JSON.stringify({
+      version: 1,
       depth: 'normal',
-      log: { ...log, actions: [...log.actions, { kind: 'move', fighter: 'A:Nobody', cell: 'Z9' }] },
+      log: { formatVersion: 1, seed: 7, preset: { id: 'spec-v0.2', version: 1 }, scenario: null, setups: {}, actions: [{ kind: 'deploy', fighter: 'A:Pusher', cell: 'A1' }] },
     }),
-    'malformed actions': JSON.stringify({ version: SAVE_VERSION, depth: 'normal', log: { ...log, actions: [{ kind: 'deploy' }] } }),
-    'a null log': JSON.stringify({ version: SAVE_VERSION, depth: 'normal', log: null }),
+    'an unknown log format': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, formatVersion: 99 } }),
+    'an unknown difficulty': JSON.stringify({ version: SAVE_VERSION, difficulty: 'extreme', log }),
+    'an illegal take': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, takes: [...log.takes, log.takes[0]] } }),
+    'a cell that does not exist': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, takes: ['Z9'] } }),
+    'an inner opening take': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, takes: ['B2'] } }),
+    'a bad seed': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, seed: -1 } }),
+    'a bad starter': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, starter: 'C' } }),
+    'a finished game': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: gameLogOf(finished) }),
+    'a null log': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: null }),
     'a bare number': '42',
+    'null': 'null',
   };
 
   it.each(Object.keys(corrupt))('discards a save with %s, without throwing', (name) => {
     const storage = memoryStorage();
     storage.data.set(SAVE_KEY, corrupt[name]!);
-    expect(() => restoreSavedMatch(corrupt[name]!)).not.toThrow();
-    expect(loadSavedMatch(storage)).toBeNull();
+    expect(() => restoreSavedGame(corrupt[name]!)).not.toThrow();
+    expect(restoreSavedGame(corrupt[name]!)).toBeNull();
+    expect(loadSavedGame(storage)).toBeNull();
     expect(storage.data.has(SAVE_KEY)).toBe(false);
   });
 
   it('keeps the game playable when storage throws', () => {
-    expect(saveMatch(throwing, state, 'normal')).toBe(false);
-    expect(loadSavedMatch(throwing)).toBeNull();
-    expect(clearSavedMatch(throwing)).toBe(false);
-    expect(loadSavedMatch(null)).toBeNull();
+    expect(saveGame(throwing, state, 'normal')).toBe(false);
+    expect(loadSavedGame(throwing)).toBeNull();
+    expect(clearSavedGame(throwing)).toBe(false);
+    expect(loadSavedGame(null)).toBeNull();
     const html = renderToStaticMarkup(createElement(App, { storage: throwing }));
     expect(html).toContain('New game');
     expect(html).toContain('How to play');
@@ -110,14 +111,14 @@ describe('saved match (PRD E6)', () => {
 
   it('offers Continue on the title screen when a save restores', () => {
     const storage = memoryStorage();
-    saveMatch(storage, state, 'hard');
+    saveGame(storage, state, 'hard');
     const html = renderToStaticMarkup(createElement(App, { storage }));
     expect(html).toContain('data-testid="continue"');
-    expect(html).toContain(`Hard bot, turn ${state.turn}`);
+    expect(html).toContain('Hard bot, 5 tiles taken');
   });
 });
 
-describe('results by difficulty (PRD E7)', () => {
+describe('results by difficulty (PRD E5)', () => {
   it('counts wins, losses and draws per difficulty, and resets to zero', () => {
     const storage = memoryStorage();
     expect(loadResults(storage)).toEqual(emptyResults());
@@ -134,10 +135,17 @@ describe('results by difficulty (PRD E7)', () => {
     expect(loadResults(storage)).toEqual(emptyResults());
   });
 
+  it('keeps the counts stored before rules v1.0', () => {
+    const storage = memoryStorage();
+    storage.data.set(RESULTS_KEY, JSON.stringify({ easy: { wins: 3, losses: 1, draws: 0 }, normal: { wins: 0, losses: 2, draws: 1 }, hard: { wins: 0, losses: 4, draws: 0 } }));
+    expect(recordResult(storage, 'normal', 'draw').normal).toEqual({ wins: 0, losses: 2, draws: 2 });
+    expect(loadResults(storage).easy).toEqual({ wins: 3, losses: 1, draws: 0 });
+  });
+
   it('reads the human’s outcome from the result', () => {
-    expect(outcomeOf({ kind: 'win', winner: 'A', reason: 'objective' }, 'A')).toBe('win');
-    expect(outcomeOf({ kind: 'win', winner: 'B', reason: 'blockade' }, 'A')).toBe('loss');
-    expect(outcomeOf({ kind: 'draw', reason: 'repetition' }, 'A')).toBe('draw');
+    expect(outcomeOf({ kind: 'win', winner: 'A', by: 'line', cells: ['A1', 'A2', 'A3', 'A4'] }, 'A')).toBe('win');
+    expect(outcomeOf({ kind: 'win', winner: 'B', by: 'blockade' }, 'A')).toBe('loss');
+    expect(outcomeOf({ kind: 'draw', by: 'full-board' }, 'A')).toBe('draw');
   });
 
   it('treats corrupt results as zero and survives storage that throws', () => {
@@ -152,7 +160,7 @@ describe('results by difficulty (PRD E7)', () => {
   });
 });
 
-describe('settings (PRD E4, E5)', () => {
+describe('settings (PRD E3, E4)', () => {
   it('defaults to highlights and sound on, and remembers changes', () => {
     const storage = memoryStorage();
     expect(loadSettings(storage)).toEqual({ highlights: true, sound: true });

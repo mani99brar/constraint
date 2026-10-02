@@ -1,6 +1,10 @@
 /// <reference lib="dom" />
 // The DOM library types the callbacks that run in the page (addInitScript, evaluate).
-import { expect, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, type Page, type TestInfo } from '@playwright/test';
+import { newGame, type Player } from '@okiya/game';
+
+/** The bot's reply may take up to 10 seconds with the real bot (decisions), after its short pause. */
+export const BOT_REPLY_MS = 11_000;
 
 export async function attachScreenshot(page: Page, testInfo: TestInfo, id: string) {
   const path = testInfo.outputPath(`${id}.png`);
@@ -8,10 +12,31 @@ export async function attachScreenshot(page: Page, testInfo: TestInfo, id: strin
   await testInfo.attach(`screenshot:${id}`, { path, contentType: 'image/png' });
 }
 
+/** The first value of the mulberry32 generator `fixRandomness` puts in the page. */
+function firstRandomValue(initial: number): number {
+  const state = (initial + 0x6d2b79f5) >>> 0;
+  let t = state;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return (t ^ (t >>> 14)) >>> 0;
+}
+
+/**
+ * The smallest randomness for `fixRandomness` whose first game is started by `starter`: the page's
+ * first random value is the game's seed (`generateSeed`), and the seed chooses the first starter.
+ */
+export function randomnessWhere(starter: Player): number {
+  for (let initial = 1; ; initial += 1) if (newGame({ seed: firstRandomValue(initial) >>> 1 }).starter === starter) return initial;
+}
+
+/** Randomness under which the human (A) starts the first game, and under which the bot (B) does. */
+export const HUMAN_STARTS = randomnessWhere('A');
+export const BOT_STARTS = randomnessWhere('B');
+
 /**
  * Replaces the page's `crypto.getRandomValues` with a seeded generator (mulberry32) before any
- * script runs, so the match seed and the bot's private seed are fixed by the test, never by an
- * app parameter. The first value is the match seed, the second the bot's private seed.
+ * script runs, so every game's seed, and with it the first starter, is fixed by the test, never by
+ * an app parameter.
  */
 export async function fixRandomness(page: Page, seed: number) {
   await page.addInitScript((initial: number) => {
@@ -43,16 +68,6 @@ export async function skipFirstVisitHowTo(page: Page) {
   await page.addInitScript(() => window.localStorage.setItem('okiya.howto.seen', 'true'));
 }
 
-/**
- * With randomness 1 the human opens; deploying the first tray token on the first glowing cell
- * (the Teleporter on A1) makes the Easy bot reply into one of the player's default setup traps,
- * and on the next turn the Teleporter has a legal ability but no move.
- */
-export const HUMAN_STARTS = 1;
-
-/** With randomness 6 the human opens, and after the first deploy and the reply the Teleporter has both moves and its ability. */
-export const MOVES_AND_ABILITY = 6;
-
 /** Opens the title screen with fixed randomness and How to Play already seen. */
 export async function openTitle(page: Page, seed: number = HUMAN_STARTS) {
   await fixRandomness(page, seed);
@@ -61,105 +76,134 @@ export async function openTitle(page: Page, seed: number = HUMAN_STARTS) {
   await expect(page.getByTestId('title-screen')).toBeVisible();
 }
 
-/** From the title screen: New game, then a difficulty; the setup screen opens. */
-export async function openSetup(page: Page, depth = 'Easy') {
+/** From the title screen: New game, then a difficulty (never Hard in tests); the board appears. */
+export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal' = 'Easy') {
   await page.getByRole('button', { name: /^New game/ }).click();
-  await page.getByRole('button', { name: new RegExp(`^${depth}\\b`) }).click();
-  await expect(page.getByTestId('setup-board')).toBeVisible();
+  await page.getByRole('button', { name: new RegExp(`^${difficulty}\\b`) }).click();
+  await expect(board(page)).toBeVisible();
 }
 
-/** Opens the title screen and starts a match with the default setup. */
-export async function startMatch(page: Page, { seed = HUMAN_STARTS, depth = 'Easy' }: { seed?: number; depth?: string } = {}) {
+/** Opens the title screen and starts a game, by default with the human starting against Easy. */
+export async function startGame(page: Page, { seed = HUMAN_STARTS, difficulty = 'Easy' }: { seed?: number; difficulty?: 'Easy' | 'Normal' } = {}) {
   await openTitle(page, seed);
-  await openSetup(page, depth);
-  await page.getByRole('button', { name: 'Use default setup' }).click();
-  await expect(page.getByTestId('board')).toBeVisible();
+  await chooseDifficulty(page, difficulty);
 }
 
 export const isEdge = (cell: string) => /^[AD]/.test(cell) || /[14]$/.test(cell);
 
 export const board = (page: Page) => page.getByTestId('board');
+export const cellAt = (page: Page, cell: string) => page.locator(`[data-testid="board"] [data-cell="${cell}"]`);
 export const glowing = (page: Page) => page.locator('[data-testid="board"] [data-cell][data-glow="true"]');
-export const ownTray = (page: Page) => page.getByTestId('own-tray');
-export const trayTokens = (page: Page) => page.locator('[data-testid="own-tray"] button[data-fighter]');
+export const refusalToast = (page: Page) => page.locator('[data-testid="toast"][data-kind="refusal"]');
 export const toasts = (page: Page) => page.getByTestId('toast');
 
-/** The engine's turn number, which grows by one per action; it is not shown on screen. */
-export async function turnNumber(page: Page): Promise<number> {
-  return Number(await page.getByTestId('turn').getAttribute('data-turn'));
+/** The number of takes so far, from the top bar's turn element. */
+export async function takeCount(page: Page): Promise<number> {
+  return Number(await page.getByTestId('turn').getAttribute('data-takes'));
 }
 
-export async function cellsOf(locator: Locator): Promise<string[]> {
-  return locator.evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-cell')!));
-}
-
-/** Waits until the human may act again, or the match has ended. */
+/** Waits until the human may take again, or the game has ended; the bot's reply may take up to 10 s. */
 export async function waitForHumanTurn(page: Page) {
   await expect
     .poll(
-      async () => (await page.getByTestId('turn').getAttribute('data-active')) === 'A' || (await page.getByTestId('end-screen').count()) > 0,
-      { timeout: 15_000 },
+      async () => (await page.getByTestId('turn').getAttribute('data-human-turn')) === 'true' || (await page.getByTestId('end-screen').count()) > 0,
+      { timeout: BOT_REPLY_MS },
     )
     .toBe(true);
 }
 
-/** Deploys the first tray token onto the first glowing cell; returns the cell and the fighter id. */
-export async function deployFirst(page: Page) {
-  const token = trayTokens(page).first();
-  const fighter = (await token.getAttribute('data-fighter'))!;
-  await token.click();
-  const target = glowing(page).first();
-  await expect(target).toBeVisible();
-  const cell = (await target.getAttribute('data-cell'))!;
-  const before = await turnNumber(page);
-  await target.click();
-  await expect.poll(() => turnNumber(page)).toBeGreaterThan(before);
-  return { cell, fighter };
+/** One cell as the page shows it. */
+export interface PageCell {
+  readonly cell: string;
+  readonly terrain: string;
+  readonly symbol: string;
+  readonly owner: string | null;
+  readonly glow: boolean;
+  readonly last: boolean;
+  readonly winning: boolean;
+  readonly edge: boolean;
+  readonly label: string;
+}
+
+/** Every cell of the board, read from the page. */
+export async function readBoard(page: Page): Promise<PageCell[]> {
+  return board(page)
+    .locator('[data-cell]')
+    .evaluateAll((elements) =>
+      elements.map((element) => ({
+        cell: element.getAttribute('data-cell')!,
+        terrain: element.getAttribute('data-terrain')!,
+        symbol: element.getAttribute('data-symbol')!,
+        owner: element.getAttribute('data-owner'),
+        glow: element.getAttribute('data-glow') === 'true',
+        last: element.getAttribute('data-last') === 'true',
+        winning: element.getAttribute('data-winning') === 'true',
+        edge: element.getAttribute('data-edge') === 'true',
+        label: element.getAttribute('aria-label')!,
+      })),
+    );
+}
+
+/** The last tile from the top bar, or null at the opening. */
+export async function readLastTile(page: Page): Promise<{ terrain: string; symbol: string } | null> {
+  const lastTile = page.getByTestId('last-tile');
+  const terrain = await lastTile.getAttribute('data-terrain');
+  const symbol = await lastTile.getAttribute('data-symbol');
+  return terrain && symbol ? { terrain, symbol } : null;
 }
 
 /**
- * Plays one glowing legal action: the first token that glows (board in reading order, then the
- * tray), then its first glowing cell, or else its ability button and the first glowing target,
- * or its recharge button.
+ * The legal takes worked out from the page alone (spec §3): the free edge tiles at the opening,
+ * else the free tiles sharing the last tile's terrain or symbol.
  */
-export async function playGlowingAction(page: Page) {
-  const before = await turnNumber(page);
-  await page.locator('[data-testid="board"] [data-cell][data-playable], [data-testid="own-tray"] button[data-playable]').first().click();
-  // A selected token shows glowing cells, an on-token button, or both.
-  await expect(page.locator('[data-testid="board"] [data-glow="true"], [data-testid="token-actions"]').first()).toBeVisible();
-  if ((await glowing(page).count()) === 0) {
-    const button = page.getByTestId('token-actions').getByRole('button').first();
-    const kind = await button.getAttribute('data-kind');
-    await button.click();
-    if (kind === 'ability') await glowing(page).first().click();
-  } else {
-    await glowing(page).first().click();
-  }
-  await expect.poll(() => turnNumber(page)).toBeGreaterThan(before);
+export async function legalFromPage(page: Page): Promise<{ legal: string[]; illegal: PageCell[]; cells: PageCell[] }> {
+  const cells = await readBoard(page);
+  const last = await readLastTile(page);
+  const free = cells.filter((cell) => cell.owner === null);
+  const isLegal = (cell: PageCell) => (last ? cell.terrain === last.terrain || cell.symbol === last.symbol : cell.edge);
+  return { legal: free.filter(isLegal).map((cell) => cell.cell), illegal: free.filter((cell) => !isLegal(cell)), cells };
 }
 
-/** Everything the board, the trays and the top bar show, for comparing two moments of a match. */
-export async function matchSnapshot(page: Page) {
-  return page.evaluate(() => {
+/** Takes the first glowing tile and waits until the take is made; returns its cell. */
+export async function takeGlowing(page: Page): Promise<string> {
+  const target = glowing(page).first();
+  await expect(target).toBeVisible();
+  const cell = (await target.getAttribute('data-cell'))!;
+  const before = await takeCount(page);
+  await target.click();
+  await expect.poll(() => takeCount(page)).toBeGreaterThan(before);
+  await expect(cellAt(page, cell)).toHaveAttribute('data-owner', 'you');
+  return cell;
+}
+
+/** Plays glowing takes, with the bot's replies, until the end screen shows; fails after `maxTakes` takes in all. */
+export async function playToEnd(page: Page, maxTakes = 20) {
+  const end = page.getByTestId('end-screen');
+  for (;;) {
+    await waitForHumanTurn(page);
+    if (await end.isVisible()) return;
+    const takes = await takeCount(page);
+    if (takes >= maxTakes) throw new Error(`The game did not end within ${maxTakes} takes.`);
+    await takeGlowing(page);
+  }
+}
+
+/** Everything the board and the top bar show, for comparing two moments of a game. */
+export async function gameSnapshot(page: Page) {
+  const cells = await readBoard(page);
+  return page.evaluate((boardCells) => {
     const attr = (selector: string, name: string) => document.querySelector(selector)?.getAttribute(name) ?? null;
     return {
-      cells: [...document.querySelectorAll('[data-testid="board"] [data-cell]')].map((cell) => ({
-        cell: cell.getAttribute('data-cell'),
-        tile: `${cell.getAttribute('data-terrain')}-${cell.getAttribute('data-symbol')}`,
-        owner: cell.getAttribute('data-owner'),
-        trap: cell.getAttribute('data-own-trap'),
-        label: cell.getAttribute('aria-label'),
-      })),
-      tokens: [...document.querySelectorAll('[data-testid="board"] [data-testid="token"]')].map((token) => token.getAttribute('data-label')),
-      tray: [...document.querySelectorAll('[data-testid="own-tray"] button')].map((button) => button.getAttribute('aria-label')),
-      botTray: attr('[data-testid="bot-tray"]', 'data-count'),
-      constraint: `${attr('[data-testid="constraint"]', 'data-terrain')}-${attr('[data-testid="constraint"]', 'data-symbol')}`,
-      constraintText: document.querySelector('[data-testid="constraint"]')?.textContent ?? null,
-      turn: attr('[data-testid="turn"]', 'data-turn'),
-      active: attr('[data-testid="turn"]', 'data-active'),
-      recharges: `${attr('[data-testid="recharges"]', 'data-a')}/${attr('[data-testid="recharges"]', 'data-b')}`,
+      cells: boardCells,
+      tokens: document.querySelectorAll('[data-testid="board"] [data-testid="token"]').length,
+      lastTile: `${attr('[data-testid="last-tile"]', 'data-terrain')}-${attr('[data-testid="last-tile"]', 'data-symbol')}`,
+      lastTileText: document.querySelector('[data-testid="last-tile"]')?.textContent ?? null,
+      turn: document.querySelector('[data-testid="turn"]')?.textContent ?? null,
+      toMove: attr('[data-testid="turn"]', 'data-to-move'),
+      takes: attr('[data-testid="turn"]', 'data-takes'),
+      counts: `${attr('[data-testid="tokens-you"]', 'data-left')}/${attr('[data-testid="tokens-bot"]', 'data-left')}`,
     };
-  });
+  }, cells);
 }
 
 /** Every visible text element whose contrast against its effective background is below 4.5:1. */

@@ -1,9 +1,8 @@
-import { FIGHTERS, OBJECTIVES } from '@okiya/content';
-import type { ObjectiveId } from '@okiya/rules';
+import { EDGE_CELLS, type CellId, type Tile } from '@okiya/game';
 import { readText, writeJson, type KeyValueStorage } from './storage';
 import { TITLE } from './title';
 
-/** The `localStorage` key that remembers the How to Play dialog was seen once (PRD E3). */
+/** The `localStorage` key that remembers the How to Play dialog was seen once (PRD E2). */
 export const HOWTO_SEEN_KEY = 'okiya.howto.seen';
 /** The playtest build's guide dismissal, honoured so its players are not shown the dialog again. */
 const LEGACY_GUIDE_KEY = 'okiya.guide.dismissed';
@@ -18,85 +17,132 @@ export function rememberHowToSeen(storage: KeyValueStorage | null): boolean {
   return writeJson(storage, HOWTO_SEEN_KEY, true);
 }
 
-/** The objective in words, from its `summary` in `@okiya/content`. */
-export function objectiveSummary(id: ObjectiveId): string {
-  return OBJECTIVES.find((objective) => objective.id === id)?.summary ?? id;
+/** How a cell of a small board diagram is drawn: a token, a mark, or both. */
+export interface DiagramCell {
+  readonly token?: 'you' | 'bot';
+  /** `glow` a tile you may take, `shape` part of a winning shape, `last` the last take, `dead` a tile that does not match. */
+  readonly mark?: 'glow' | 'shape' | 'last' | 'dead';
 }
 
-export function objectiveName(id: ObjectiveId): string {
-  return OBJECTIVES.find((objective) => objective.id === id)?.name ?? id;
+export interface Diagram {
+  readonly id: string;
+  readonly caption: string;
+  readonly cells: Readonly<Partial<Record<CellId, DiagramCell>>>;
 }
 
 export interface HowToSection {
-  readonly id: 'objective' | 'matching' | 'turn' | 'fighters' | 'traps' | 'ending';
+  readonly id: 'taking' | 'opening' | 'shapes' | 'blockade' | 'draw';
   readonly title: string;
   readonly paragraphs: readonly string[];
+  readonly diagrams: readonly Diagram[];
 }
 
+const you: DiagramCell = { token: 'you' };
+const bot: DiagramCell = { token: 'bot' };
+const shape: DiagramCell = { token: 'you', mark: 'shape' };
+const dead: DiagramCell = { mark: 'dead' };
+
+function cells(entries: Record<string, DiagramCell>): Partial<Record<CellId, DiagramCell>> {
+  return entries as Partial<Record<CellId, DiagramCell>>;
+}
+
+/** The small board diagrams of How to Play; `howto.test.ts` checks them against the rules. */
+export const DIAGRAMS = {
+  opening: {
+    id: 'opening',
+    caption: 'The first take: any of the 12 edge tiles.',
+    cells: Object.fromEntries(EDGE_CELLS.map((cell) => [cell, { mark: 'glow' } satisfies DiagramCell])),
+  },
+  line: {
+    id: 'line',
+    caption: 'A line: a row, a column or a long diagonal, like this one.',
+    cells: cells({ A1: shape, B2: shape, C3: shape, D4: shape, A2: bot, B3: bot, C1: bot }),
+  },
+  square: {
+    id: 'square',
+    caption: 'A square: any 2×2 block of the board.',
+    cells: cells({ B2: shape, B3: shape, C2: shape, C3: shape, A2: bot, C4: bot, D1: bot }),
+  },
+  blockade: {
+    id: 'blockade',
+    caption: 'You took C2 last. None of the three tiles left matches it, so the bot cannot take and you win.',
+    cells: cells({
+      A1: you, A3: you, B2: you, C4: you, D1: you, D3: you,
+      C2: { token: 'you', mark: 'last' },
+      A2: bot, A4: bot, B1: bot, B3: bot, C1: bot, D2: bot,
+      B4: dead, C3: dead, D4: dead,
+    }),
+  },
+  draw: {
+    id: 'draw',
+    caption: 'A full board with no line and no square: a draw.',
+    cells: cells({
+      A1: you, A2: you, A3: bot, A4: bot,
+      B1: bot, B2: bot, B3: you, B4: you,
+      C1: you, C2: you, C3: bot, C4: bot,
+      D1: bot, D2: bot, D3: you, D4: you,
+    }),
+  },
+} as const satisfies Record<string, Diagram>;
+
 /**
- * How to Play (PRD E3): the objective, matching, a turn, every fighter, traps and how a match
- * ends. Fighter and objective texts come from `@okiya/content`, so they never drift from the data.
+ * How to Play (PRD E2): taking a matching tile, the edge opening, the line and square shapes, the
+ * blockade and the full-board draw, each with a small board diagram.
  */
-export function howToSections(objective: ObjectiveId = 'Square'): HowToSection[] {
-  const displacers = FIGHTERS.filter((fighter) => fighter.displacer).map((fighter) => fighter.name);
+export function howToSections(): HowToSection[] {
   return [
     {
-      id: 'objective',
-      title: `Goal: ${objectiveName(objective)}`,
+      id: 'taking',
+      title: 'Take a matching tile',
       paragraphs: [
-        `${TITLE} is a duel on a 4×4 board against a bot. Each side secretly picks four fighters from a pool of ${FIGHTERS.length}.`,
-        `${objectiveSummary(objective)} Any of the nine 2×2 blocks counts, and you win the moment yours is complete. The bot has the same goal, so block its squares too.`,
+        `${TITLE} is played against a bot on a 4×4 board of 16 tiles. Every tile shows a terrain (Forest, Water, Mountain or Desert) and a symbol (Sun, Moon, Star or Wave).`,
+        'On your turn, take one tile: one of your tokens goes on its cell. The tile you took becomes the last tile, shown in the top bar, and the next take must match it, with the same terrain or the same symbol; one is enough. It may come from anywhere on the board.',
+        'Tap a tile, or move to it with the arrow keys and press Enter. With highlights on, the tiles you may take glow. A tile that does not match is refused with the reason.',
       ],
+      diagrams: [],
     },
     {
-      id: 'matching',
-      title: 'Matching',
+      id: 'opening',
+      title: 'The first take',
       paragraphs: [
-        'Every tile has a terrain (Forest, Water, Mountain or Desert) and a symbol (Sun, Moon, Star or Wave). The tile you act on becomes the constraint for your opponent.',
-        'A tile matches the constraint when it has the same terrain or the same symbol; one is enough. With the constraint Forest or Moon, a Forest–Sun tile and a Water–Moon tile both match, a Desert–Star tile does not.',
-        'The very first deploy of a match has no constraint: it goes on any cell of the outside edge.',
+        'There is no last tile yet, so the first take of a game may be any tile on the edge of the board. The first game’s starter is chosen at random; Play again lets the other player start.',
       ],
+      diagrams: [DIAGRAMS.opening],
     },
     {
-      id: 'turn',
-      title: 'Your turn',
+      id: 'shapes',
+      title: 'Lines and squares',
       paragraphs: [
-        'Take exactly one action. Deploy a reserve fighter on an empty matching cell; move a fighter one step up, down, left or right to an empty matching cell; recharge a spent fighter standing on a matching tile (three recharges per match); or spend a fighter’s charge on its ability.',
-        'Tap one of your tokens, in your tray or on the board, and the cells where it can go glow. When its ability or a recharge is legal, a button appears beside the token; choose the ability and its targets glow. Tap the token again, or off the board, to cancel.',
-        'Highlights can be turned off in the menu: then nothing glows, and an illegal choice is still refused with the reason.',
+        'Each of you has 8 tokens. You win at once when four of your tokens make a line, a full row, a full column or one of the two long diagonals, or fill a 2×2 square.',
       ],
+      diagrams: [DIAGRAMS.line, DIAGRAMS.square],
     },
     {
-      id: 'fighters',
-      title: 'Fighters',
+      id: 'blockade',
+      title: 'Blockade',
       paragraphs: [
-        `Every fighter starts with one charge and spends it to use its ability. ${displacers.join(', ')} displace other fighters, yours or the bot’s.`,
+        'When no tile left on the board matches the last tile, the next player cannot take one and loses: whoever took last wins. Steering the bot into such a dead end is the heart of the game.',
       ],
+      diagrams: [DIAGRAMS.blockade],
     },
     {
-      id: 'traps',
-      title: 'Traps',
-      paragraphs: [
-        'Before the match each side hides two traps on the board. An enemy fighter that enters your trap loses its charge, or is locked for a turn if it has none. Your own traps never affect you.',
-        'You see only your own traps, as small marks on their cells. The bot’s show up when they spring, with a short notice at the top of the board.',
-      ],
-    },
-    {
-      id: 'ending',
-      title: 'How a match ends',
-      paragraphs: [
-        'A completed square wins at once; if both squares complete together, it is a draw. A player with no legal action on their turn loses. The third time the same position comes back, the match is drawn.',
-      ],
+      id: 'draw',
+      title: 'Full board',
+      paragraphs: ['When all 16 cells hold tokens and nobody has made a line or a square, the game is a draw.'],
+      diagrams: [DIAGRAMS.draw],
     },
   ];
 }
 
-/** Example tiles for the matching illustration, against the constraint Forest or Moon. */
-export const MATCHING_EXAMPLE = {
-  constraint: { terrain: 'Forest', symbol: 'Moon' },
+/** Example tiles for the matching illustration, against the last tile Forest–Moon. */
+export const MATCHING_EXAMPLE: {
+  readonly lastTile: Tile;
+  readonly tiles: readonly (Tile & { readonly matches: boolean; readonly why: string })[];
+} = {
+  lastTile: { terrain: 'Forest', symbol: 'Moon' },
   tiles: [
     { terrain: 'Forest', symbol: 'Sun', matches: true, why: 'same terrain' },
     { terrain: 'Water', symbol: 'Moon', matches: true, why: 'same symbol' },
     { terrain: 'Desert', symbol: 'Star', matches: false, why: 'neither' },
   ],
-} as const;
+};

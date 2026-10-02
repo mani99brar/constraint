@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CELLS, type CellId } from '@okiya/rules';
+import { ALL_CELLS, type CellId } from '@okiya/game';
 import { boardKey, isActivationKey, nextCell, tabStop } from './keyboard';
 
-describe('keyboard focus on the board (PRD U3)', () => {
+describe('keyboard focus on the board (PRD U7)', () => {
   it('moves focus one cell per arrow key', () => {
     expect(nextCell('B2', 'ArrowUp')).toBe('A2');
     expect(nextCell('B2', 'ArrowDown')).toBe('C2');
@@ -48,7 +48,7 @@ describe('keyboard focus on the board (PRD U3)', () => {
     expect(boardKey('C2', 'a')).toBeNull();
   });
 
-  it('treats Enter and Space as selecting a focused fighter too', () => {
+  it('treats Enter and Space as taking the focused tile', () => {
     expect(isActivationKey('Enter')).toBe(true);
     expect(isActivationKey(' ')).toBe(true);
     expect(isActivationKey('Escape')).toBe(false);

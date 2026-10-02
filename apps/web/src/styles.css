@@ -72,18 +72,7 @@ p {
   font-size: 0.88rem;
 }
 
-.tag {
-  display: inline-block;
-  margin: 0 4px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-/* Buttons: every one at least 44 px in both dimensions (PRD U2). */
+/* Buttons: every one at least 44 px in both dimensions (PRD U6). */
 
 button {
   min-width: 44px;
@@ -99,7 +88,7 @@ button {
   transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 
-button:hover:not(:disabled):not([aria-disabled='true']):not(.cell):not(.tray-token):not(.token-action) {
+button:hover:not(:disabled):not([aria-disabled='true']):not(.cell) {
   background: var(--surface-2);
 }
 
@@ -142,24 +131,10 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
-.refusal {
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 2px solid var(--refusal);
-  color: var(--refusal);
-  font-weight: 600;
-}
-
-.refusal p {
-  margin: 0;
-}
-
 /* Pages other than the match */
 
 .title-screen,
-.new-game,
-.setup {
+.new-game {
   max-width: 1040px;
   margin: 0 auto;
   padding: 16px 16px 40px;
@@ -265,87 +240,10 @@ button:disabled {
   padding: 12px 16px;
 }
 
-/* Setup */
-
-.objective {
-  max-width: 70ch;
-}
-
-.setup-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.setup-step .board-frame {
-  --board: min(100%, 420px);
-}
-
-.pool {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.pool-token {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
-  text-align: left;
-  font-weight: 500;
-}
-
-.pool-token .token {
-  position: relative;
-  inset: auto;
-  translate: none;
-  width: 52px;
-  flex: none;
-}
-
-.pool-token.picked {
-  border-color: var(--own);
-  box-shadow: 0 0 0 2px var(--own);
-}
-
-.pool-text {
-  display: grid;
-  gap: 2px;
-}
-
-.pool-text .help {
-  font-size: 0.78rem;
-  line-height: 1.25;
-}
-
-.empty-slot {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 2px dashed var(--border);
-}
-
-.setup-buttons {
-  margin: 12px 0 6px;
-}
-
-.setup .refusal {
-  margin-bottom: 8px;
-}
-
-@media (max-width: 760px) {
-  .setup-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* The match: a tabletop that fills the screen (PRD §5.9). */
+/* The game: a tabletop that fills the screen (PRD U1). */
 
 .match {
-  --chrome: 250px;
+  --chrome: 170px;
   --board: min(100vw - 24px, 100dvh - var(--chrome), 680px);
   display: flex;
   flex-direction: column;
@@ -364,12 +262,12 @@ button:disabled {
   padding: 10px 12px 14px;
 }
 
-/* Top bar */
+/* Top bar (PRD U2) */
 
 .top-bar {
   display: grid;
   grid-template-columns: auto auto 1fr auto;
-  grid-template-areas: 'turn constraint recharges buttons';
+  grid-template-areas: 'turn last counts menu';
   align-items: center;
   gap: 6px 16px;
   padding: 8px 14px;
@@ -377,13 +275,17 @@ button:disabled {
   border-bottom: 1px solid var(--border);
 }
 
-.turn {
+.turn-area {
   grid-area: turn;
+  display: grid;
+  min-width: 9.5em;
+}
+
+.turn {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0;
-  min-width: 9.5em;
   font-weight: 700;
   font-size: 1.05rem;
 }
@@ -395,6 +297,13 @@ button:disabled {
   border-radius: 50%;
   background: var(--own);
   box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--own);
+}
+
+.starter {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .spinner {
@@ -412,15 +321,15 @@ button:disabled {
   }
 }
 
-.constraint {
-  grid-area: constraint;
+.last-tile {
+  grid-area: last;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.constraint-emblem,
-.constraint-opening {
+.last-tile-emblem,
+.last-tile-opening {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -431,66 +340,56 @@ button:disabled {
   font-weight: 600;
 }
 
-.constraint-opening {
+.last-tile-opening {
   padding: 4px 12px;
 }
 
-.constraint-emblem .glyph,
-.constraint-emblem .emblem-svg {
+.last-tile-emblem .glyph,
+.last-tile-emblem .emblem-svg {
   width: 26px;
   height: 26px;
 }
 
-.recharges {
-  grid-area: recharges;
+.token-counts {
+  grid-area: counts;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: 6px 14px;
 }
 
-.pip-row {
+.token-count {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.pip-side {
-  min-width: 2.2em;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.pip {
-  width: 12px;
-  height: 12px;
+.count-token {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 2px solid var(--muted);
+  border: 2px solid var(--own-rim);
+  background: var(--own);
+  color: var(--on-own);
 }
 
-.pip.on {
-  background: var(--legal);
-  border-color: var(--legal);
+.count-token.bot {
+  border: 2px dashed var(--enemy-rim);
+  background: var(--enemy);
+  color: var(--on-enemy);
 }
 
-.pip-row[data-side='Bot'] .pip.on {
-  border-radius: 2px;
-  transform: rotate(45deg) scale(0.85);
-}
-
-.top-bar-buttons {
-  grid-area: buttons;
-  display: flex;
-  gap: 8px;
-  justify-self: end;
-}
-
-.goal-chip {
-  border-radius: 999px;
-  padding: 6px 14px;
-  white-space: nowrap;
+.count-token .token-mark {
+  width: 70%;
+  height: 70%;
 }
 
 .menu-button {
+  grid-area: menu;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -498,35 +397,33 @@ button:disabled {
 
 @media (max-width: 860px) {
   .match {
-    --chrome: 300px;
+    --chrome: 210px;
   }
 
   .top-bar {
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      'turn buttons'
-      'constraint recharges';
+      'turn menu'
+      'last counts';
     padding: 6px 10px;
   }
 
-  .recharges {
+  .token-counts {
     flex-direction: column;
     align-items: flex-end;
     justify-self: end;
   }
 
-  .turn {
+  .turn-area {
     min-width: 0;
+  }
+
+  .turn {
     font-size: 1rem;
   }
 
-  .goal-chip,
   .menu-button {
     padding: 6px 10px;
-  }
-
-  .goal-chip {
-    font-size: 0.88rem;
   }
 
   .menu-text {
@@ -538,22 +435,18 @@ button:disabled {
     white-space: nowrap;
   }
 
-  .top-bar-buttons {
-    gap: 6px;
-  }
-
-  .constraint-emblem {
+  .last-tile-emblem {
     padding-right: 8px;
     gap: 4px;
     font-size: 0.9rem;
   }
 
-  .constraint-opening {
+  .last-tile-opening {
     font-size: 0.85rem;
   }
 }
 
-/* The board: a wooden frame of square tiles (PRD T6). */
+/* The board: a wooden frame of square tiles (PRD U1). */
 
 .board-frame {
   position: relative;
@@ -686,43 +579,7 @@ button:disabled {
   }
 }
 
-.trap-marker {
-  position: absolute;
-  top: 5%;
-  right: 5%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26%;
-  min-width: 20px;
-  aspect-ratio: 1;
-  border-radius: 6px;
-  background: var(--trap);
-  color: var(--on-trap);
-}
-
-.trap-marker .glyph {
-  width: 80%;
-  height: 80%;
-}
-
-.trap-marker.inspected {
-  border: 2px dashed var(--on-trap);
-}
-
-.trap-query {
-  position: absolute;
-  right: -2px;
-  bottom: -6px;
-  padding: 0 4px;
-  border-radius: 6px;
-  background: var(--trap);
-  color: var(--on-trap);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-/* Glowing cells: a ring and a centre dot, so colour is never the only signal (PRD R3, U1). */
+/* Glowing cells: a ring and a centre dot, so colour is never the only signal (PRD R2, U1). */
 
 .cell.glow {
   box-shadow:
@@ -742,14 +599,20 @@ button:disabled {
   background: color-mix(in srgb, var(--legal) 25%, transparent);
 }
 
-/* The last move stays marked until the next action (PRD T1, U6). */
+/* A taken cell shows the taker's token on a bare slot instead of its tile (PRD U1). */
 
-.cell.recent {
+.cell.taken {
+  background: var(--slot);
+}
+
+/* The last take stays marked until the next one (PRD I2). */
+
+.cell.last {
   outline: 3px dashed var(--recent);
   outline-offset: -6px;
 }
 
-.recent-mark {
+.last-mark {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -759,235 +622,55 @@ button:disabled {
   border-bottom: 18px solid var(--recent);
 }
 
-/* Tokens: round, with an emblem, a name or initials, a charge pip and lock or shield badges (PRD T5). */
+/* The winning shape's four cells: a thick ring and a corner star (PRD R4). */
+
+.cell.winning {
+  box-shadow:
+    inset 0 0 0 5px var(--win),
+    0 0 0 3px var(--win);
+}
+
+.winning-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-right: 20px solid transparent;
+  border-top: 20px solid var(--win);
+}
+
+/* Tokens: round, in two colours, a solid rim and a ring for yours, a notched rim and a diamond for the bot's (PRD U1). */
 
 .token {
-  container-type: inline-size;
   position: absolute;
   top: 50%;
   left: 50%;
   translate: -50% -50%;
-  width: 62%;
-  min-width: 44px;
+  width: 66%;
+  min-width: 36px;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 3px solid var(--own-rim);
+  border: 4px solid var(--own-rim);
   background: var(--own);
   color: var(--on-own);
   box-shadow: 0 3px 6px color-mix(in srgb, var(--frame-edge) 45%, transparent);
-  transition: scale 150ms ease, box-shadow 150ms ease;
-}
-
-.cell .token {
-  top: 57%;
-  left: 57%;
-  width: 58%;
 }
 
 .token.bot {
-  border: 3px dashed var(--enemy-rim);
+  border: 4px dashed var(--enemy-rim);
   background: var(--enemy);
   color: var(--on-enemy);
 }
 
-.token-face {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  width: 100%;
+.token-mark {
+  width: 52%;
+  height: 52%;
 }
 
-.fighter-emblem {
-  width: 46%;
-  height: auto;
-  aspect-ratio: 1;
-}
-
-.token.spent .fighter-emblem {
-  opacity: 0.55;
-}
-
-.token-name,
-.token-initials {
-  max-width: 92%;
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.1;
-  text-align: center;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.token-initials {
-  display: none;
-}
-
-@container (max-width: 70px) {
-  .token-name {
-    display: none;
-  }
-
-  .token-initials {
-    display: block;
-  }
-}
-
-.token-charge {
-  position: absolute;
-  top: 2%;
-  right: 2%;
-  width: 22%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  background: var(--surface);
-}
-
-.token-charge.full {
-  background: var(--legal);
-  border-color: var(--surface);
-}
-
-.token-badge {
-  position: absolute;
-  bottom: -4%;
-  width: 34%;
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-}
-
-.token-badge .glyph {
-  width: 70%;
-  height: 70%;
-}
-
-.token-badge.lock {
-  left: -6%;
-  background: var(--trap);
-  color: var(--on-trap);
-}
-
-.token-badge.shield {
-  right: -6%;
-  background: var(--primary);
-  color: var(--on-primary);
-}
-
-.cell[data-playable] .token,
-.tray-token[data-playable] .token {
-  box-shadow:
-    0 0 0 3px var(--surface),
-    0 0 0 6px var(--legal);
-}
-
-.cell.selected .token,
-.tray-token.selected .token {
-  scale: 1.08;
-  box-shadow:
-    0 0 0 3px var(--surface),
-    0 0 0 6px var(--focus);
-}
-
-.face-down {
-  position: relative;
-  inset: auto;
-  translate: none;
-  width: 44px;
-  color: var(--on-enemy);
-}
-
-.token-back-art {
-  width: 70%;
-  height: 70%;
-}
-
-/* On-token buttons (PRD T3): just off the token's cell, never over another cell's centre. */
-
-.token-actions {
-  position: absolute;
-  z-index: 5;
-  bottom: calc(100% - 14px);
-  left: 50%;
-  translate: -50% 0;
-  display: flex;
-  gap: 6px;
-}
-
-.token-actions.row-0 {
-  bottom: auto;
-  top: calc(100% - 14px);
-}
-
-.token-actions.column-0 {
-  left: 0;
-  translate: none;
-}
-
-.token-actions.column-3 {
-  left: auto;
-  right: 0;
-  translate: none;
-}
-
-.token-action {
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 2px solid var(--surface);
-  background: var(--primary);
-  color: var(--on-primary);
-  font-size: 0.85rem;
-  white-space: nowrap;
-  box-shadow: 0 3px 8px color-mix(in srgb, var(--frame-edge) 50%, transparent);
-}
-
-.token-action:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.token-action[aria-pressed='true'] {
-  background: var(--on-primary);
-  color: var(--primary);
-  border-color: var(--primary);
-}
-
-/* Trays (PRD T2) */
-
-.tray {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--frame) 22%, var(--table));
-  border: 2px solid color-mix(in srgb, var(--frame-edge) 40%, transparent);
-}
-
-.bot-tray {
-  gap: 6px;
-  padding: 4px 12px;
-}
-
-.tray-token {
-  position: relative;
-  width: 60px;
-  height: 60px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-}
-
-.tray-token .token {
-  width: 100%;
-}
-
-/* Toasts (PRD T1): over the top of the board, never taking a tap. */
+/* Toasts (PRD U3): over the top of the board, never taking a tap. */
 
 .toasts {
   position: absolute;
@@ -1029,31 +712,22 @@ button:disabled {
   }
 }
 
-/* End of the match */
+/* End of the game: a card under the board, which keeps the winning shape in view (PRD R4). */
 
-.end-screen {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: color-mix(in srgb, var(--bg) 55%, transparent);
-  overflow: auto;
+.match.ended {
+  --chrome: 330px;
 }
 
-.end-card {
+.end-screen {
   width: min(100%, 560px);
-  max-height: 100%;
-  overflow: auto;
-  padding: 20px;
+  padding: 14px 18px;
   border-radius: 18px;
   background: var(--surface);
   border: 3px solid var(--frame);
 }
 
-.end-card ul {
-  padding-left: 20px;
+.end-screen h2 {
+  font-size: 1.3rem;
 }
 
 /* Dialogs */
@@ -1179,36 +853,83 @@ button:disabled {
   font-weight: 600;
 }
 
-.howto-fighters {
-  display: grid;
-  gap: 8px;
-  padding: 0;
-  list-style: none;
-}
-
-.howto-fighters li {
+.diagrams {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 12px 20px;
 }
 
-.howto-token {
+.diagram {
   display: grid;
-  flex: none;
+  gap: 6px;
+  width: 180px;
+  margin: 0;
+}
+
+.diagram figcaption {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.mini-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--frame);
+}
+
+.mini-cell {
+  position: relative;
+  display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.mini-cell.glow {
+  box-shadow: inset 0 0 0 3px var(--legal);
+}
+
+.mini-cell.shape {
+  box-shadow: inset 0 0 0 3px var(--win);
+}
+
+.mini-cell.last {
+  outline: 2px dashed var(--recent);
+  outline-offset: -3px;
+}
+
+.mini-cell.dead {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.mini-token {
+  display: grid;
+  place-items: center;
+  width: 70%;
+  aspect-ratio: 1;
   border-radius: 50%;
+  border: 2px solid var(--own-rim);
   background: var(--own);
   color: var(--on-own);
-  border: 2px solid var(--own-rim);
 }
 
-.howto-token .fighter-emblem {
+.mini-token.bot {
+  border: 2px dashed var(--enemy-rim);
+  background: var(--enemy);
+  color: var(--on-enemy);
+}
+
+.mini-token .token-mark {
   width: 70%;
+  height: 70%;
 }
 
-/* Reduced motion: no animation or transition at all (PRD U6). */
+/* Reduced motion: no animation or transition at all (PRD U8). */
 
 @media (prefers-reduced-motion: reduce) {
   *,

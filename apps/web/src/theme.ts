@@ -1,5 +1,5 @@
 /**
- * Theme tokens (PRD U1, U4): one light and one dark set, applied as CSS custom properties that
+ * Theme tokens (PRD U1, U5): one light and one dark set, applied as CSS custom properties that
  * follow the system colour scheme. `styles.css` uses only these variables for colour.
  */
 
@@ -39,8 +39,8 @@ export const TOKEN_NAMES = [
   'recent',
   'focus',
   'refusal',
-  'trap',
-  'on-trap',
+  'win',
+  'slot',
   'toast',
   'on-toast',
   'toast-alert',
@@ -87,8 +87,8 @@ export const LIGHT: Theme = {
   recent: '#7c3aed',
   focus: '#0f172a',
   refusal: '#9f1239',
-  trap: '#7f1d1d',
-  'on-trap': '#ffffff',
+  win: '#0e7490',
+  slot: '#d9c7a3',
   toast: '#1f2a1f',
   'on-toast': '#fbfaf5',
   'toast-alert': '#8c1d2c',
@@ -131,8 +131,8 @@ export const DARK: Theme = {
   recent: '#c4b5fd',
   focus: '#f8fafc',
   refusal: '#fda4af',
-  trap: '#fecaca',
-  'on-trap': '#3b0a0a',
+  win: '#67e8f9',
+  slot: '#2e241a',
   toast: '#e9efe4',
   'on-toast': '#121712',
   'toast-alert': '#fda4af',
@@ -161,7 +161,6 @@ export const TEXT_PAIRS: readonly (readonly [TokenName, TokenName])[] = [
   ['on-frame', 'frame'],
   ['refusal', 'surface'],
   ['refusal', 'bg'],
-  ['on-trap', 'trap'],
   ['on-toast', 'toast'],
   ['on-toast-alert', 'toast-alert'],
 ];

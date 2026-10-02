@@ -28,7 +28,7 @@ function fakeAudio() {
   };
 }
 
-describe('sound effects (PRD E5)', () => {
+describe('sound effects (PRD E4)', () => {
   it('stays silent and creates no audio before any user gesture', () => {
     const audio = fakeAudio();
     const sound = createSoundPlayer({ createContext: audio.createContext, muted: () => false });

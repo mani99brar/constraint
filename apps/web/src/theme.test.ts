@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, DARK, LIGHT, TEXT_PAIRS, themeStyleSheet, TOKEN_NAMES } from './theme';
 
-describe('theme tokens (PRD U4)', () => {
+describe('theme tokens (PRD U5)', () => {
   it('computes WCAG contrast ratios', () => {
     expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 5);
     expect(contrastRatio('#ffffff', '#ffffff')).toBeCloseTo(1, 5);
@@ -18,10 +18,11 @@ describe('theme tokens (PRD U4)', () => {
     }
   });
 
-  it('keeps the four terrains and both sides distinct in both sets', () => {
+  it('keeps the four terrains, both sides and the three board marks distinct in both sets', () => {
     for (const theme of [LIGHT, DARK]) {
       expect(new Set([theme.forest, theme.water, theme.mountain, theme.desert]).size).toBe(4);
       expect(theme.own).not.toBe(theme.enemy);
+      expect(new Set([theme.legal, theme.recent, theme.win]).size).toBe(3);
     }
   });
 
