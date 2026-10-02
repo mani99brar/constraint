@@ -59,9 +59,9 @@ Players who know Okiya or are learning it. They want the game to feel like the b
 
 - **B1.** The bot chooses one legal take per turn from the public state.
 - **B2.** Easy looks one take ahead, Normal three, and Hard plays perfectly from the second take of a game on: its take always keeps the best game value available. At the opening Hard may stop at a position budget.
-- **B3.** Every difficulty takes an immediate win, and avoids a take that lets the opponent win at once whenever another take exists.
+- **B3.** Every difficulty takes an immediate win. Easy otherwise picks any legal take; Normal and Hard avoid a take that lets the opponent win at once whenever another take exists.
 - **B4.** The bot is deterministic for a given state and difficulty. Equal takes are broken by a value derived from the game's seed, so games vary.
-- **B5.** A bot take returns within one second on a mid-range laptop, and is shown after a short pause so the player can follow it.
+- **B5.** A bot take returns within one second on a mid-range laptop, and is shown after a short pause so the player can follow it. Tests prove the bound by counting searched positions against a budget, not with a clock.
 
 ### 5.5 Games and saves
 
@@ -101,7 +101,7 @@ Players who know Okiya or are learning it. They want the game to feel like the b
 
 - Every rule of spec §1–§4 has a unit test that names the spec section it proves, including the order of the end checks.
 - Determinism: a game log replays to the same final state every run; a malformed or illegal log is refused with a structured reason, never an exception.
-- The bot only ever returns legal takes; a test proves each difficulty takes an immediate win, and a reference solver in the tests proves Hard perfect after the opening.
+- The bot only ever returns legal takes; a test proves each difficulty takes an immediate win, and a reference solver in the tests proves Hard perfect after the opening. Hard never loses a game it can still save at its first take after the opening.
 - Browser tests cover the title screen, a new game, the match screen, the opening take, a legal turn and a refused take, the highlight setting, How to Play, resuming a game, a full game to the end screen, the starter alternating, sound, the dark theme, the phone layout and keyboard play.
 
 ## 8. Delivery plan

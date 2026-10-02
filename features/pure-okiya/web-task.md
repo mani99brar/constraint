@@ -22,7 +22,7 @@ Move the client in `apps/web` to the rules v1.0 of Constraint: Okiya's rules, pl
 - Taking a tile: tap or click a tile, or move the keyboard focus to it and press Enter. With highlights on, the legal tiles glow; with them off, nothing glows and the takes and refusals work the same. The end screen names the result and how it happened (line, square, blockade or a full-board draw), counts it in the results for that difficulty, and offers Play again. Play again starts a new game with the other player starting. The very first game's starter is random.
 - The New game flow is title, then difficulty (Easy, Normal or Hard), then the board. Save the unfinished game as its game log and difficulty after every take. Restore it with `parseGameLog` and `replayGame`, and discard it safely when either refuses. Keep the results by difficulty, the highlight and sound settings, the reduced-motion handling, both themes, the StrictMode-safe bot scheduling with its short pause, and port 5493.
 - Logic lives in plain TypeScript modules with unit tests, and React components stay thin.
-- Browser tests fix the page's randomness through `addInitScript`, read tiles and tokens from the page, never wait on an animation, and never depend on which tile the bot takes: the merged candidate runs them against the real bot.
+- Browser tests fix the page's randomness through `addInitScript`, read tiles and tokens from the page, never wait on an animation, and never depend on which tile the bot takes: the merged candidate runs them against the real bot. They choose Easy or Normal, never Hard, and allow the bot's reply up to 10 seconds, because the real bot searches longer than the thin one.
 
 ## Acceptance
 
