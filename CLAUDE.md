@@ -3,7 +3,7 @@
 An original two-player tactical board game on a 4×4 board of terrain/symbol tiles. The rules are `docs/game-spec.md`, the playtest protocol is `docs/paper-simulation.md`, the first playtest's results are `docs/paper-test-01.md`, and the product requirements are `docs/prd.md`; section numbers (§) below refer to the spec.
 
 - Stack: TypeScript everywhere, npm workspaces. A pure rules engine (`packages/rules`) and typed content (`packages/content`) are shared by a bot (`packages/bot`) and the React browser client (`apps/web`). There is no server.
-- Build and test commands: none yet; the skeleton feature fills in this line.
+- Build and test commands: install `npm ci`; dev server `npm run dev` (port 5493); `npm run typecheck`; unit tests `npm run test:unit`; browser tests `npx --no-install playwright test --config=tests/e2e/playwright.config.ts`; build `npm run build`.
 - Authoritative logic (`packages/rules`, `packages/content`) never imports DOM, rendering or network libraries, timers, wall-clock time or `Math.random`. Randomness comes from a seeded generator kept in the state.
 - Hidden information (§4): objectives, reserve identities and live trap locations reach a player only through the rules engine's per-player view.
 - Boundaries: never change `docs/game-spec.md`, `docs/paper-simulation.md`, `docs/paper-test-01.md`, `docs/prd.md` or anything under `features/`.

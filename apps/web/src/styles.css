@@ -1,0 +1,152 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1d1d1f;
+  background: #f4f1ea;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.start-form {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+}
+
+.start-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+button,
+input {
+  font: inherit;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.match-header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.turn {
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.constraint {
+  font-weight: 600;
+}
+
+.layout {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(72px, 110px));
+  gap: 4px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 6px;
+  border: 3px solid transparent;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cell.highlighted {
+  border-color: #f2c200;
+  outline: 2px dashed #1d1d1f;
+}
+
+.cell.selected {
+  border-color: #1d1d1f;
+}
+
+.terrain-forest {
+  background: #b9d9a5;
+}
+
+.terrain-water {
+  background: #a9cbe8;
+}
+
+.terrain-mountain {
+  background: #c9c3bb;
+}
+
+.terrain-desert {
+  background: #ecd9a0;
+}
+
+.cell-id {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.tile {
+  font-size: 0.85rem;
+}
+
+.token {
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.token.own {
+  background: #1d4ed8;
+  color: white;
+}
+
+.token.enemy {
+  background: #b91c1c;
+  color: white;
+}
+
+.trap {
+  font-size: 0.7rem;
+  text-decoration: underline dotted;
+}
+
+.side {
+  flex: 1;
+  min-width: 240px;
+}
+
+.side button {
+  margin: 0 8px 8px 0;
+}
+
+.side button.selected {
+  outline: 3px solid #1d4ed8;
+}
+
+.refusal {
+  color: #9f1239;
+  font-weight: 600;
+}
+
+.log {
+  padding-left: 20px;
+}
