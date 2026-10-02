@@ -1,41 +1,10 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { attachScreenshot, deployFirst, isEdge, openSetup as openSetupAt, startMatch as startMatchAt } from './helpers';
 
 // The seed only fixes who starts: with seed 1 the human opens. Everything else is read from the page.
 const HUMAN_STARTS_SEED = 1;
-
-async function attachScreenshot(page: Page, testInfo: TestInfo, id: string) {
-  const path = testInfo.outputPath(`${id}.png`);
-  await page.screenshot({ path, fullPage: true });
-  await testInfo.attach(`screenshot:${id}`, { path, contentType: 'image/png' });
-}
-
-/** Opens the setup screen of a match; every match starts there. */
-async function openSetup(page: Page) {
-  await page.goto(`/?seed=${HUMAN_STARTS_SEED}`);
-  await page.getByRole('button', { name: 'Start match' }).click();
-  await expect(page.getByTestId('setup-board')).toBeVisible();
-}
-
-/** Starts a match through the setup screen's "Use default setup" button. */
-async function startMatch(page: Page) {
-  await openSetup(page);
-  await page.getByRole('button', { name: 'Use default setup' }).click();
-  await expect(page.getByTestId('board')).toBeVisible();
-}
-
-const isEdge = (cell: string) => /^[AD]/.test(cell) || /[14]$/.test(cell);
-
-/** Deploys the first reserve fighter onto the first highlighted cell; returns the cell and the fighter's name. */
-async function deployFirst(page: Page) {
-  const button = page.getByTestId('reserve').getByRole('button').first();
-  const name = (await button.textContent())!;
-  await button.click();
-  const target = page.locator('[data-cell][data-highlighted="true"]').first();
-  await expect(target).toBeVisible();
-  const cell = (await target.getAttribute('data-cell'))!;
-  await target.click();
-  return { cell, name };
-}
+const openSetup = (page: Page) => openSetupAt(page, { seed: HUMAN_STARTS_SEED });
+const startMatch = (page: Page) => startMatchAt(page, { seed: HUMAN_STARTS_SEED });
 
 test('[scenario:start-match] the landing page starts a match against the bot', async ({ page }, testInfo) => {
   await startMatch(page);

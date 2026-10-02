@@ -1,4 +1,4 @@
-import { chooseAction, chooseSetup } from '@okiya/bot';
+import { chooseAction, chooseSetup, type SearchOptions } from '@okiya/bot';
 import { SPEC_V0_2, TILES } from '@okiya/content';
 import {
   applyAction,
@@ -9,6 +9,8 @@ import {
   type MatchState,
   type PlayerId,
   type PreparedMatch,
+  type Preset,
+  type Scenario,
   type Setup,
 } from '@okiya/rules';
 
@@ -45,9 +47,12 @@ export function chooseSeed(text: string, generate: () => number = generateSeed):
   return seed === null ? { ok: false, error: 'The seed must be a whole number from 0 to 4294967295.' } : { ok: true, seed };
 }
 
-/** Setup phase one (spec §5 step 1): the board the seed reveals, before either side chooses. */
-export function prepare(seed: number): PreparedMatch {
-  return prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed });
+/**
+ * Setup phase one (spec §5 step 1): the board the seed reveals, before either side chooses. A
+ * scenario's board replaces the shuffle; its rosters, traps and starter apply at the start (PRD S4).
+ */
+export function prepare(seed: number, preset: Preset = SPEC_V0_2, scenario?: Scenario): PreparedMatch {
+  return prepareMatch(scenario ? { tiles: TILES, preset, seed, scenario } : { tiles: TILES, preset, seed });
 }
 
 /**
@@ -68,9 +73,9 @@ export function botToMove(state: MatchState): boolean {
  * The bot's move for the scheduled turn, chosen from its own player view. Returns the state
  * unchanged when the turn has already moved on, which keeps StrictMode's double effects safe.
  */
-export function botStep(state: MatchState, scheduledTurn: number = state.turn): MatchState {
+export function botStep(state: MatchState, scheduledTurn: number = state.turn, options: SearchOptions = {}): MatchState {
   if (!botToMove(state) || state.turn !== scheduledTurn) return state;
   const view = playerView(state, BOT);
-  const applied = applyAction(state, chooseAction(view, listLegalActions(state)));
+  const applied = applyAction(state, chooseAction(view, listLegalActions(state), options));
   return applied.ok ? applied.state : state;
 }

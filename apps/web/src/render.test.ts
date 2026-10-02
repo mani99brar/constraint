@@ -1,19 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SPEC_V0_2 } from '@okiya/content';
+import { FIGHTERS, OBJECTIVES, SPEC_V0_2 } from '@okiya/content';
 import { ALL_CELLS, playerView, type FighterState, type PlayerView } from '@okiya/rules';
+import { MatchScreen } from './MatchScreen';
+import { SetupScreen } from './SetupScreen';
 import { Board } from './Board';
 import { EndScreen } from './EndScreen';
 import { createMatch, HUMAN, prepare } from './match';
 import { defaultHumanSetup } from './setup';
-import { cellAccessibleName } from './text';
+import { cellAccessibleName, fighterHelp } from './text';
 
 function decode(html: string): string {
   return html.replaceAll('&#x27;', "'").replaceAll('&amp;', '&').replaceAll('&quot;', '"');
 }
 
-const running = playerView(createMatch(prepare(5), defaultHumanSetup(5, SPEC_V0_2), 11), HUMAN);
+const runningState = createMatch(prepare(5), defaultHumanSetup(5, SPEC_V0_2), 11);
+const running = playerView(runningState, HUMAN);
 
 // Hand-built: no match in this worktree reaches an end with traps triggered or removed (PRD R6).
 const finished: PlayerView = {
@@ -101,5 +104,38 @@ describe('board accessible names (PRD U3)', () => {
     expect(html).toContain(`aria-label="B3, ${b3.terrain}–${b3.symbol}, your Pusher, charged"`);
     expect(html).toContain(`bot's Swapper, spent"`);
     expect(html).toContain(', your trap"');
+  });
+});
+
+describe('objective and fighter help in words (PRD U7)', () => {
+  const square = OBJECTIVES.find((objective) => objective.id === 'Square')!;
+  const setupHtml = decode(renderToStaticMarkup(createElement(SetupScreen, { prepared: prepare(5), onStart: () => {}, onLeave: () => {} })));
+  const matchHtml = decode(
+    renderToStaticMarkup(createElement(MatchScreen, { initialState: runningState, depth: 'normal', onLeave: () => {} })),
+  );
+
+  it('explains the player’s objective from its summary on the setup and match screens', () => {
+    expect(setupHtml).toContain(`Your objective: Square.</strong> ${square.summary}`);
+    expect(matchHtml).toContain(`Your objective: Square.</strong> ${square.summary}`);
+  });
+
+  it('takes every fighter’s help text from FIGHTERS', () => {
+    for (const fighter of FIGHTERS) {
+      expect(fighterHelp(fighter.type)).toBe(fighter.summary);
+      expect(setupHtml).toContain(fighter.summary);
+    }
+    for (const type of defaultHumanSetup(5, SPEC_V0_2).roster) {
+      expect(matchHtml).toContain(`data-help="${type}"`);
+      expect(matchHtml).toContain(FIGHTERS.find((fighter) => fighter.type === type)!.summary);
+    }
+  });
+
+  it('renders none of the bot’s reserve, traps or objective while the match runs (PRD I4)', () => {
+    const botSetup = runningState.setups.B;
+    for (const type of botSetup.roster) expect(matchHtml).not.toContain(`B:${type}`);
+    const trapCells = [...matchHtml.matchAll(/data-cell="([A-D][1-4])"[^>]*data-own-trap="true"/g)].map((match) => match[1]);
+    expect(trapCells.sort()).toEqual([...runningState.setups.A.traps].sort());
+    expect(matchHtml).not.toContain('Bot roster');
+    expect(matchHtml).not.toContain('bot Square');
   });
 });

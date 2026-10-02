@@ -4,7 +4,7 @@ import { presetRows } from './text';
 /** Rules reference (PRD I3): spec §6–§9 in brief, and the active preset's values. */
 export function RulesPanel({ preset }: { preset: Preset }) {
   return (
-    <section aria-label="Rules" data-testid="rules" data-preset={preset.id}>
+    <section aria-label="Rules" data-testid="rules" data-preset={preset.id} className="panel rules">
       <h2>Rules</h2>
       <ul>
         <li>Matching (§6): the chosen tile must share the constraint's terrain or its symbol.</li>
@@ -16,7 +16,7 @@ export function RulesPanel({ preset }: { preset: Preset }) {
           Traps (§8): an enemy entering a trapped cell loses its charge, or is locked if it has none. Your own traps
           never affect you.
         </li>
-        <li>Fighters (§9): see each fighter's summary in the setup pool. You win with all four in one 2×2 square.</li>
+        <li>Fighters (§9): each fighter's ability is described next to its button. You win with all four in one 2×2 square.</li>
       </ul>
       <dl className="preset-values">
         {presetRows(preset).map((row) => (

@@ -1,4 +1,5 @@
 import type { PlayerId, PlayerView } from '@okiya/rules';
+import { objectiveSummary } from './guide';
 import { describeResult, describeTrap, fighterName } from './text';
 
 /** The end screen (PRD R6): the result, then both objectives, both rosters and every trap. */
@@ -12,6 +13,7 @@ export function EndScreen({ view, human }: { view: PlayerView; human: PlayerId }
       <p data-testid="objectives">
         Objectives: you {reveal.objectives[human]}, bot {reveal.objectives[bot]}
       </p>
+      <p className="muted">{objectiveSummary(reveal.objectives[human])}</p>
       <p data-testid="roster-human">Your roster: {reveal.rosters[human].map(fighterName).join(', ')}</p>
       <p data-testid="roster-bot">Bot roster: {reveal.rosters[bot].map(fighterName).join(', ')}</p>
       <h3>Every trap</h3>

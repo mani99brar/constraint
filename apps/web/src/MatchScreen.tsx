@@ -1,47 +1,77 @@
 import { useState } from 'react';
-import type { Action, CellId, FighterId, MatchState, PlayerId, PlayerView } from '@okiya/rules';
+import type { Action, CellId, FighterId, FighterState, MatchState, PlayerId, PlayerView } from '@okiya/rules';
 import { Board } from './Board';
 import { EndScreen } from './EndScreen';
-import { describeEvents } from './events';
+import { describeEvents, inspectedOwnTraps, recentAction } from './events';
+import { objectiveSummary } from './guide';
+import { SymbolIcon, TerrainIcon } from './icons';
 import { BOT, HUMAN } from './match';
+import { PresetBadge } from './PresetBadge';
 import { RulesPanel } from './RulesPanel';
 import { highlightedCells, optionsFor, resolveCellClick, type CellChoice } from './selection';
+import { depthLabel, type BotDepthId } from './start';
 import {
-  constraintText,
   describeLogEntry,
   describeOption,
   describeRefusal,
-  describeResult,
   fighterAccessibleName,
+  fighterHelp,
   fighterIdName,
   fighterName,
   fighterStatus,
   sideName,
-  symbolIcon,
-  tileName,
 } from './text';
+import { turnSentence, turnState, type TurnState } from './turn';
 import { useMatch } from './useMatch';
 
-function StatusPanel({ view }: { view: PlayerView }) {
-  const turnText = view.result ? describeResult(view.result, HUMAN) : view.activePlayer === HUMAN ? 'Your turn' : "Bot's turn";
-  const side = (player: PlayerId) => (player === HUMAN ? 'you' : 'bot');
+/** Whose turn, the constraint in words and what the player can do now (PRD U5). */
+function TurnBar({ view, turn }: { view: PlayerView; turn: TurnState }) {
   return (
-    <section className="status" aria-label="Match status" data-testid="status">
-      <p data-testid="turn" data-active={view.activePlayer} data-turn={view.turn} className="turn">
-        {turnText}
-      </p>
-      <p>
-        Turn {view.turn} · Objective: {view.objective}
-      </p>
+    <section
+      className={`turn-bar${turn.humanTurn ? ' human' : ''}${turn.botThinking ? ' thinking' : ''}`}
+      aria-label="Turn"
+      data-testid="turn-bar"
+      title={turnSentence(turn)}
+    >
+      <div className="turn-line">
+        <p data-testid="turn" data-active={view.activePlayer} data-turn={view.turn} className="turn" aria-live="polite">
+          {turn.headline}
+        </p>
+        <span className="turn-meta">
+          Turn {view.turn} · You are {HUMAN}, the bot is {BOT}
+        </span>
+      </div>
       {view.constraint ? (
         <p data-testid="constraint" data-terrain={view.constraint.terrain} data-symbol={view.constraint.symbol} className="constraint">
-          Constraint: {constraintText(view.constraint)} ({tileName(view.constraint)} {symbolIcon(view.constraint.symbol)})
+          Constraint:{' '}
+          <span className={`chip terrain-${view.constraint.terrain.toLowerCase()}`}>
+            <TerrainIcon terrain={view.constraint.terrain} />
+            {view.constraint.terrain}
+          </span>
+          {' or '}
+          <span className="chip">
+            <SymbolIcon symbol={view.constraint.symbol} />
+            {view.constraint.symbol}
+          </span>
         </p>
       ) : (
         <p data-testid="constraint" data-opening="true" className="constraint">
           Opening: deploy on any outside-edge cell (no constraint yet)
         </p>
       )}
+      <p data-testid="turn-prompt" className="turn-prompt" data-thinking={turn.botThinking}>
+        {turn.botThinking && <span className="spinner" aria-hidden="true" />}
+        {turn.prompt}
+      </p>
+    </section>
+  );
+}
+
+function StatusPanel({ view }: { view: PlayerView }) {
+  const side = (player: PlayerId) => (player === HUMAN ? 'you' : 'bot');
+  return (
+    <section className="status panel" aria-label="Match status" data-testid="status">
+      <h2>Status</h2>
       <p data-testid="recharges" data-a={view.recharges.A} data-b={view.recharges.B}>
         Recharges left: {side('A')} {view.recharges.A}, {side('B')} {view.recharges.B}
       </p>
@@ -61,8 +91,54 @@ function StatusPanel({ view }: { view: PlayerView }) {
   );
 }
 
-export function MatchScreen({ initialState, onLeave }: { initialState: MatchState; onLeave: () => void }) {
-  const { view, legalActions, attempt } = useMatch(initialState);
+interface FighterButtonsProps {
+  readonly fighters: readonly FighterState[];
+  readonly selection: FighterState | undefined;
+  readonly legalActions: readonly Action[];
+  readonly disabled: boolean;
+  readonly onSelect: (fighter: FighterId) => void;
+}
+
+/** One button per own fighter, with its help text from `@okiya/content`. */
+function FighterButtons({ fighters, selection, legalActions, disabled, onSelect }: FighterButtonsProps) {
+  return (
+    <ul className="fighter-list">
+      {fighters.map((fighter) => {
+        const actionCount = legalActions.filter((action) => action.fighter === fighter.id).length;
+        return (
+          <li key={fighter.id} className={fighter.id === selection?.id ? 'chosen' : ''}>
+            <button
+              type="button"
+              data-fighter={fighter.id}
+              data-has-actions={actionCount > 0}
+              className={fighter.id === selection?.id ? 'selected' : ''}
+              aria-pressed={fighter.id === selection?.id}
+              aria-label={fighterAccessibleName(fighter, HUMAN)}
+              aria-describedby={`help-${fighter.id}`}
+              disabled={disabled}
+              onClick={() => onSelect(fighter.id)}
+            >
+              {fighterName(fighter.type)}
+            </button>
+            <span id={`help-${fighter.id}`} className="help" data-help={fighter.type}>
+              {fighter.cell && <span className="tag">{`${fighter.cell}, ${fighterStatus(fighter)}`}</span>} {fighterHelp(fighter.type)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export interface MatchScreenProps {
+  readonly initialState: MatchState;
+  readonly depth: BotDepthId;
+  readonly scenarioName?: string | null;
+  readonly onLeave: () => void;
+}
+
+export function MatchScreen({ initialState, depth, scenarioName = null, onLeave }: MatchScreenProps) {
+  const { view, legalActions, attempt } = useMatch(initialState, depth);
   const [selected, setSelected] = useState<FighterId | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [choices, setChoices] = useState<{ cell: CellId; choices: readonly CellChoice[] } | null>(null);
@@ -70,10 +146,17 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
   const humanTurn = view.activePlayer === HUMAN && !view.result;
   const ownFighters = view.fighters.filter((fighter) => fighter.owner === HUMAN);
   const reserve = ownFighters.filter((fighter) => fighter.cell === null);
+  const deployed = ownFighters.filter((fighter) => fighter.cell !== null);
   // Without an explicit choice, the first reserve fighter is selected.
   const selection = ownFighters.find((fighter) => fighter.id === selected) ?? (humanTurn ? reserve[0] : undefined);
   const options = humanTurn ? optionsFor(legalActions, selection?.id) : [];
   const highlighted = highlightedCells(options);
+  const turn = turnState(view, {
+    human: HUMAN,
+    legalCount: legalActions.length,
+    selection: selection && humanTurn ? { name: fighterName(selection.type), optionCount: options.length } : null,
+  });
+  const recent = recentAction(view, HUMAN);
 
   function select(fighter: FighterId) {
     setSelected(fighter);
@@ -115,67 +198,59 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
     }
   }
 
-  const recent = view.log.slice(-2);
+  const recentEntries = view.log.slice(-2);
+  const objective = view.objective;
 
   return (
     <main className="match">
       <header className="match-header">
-        <h1>Okiya</h1>
         <span data-testid="seed">Seed {view.seed}</span>
-        <span>Preset {view.preset.id}</span>
+        <PresetBadge preset={view.preset} />
+        <span data-testid="bot-depth">Bot: {depthLabel(depth)}</span>
+        {scenarioName && <span data-testid="scenario">Scenario: {scenarioName}</span>}
         <button type="button" onClick={onLeave}>
           New match
         </button>
       </header>
 
-      <StatusPanel view={view} />
       <EndScreen view={view} human={HUMAN} />
+      <TurnBar view={view} turn={turn} />
 
       <div className="layout">
-        <Board
-          testId="board"
-          board={view.board}
-          human={HUMAN}
-          fighters={view.fighters}
-          ownTraps={new Set(view.ownTraps.map((trap) => trap.cell))}
-          highlighted={new Set(highlighted.keys())}
-          selected={selection?.id}
-          onCellClick={clickCell}
-        />
+        <div className="play">
+          <Board
+            testId="board"
+            board={view.board}
+            human={HUMAN}
+            fighters={view.fighters}
+            ownTraps={new Set(view.ownTraps.map((trap) => trap.cell))}
+            inspectedTraps={inspectedOwnTraps(view, HUMAN)}
+            highlighted={new Set(highlighted.keys())}
+            selected={selection?.id}
+            recent={recent}
+            disabled={!humanTurn}
+            onCellClick={clickCell}
+          />
+          <p className="objective" data-testid="objective">
+            <strong>Your objective: {objective}.</strong> {objectiveSummary(objective)}
+          </p>
+          <p className="legend" aria-hidden="true">
+            <span className="legend-item legal">Legal for the selected fighter</span>
+            <span className="legend-item recent">Last action</span>
+            <span className="legend-item own">● you</span>
+            <span className="legend-item enemy">◆ bot</span>
+          </p>
+        </div>
 
-        <aside className="side">
-          <section aria-label="Your fighters" data-testid="reserve">
-            <h2>Your reserve</h2>
-            {reserve.length === 0 && <p>All deployed.</p>}
-            {reserve.map((fighter) => (
-              <button
-                type="button"
-                key={fighter.id}
-                data-fighter={fighter.id}
-                className={fighter.id === selection?.id ? 'selected' : ''}
-                aria-pressed={fighter.id === selection?.id}
-                aria-label={fighterAccessibleName(fighter, HUMAN)}
-                onClick={() => select(fighter.id)}
-              >
-                {fighterName(fighter.type)}
-              </button>
-            ))}
-          </section>
-
-          {humanTurn && selection && (
-            <section aria-label="Actions" data-testid="actions">
-              <h2>{fighterName(selection.type)}: legal actions</h2>
-              {options.length === 0 && <p>No legal action for this fighter.</p>}
-              {options.map((option, index) => (
-                <button type="button" key={index} data-kind={option.action.kind} onClick={() => run(option.action)}>
-                  {describeOption(option.action)}
-                </button>
-              ))}
-            </section>
+        <div className="controls">
+          {refusal && (
+            <p role="alert" data-testid="refusal" className="refusal">
+              {refusal}
+            </p>
           )}
 
           {choices && (
-            <section aria-label={`Choose on ${choices.cell}`} data-testid="chooser">
+            <section aria-label={`Choose on ${choices.cell}`} data-testid="chooser" className="panel chooser">
               <h2>Choose on {choices.cell}</h2>
               {choices.choices.map((choice, index) =>
                 choice.kind === 'action' ? (
@@ -191,17 +266,42 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
             </section>
           )}
 
-          {refusal && (
-            <p role="alert" data-testid="refusal" className="refusal">
-              {refusal}
-            </p>
+          {humanTurn && selection && (
+            <section aria-label="Actions" data-testid="actions" className="panel">
+              <h2>{fighterName(selection.type)}: legal actions</h2>
+              <p className="help">{fighterHelp(selection.type)}</p>
+              {options.length === 0 && <p>No legal action for this fighter.</p>}
+              <div className="button-row">
+                {options.map((option, index) => (
+                  <button type="button" key={index} data-kind={option.action.kind} onClick={() => run(option.action)}>
+                    {describeOption(option.action)}
+                  </button>
+                ))}
+              </div>
+            </section>
           )}
 
-          <section aria-label="Resolution" data-testid="resolution">
+          <section aria-label="Your reserve" data-testid="reserve" className="panel">
+            <h2>Your reserve</h2>
+            {reserve.length === 0 && <p className="muted">All deployed.</p>}
+            <FighterButtons fighters={reserve} selection={selection} legalActions={legalActions} disabled={!humanTurn} onSelect={select} />
+          </section>
+
+          {deployed.length > 0 && (
+            <section aria-label="Your fighters on the board" data-testid="on-board" className="panel">
+              <h2>On the board</h2>
+              <FighterButtons fighters={deployed} selection={selection} legalActions={legalActions} disabled={!humanTurn} onSelect={select} />
+            </section>
+          )}
+
+          <section aria-label="Resolution" data-testid="resolution" className="panel" aria-live="polite">
             <h2>Last actions</h2>
-            {recent.map((entry) => (
-              <div key={entry.turn} data-turn={entry.turn} data-player={entry.player}>
-                <p>{describeLogEntry(entry, HUMAN)}</p>
+            {recentEntries.length === 0 && <p className="muted">No action yet.</p>}
+            {recentEntries.map((entry) => (
+              <div key={entry.turn} data-turn={entry.turn} data-player={entry.player} className="resolution-entry">
+                <p>
+                  <strong>{describeLogEntry(entry, HUMAN)}</strong>
+                </p>
                 <ol>
                   {describeEvents(entry.events, HUMAN).map((line, index) => (
                     <li key={index}>{line}</li>
@@ -211,7 +311,9 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
             ))}
           </section>
 
-          <section aria-label="Action log">
+          <StatusPanel view={view} />
+
+          <section aria-label="Action log" className="panel">
             <h2>Log</h2>
             <ol data-testid="log" className="log">
               {view.log.map((entry) => (
@@ -223,7 +325,7 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
           </section>
 
           <RulesPanel preset={view.preset} />
-        </aside>
+        </div>
       </div>
     </main>
   );

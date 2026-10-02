@@ -34,6 +34,20 @@ export function fighterName(type: FighterType | string): string {
   return FIGHTERS.find((fighter) => fighter.type === type)?.name ?? type;
 }
 
+/** A fighter's help text: its `summary` in `@okiya/content` (spec §9). */
+export function fighterHelp(type: FighterType | string): string {
+  return FIGHTERS.find((fighter) => fighter.type === type)?.summary ?? '';
+}
+
+/** The fighter's short code on its token, for example "PU". */
+export function fighterAbbreviation(type: FighterType | string): string {
+  return FIGHTERS.find((fighter) => fighter.type === type)?.abbreviation ?? type.slice(0, 2).toUpperCase();
+}
+
+export function isDisplacer(type: FighterType | string): boolean {
+  return FIGHTERS.find((fighter) => fighter.type === type)?.displacer ?? false;
+}
+
 export function fighterIdName(id: FighterId | string): string {
   return fighterName(id.slice(id.indexOf(':') + 1));
 }
@@ -78,10 +92,11 @@ export function cellAccessibleName(
   fighter: FighterState | undefined,
   human: PlayerId,
   ownTrap: boolean,
+  trapInspected = false,
 ): string {
   const parts = [cell, tileName(tile)];
   if (fighter) parts.push(fighterAccessibleName(fighter, human));
-  if (ownTrap) parts.push('your trap');
+  if (ownTrap) parts.push(trapInspected ? 'your trap, inspected by the bot, may have been removed' : 'your trap');
   return parts.join(', ');
 }
 
