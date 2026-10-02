@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionRefusal, FighterState, SetupRefusal } from '@okiya/rules';
-import { cellAccessibleName, describeRefusal, describeSetupRefusal, fighterAccessibleName } from './text';
+import { describeRefusal, describeSetupRefusal } from './text';
+import { cellAccessibleName, tokenAccessibleName } from './tokens';
 
 const tile = { terrain: 'Desert', symbol: 'Moon' } as const;
 const constraint = { terrain: 'Forest', symbol: 'Star' } as const;
@@ -64,7 +65,9 @@ describe('accessible names (PRD U3)', () => {
   const pusher: FighterState = { id: 'A:Pusher', owner: 'A', type: 'Pusher', cell: 'B3', charge: 1, lock: null, protection: null };
 
   it('names a cell by its id, tile, fighter and charge', () => {
-    expect(cellAccessibleName('B3', { terrain: 'Water', symbol: 'Moon' }, pusher, 'A', false)).toBe('B3, Water–Moon, your Pusher, charged');
+    expect(cellAccessibleName('B3', { terrain: 'Water', symbol: 'Moon' }, pusher, 'A', false)).toBe(
+      'B3, Water–Moon, Your Pusher on B3, charged, not locked, not protected',
+    );
   });
 
   it('names an empty cell, an own trap, an enemy fighter, a lock and protection', () => {
@@ -79,11 +82,17 @@ describe('accessible names (PRD U3)', () => {
       protection: { expiresAfterTurn: 6, by: 'B:Anchor' },
     };
     expect(cellAccessibleName('C2', { terrain: 'Desert', symbol: 'Wave' }, swapper, 'A', false)).toBe(
-      "C2, Desert–Wave, bot's Swapper, spent, locked through turn 7, protected through turn 6",
+      "C2, Desert–Wave, Bot's Swapper on C2, spent, locked, protected",
     );
   });
 
-  it('names a reserve fighter', () => {
-    expect(fighterAccessibleName({ ...pusher, cell: null }, 'A')).toBe('your Pusher, in reserve, charged');
+  it('names a tray token', () => {
+    expect(tokenAccessibleName({ ...pusher, cell: null }, 'A')).toBe('Your Pusher in your tray, charged, not locked, not protected');
+  });
+
+  it('marks an own trap the bot inspected as maybe removed', () => {
+    expect(cellAccessibleName('A1', { terrain: 'Forest', symbol: 'Sun' }, undefined, 'A', true, true)).toBe(
+      'A1, Forest–Sun, your trap, inspected by the bot, may have been removed',
+    );
   });
 });

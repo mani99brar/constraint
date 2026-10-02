@@ -106,49 +106,20 @@ export function involvedCells(events: readonly PlayerEvent[], fighters: FighterC
   return cells;
 }
 
-/** A trap trigger called out on its cell (PRD U6), with what the trap did. */
-export interface TrapCallout {
-  readonly cell: CellId;
-  readonly owner: PlayerId;
-  /** The full sentence, for example "Your trap! Bot's Swapper: locked". */
-  readonly text: string;
-  /** The label on the cell, for example "Trap: locked". */
-  readonly short: string;
-}
-
-export function trapCallouts(events: readonly PlayerEvent[], human: PlayerId): TrapCallout[] {
-  const ordered = orderEvents(events);
-  return ordered.flatMap((event, index) => {
-    if (event.kind !== 'trap-triggered') return [];
-    const next = ordered[index + 1];
-    const effect =
-      next?.kind === 'charge-lost' && next.fighter === event.fighter
-        ? 'charge lost'
-        : next?.kind === 'lock-applied' && next.fighter === event.fighter
-          ? 'locked'
-          : 'sprung';
-    const whose = event.owner === human ? 'Your trap' : "Bot's trap";
-    return [{ cell: event.cell, owner: event.owner, text: `${whose}! ${fighterLabel(event.fighter, human)}: ${effect}`, short: `Trap: ${effect}` }];
-  });
-}
-
-/** The most recent action as the board shows it: who acted, the cells involved and trap callouts. */
-export interface RecentAction {
+/**
+ * The latest action as the board marks it (PRD T1, U6): who acted and the cells it involved. The
+ * marks stay until the next action replaces them, so no history is kept on screen.
+ */
+export interface LastMove {
   readonly turn: number;
   readonly player: PlayerId;
   readonly cells: ReadonlySet<CellId>;
-  readonly callouts: readonly TrapCallout[];
 }
 
-export function recentAction(view: Pick<PlayerView, 'log' | 'fighters'>, human: PlayerId): RecentAction | null {
+export function lastMove(view: Pick<PlayerView, 'log' | 'fighters'>): LastMove | null {
   const entry = view.log[view.log.length - 1];
   if (!entry) return null;
-  return {
-    turn: entry.turn,
-    player: entry.player,
-    cells: involvedCells(entry.events, fighterCells(view.fighters)),
-    callouts: trapCallouts(entry.events, human),
-  };
+  return { turn: entry.turn, player: entry.player, cells: involvedCells(entry.events, fighterCells(view.fighters)) };
 }
 
 /**
@@ -209,9 +180,4 @@ export function describeEvent(event: PlayerEvent, human: PlayerId): string {
       // An event kind this client does not know yet is still listed, by its name.
       return `${(event as { kind: string }).kind.replaceAll('-', ' ')}.`;
   }
-}
-
-/** The resolution feedback of one action: its projected events, ordered and described. */
-export function describeEvents(events: readonly PlayerEvent[], human: PlayerId): string[] {
-  return orderEvents(events).map((event) => describeEvent(event, human));
 }

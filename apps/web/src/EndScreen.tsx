@@ -10,6 +10,7 @@ export function EndScreen({ view, human, children }: { view: PlayerView; human: 
   const bot: PlayerId = human === 'A' ? 'B' : 'A';
   return (
     <section aria-label="Match over" data-testid="end-screen" className="end-screen">
+      <div className="end-card">
       <h2 data-testid="result">{describeResult(view.result, human)}</h2>
       <p data-testid="objectives">
         Objectives: you {reveal.objectives[human]}, bot {reveal.objectives[bot]}
@@ -26,6 +27,7 @@ export function EndScreen({ view, human, children }: { view: PlayerView; human: 
         ))}
       </ul>
       {children && <div className="button-row">{children}</div>}
+      </div>
     </section>
   );
 }

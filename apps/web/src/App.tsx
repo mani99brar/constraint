@@ -3,7 +3,7 @@ import type { MatchState, PreparedMatch } from '@okiya/rules';
 import type { BotDepthId } from './difficulty';
 import { DifficultyScreen } from './DifficultyScreen';
 import { HowToPlay } from './HowToPlay';
-import { howToOpensFirst, rememberHowToSeen } from './howto';
+import { howToOpensFirst, rememberHowToSeen, type HowToSection } from './howto';
 import { createMatch, HUMAN, prepare } from './match';
 import { MatchScreen } from './MatchScreen';
 import { loadResults, outcomeOf, recordResult, resetResults, type Results } from './results';
@@ -12,7 +12,6 @@ import { loadSettings, saveSettings, type Settings } from './settings';
 import { SetupScreen } from './SetupScreen';
 import { browserAudioContext, createSoundPlayer } from './sound';
 import { browserStorage, type KeyValueStorage } from './storage';
-import { TITLE } from './title';
 import { TitleScreen } from './TitleScreen';
 
 type Screen =
@@ -36,7 +35,9 @@ export function App({ storage: given }: AppProps) {
   const [results, setResults] = useState<Results>(() => loadResults(storage));
   const [saved, setSaved] = useState<SavedMatch | null>(() => loadSavedMatch(storage));
   const [screen, setScreen] = useState<Screen>({ kind: 'title' });
-  const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(() => (howToOpensFirst(storage) ? { opener: null } : null));
+  const [howTo, setHowTo] = useState<{ opener: HTMLElement | null; section?: HowToSection['id'] | undefined } | null>(() =>
+    howToOpensFirst(storage) ? { opener: null } : null,
+  );
   const matchKey = useRef(0);
 
   const settingsRef = useRef(settings);
@@ -59,8 +60,8 @@ export function App({ storage: given }: AppProps) {
     saveSettings(storage, next);
   }
 
-  function openHowTo(opener: HTMLElement) {
-    setHowTo({ opener });
+  function openHowTo(opener: HTMLElement, section?: HowToSection['id']) {
+    setHowTo({ opener, section });
   }
 
   function closeHowTo() {
@@ -159,14 +160,9 @@ export function App({ storage: given }: AppProps) {
   return (
     <>
       <div className="app" inert={howTo !== null}>
-        {screen.kind !== 'title' && (
-          <header className="app-bar">
-            <span className="brand">{TITLE}</span>
-          </header>
-        )}
         {content}
       </div>
-      {howTo && <HowToPlay onClose={closeHowTo} returnFocusTo={howTo.opener} />}
+      {howTo && <HowToPlay onClose={closeHowTo} returnFocusTo={howTo.opener} section={howTo.section} />}
     </>
   );
 }
