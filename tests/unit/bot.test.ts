@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { chooseAction, chooseSetup } from '@okiya/bot';
-import { PAPER_TEST_01, SPEC_V0_2, TILES } from '@okiya/content';
+import { chooseAction, chooseSetup, DEFAULT_BUDGET, DEFAULT_MAX_DEPTH, type SearchOptions, type SearchStats } from '@okiya/bot';
+import { DEFAULT_ROSTERS, PAPER_TEST_01, SPEC_V0_2, TILES } from '@okiya/content';
 import {
   ALL_CELLS,
   applyAction,
+  canonicalSignature,
   listLegalActions,
+  matchLogOf,
   objectiveResult,
+  parseMatchLog,
   playerView,
   prepareMatch,
+  replayMatchSteps,
   startMatch,
   validateSetup,
   type Action,
@@ -20,12 +24,13 @@ import {
   type Scenario,
 } from '@okiya/rules';
 
-// Positions are built from deploy and move actions only, and every assertion is an outcome
-// computed through the public API, so the tests hold once abilities, traps and locks land:
-// - Setup traps sit on cells no action of the test enters.
-// - In the hand-built positions both rosters are Upgrader, Trap Checker, Anchor and Trapper.
-//   None of their abilities moves a fighter, so no ability can complete or block a square,
-//   and each one's next constraint is its actor's tile or unchanged (spec §9).
+// Every assertion is an outcome computed through the public API:
+// - Setup traps sit on cells no action of the test enters, or only their owner's fighters enter.
+// - In the first hand-built positions both rosters are Upgrader, Trap Checker, Anchor and
+//   Trapper. None of their abilities moves a fighter, so no ability can complete or block a
+//   square, and each one's next constraint is its actor's tile or unchanged (spec §9).
+// - The paper test 01 F1 positions give the human a Puller and a Swapper; the tie-break
+//   positions use the default rosters, abilities included.
 
 const BOT: PlayerId = 'B';
 const HUMAN: PlayerId = 'A';
@@ -34,8 +39,12 @@ const HUMAN: PlayerId = 'A';
 const GRID_BOARD = Object.fromEntries(ALL_CELLS.map((cell, index) => [cell, TILES[index]!])) as Board;
 const STILL_ROSTER: readonly FighterType[] = ['Upgrader', 'TrapChecker', 'Anchor', 'Trapper'];
 
-function gridScenario(startingPlayer: PlayerId, traps: Record<PlayerId, readonly CellId[]>): Scenario {
-  return { id: 'bot-test', name: 'Bot test', board: GRID_BOARD, rosters: { A: STILL_ROSTER, B: STILL_ROSTER }, traps, startingPlayer };
+function gridScenario(
+  startingPlayer: PlayerId,
+  traps: Record<PlayerId, readonly CellId[]>,
+  rosters: Record<PlayerId, readonly FighterType[]> = { A: STILL_ROSTER, B: STILL_ROSTER },
+): Scenario {
+  return { id: 'bot-test', name: 'Bot test', board: GRID_BOARD, rosters, traps, startingPlayer };
 }
 
 function apply(state: MatchState, action: Action): MatchState {
@@ -44,23 +53,37 @@ function apply(state: MatchState, action: Action): MatchState {
   return applied.state;
 }
 
+function stepAction(step: string): Action {
+  if (step.endsWith('+')) return { kind: 'recharge', fighter: step.slice(0, -1) as FighterId };
+  const [fighter, kind, cell] = step.split(/([@>!])/) as [FighterId, '@' | '>' | '!', CellId];
+  if (kind === '!') return { kind: 'ability', fighter, target: cell };
+  return { kind: kind === '@' ? 'deploy' : 'move', fighter, cell };
+}
+
 /**
- * Plays `A:Trapper@C1` as a deploy and `A:Trapper>C2` as a move, from a fresh match. The
- * scenario fixes the board and the starting player, so the seed changes only the bot's generator.
+ * Plays `A:Trapper@C1` as a deploy, `A:Trapper>C2` as a move, `A:Trapper!C3` as an ability on
+ * C3 and `A:Trapper+` as a recharge, from a fresh match. The scenario fixes the board and the
+ * starting player, so the seed changes only the bot's generator.
  */
 function play(scenario: Scenario, steps: readonly string[], seed = 1): MatchState {
   const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed, scenario });
   const unused = { roster: [], traps: [] };
   let state = startMatch(prepared, { A: unused, B: unused });
-  for (const step of steps) {
-    const [fighter, kind, cell] = step.split(/([@>])/) as [FighterId, '@' | '>', CellId];
-    state = apply(state, { kind: kind === '@' ? 'deploy' : 'move', fighter, cell });
-  }
+  for (const step of steps) state = apply(state, stepAction(step));
   return state;
 }
 
-function enteredCells(steps: readonly string[]): Set<string> {
-  return new Set(steps.map((step) => step.slice(-2)));
+/** Cells some fighter entered, as the events of the played steps record them. */
+function enteredCells(state: MatchState): Map<CellId, Set<PlayerId>> {
+  const cells = new Map<CellId, Set<PlayerId>>();
+  for (const entry of state.history) {
+    for (const event of entry.events) {
+      if (event.kind !== 'fighter-entered') continue;
+      const owner = state.fighters.find((fighter) => fighter.id === event.fighter)!.owner;
+      cells.set(event.to, new Set([...(cells.get(event.to) ?? []), owner]));
+    }
+  }
+  return cells;
 }
 
 function wins(state: MatchState, player: PlayerId): boolean {
@@ -68,22 +91,37 @@ function wins(state: MatchState, player: PlayerId): boolean {
   return result?.kind === 'win' && result.winner === player;
 }
 
+/** The active player's actions that complete its square at once. */
+function winningActions(state: MatchState): Action[] {
+  const player = state.activePlayer;
+  return state.result ? [] : listLegalActions(state).filter((action) => wins(apply(state, action), player));
+}
+
 /** Whether the active player has an action that completes its square at once. */
 function hasImmediateWin(state: MatchState): boolean {
-  const player = state.activePlayer;
-  return !state.result && listLegalActions(state).some((action) => wins(apply(state, action), player));
+  return winningActions(state).length > 0;
 }
+
+const sameAction = (a: Action, b: Action) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Whether some reply of the active player leaves the other side with no legal action. */
 function canBlockade(state: MatchState): boolean {
   return listLegalActions(state).some((action) => apply(state, action).result?.reason === 'blockade');
 }
 
-function botChoice(state: MatchState, options?: Parameters<typeof chooseAction>[2]): { action: Action; next: MatchState } {
+function botChoice(state: MatchState, options?: SearchOptions): { action: Action; next: MatchState } {
   const legal = listLegalActions(state);
   const action = chooseAction(playerView(state, state.activePlayer), legal, options);
   expect(legal).toContainEqual(action);
   return { action, next: apply(state, action) };
+}
+
+/** The bot's choice and what its search did. */
+function botSearch(state: MatchState, options: SearchOptions = {}, legal = listLegalActions(state)): { action: Action; stats: SearchStats } {
+  let stats: SearchStats | undefined;
+  const action = chooseAction(playerView(state, state.activePlayer), legal, { ...options, onStats: (reported) => (stats = reported) });
+  expect(stats).toBeDefined();
+  return { action, stats: stats! };
 }
 
 function botMatch(seed: number): MatchState {
@@ -132,22 +170,62 @@ const MIDGAME_STEPS = [
   'A:TerrainWeaver@A4', 'B:Puller@D1',
 ];
 const MIDGAME_SCENARIO: Scenario = { ...PAPER_TEST_01, traps: { A: ['C2', 'D2'], B: ['A1', 'B2'] } };
+// Three moves on, B to move, every fighter still deployed and charged: wide enough that the
+// position budget stops depth 5 before it completes.
+const BUDGET_STEPS = [...MIDGAME_STEPS, 'A:Teleporter>C3', 'B:Trapper>A2', 'A:TrapChecker>C1'];
+
+// Paper test 01 F1: the human (A) has a Puller and a Swapper, the bot (B) the still roster.
+// PULL: A holds B1, C1 and C2 around the open hole B2, and its Puller on C2 can pull its
+// Upgrader from A2 into B2; the Upgrader cannot walk in on the constraints that allow the pull.
+// SWAP: A holds B4, C3 and C4, the bot's Trap Checker blocks B3, and A's Swapper on A3 can
+// swap with it. Many bot actions hand over a constraint that lets A complete by pull or swap.
+const F1_ROSTERS = { A: ['Puller', 'Swapper', 'Upgrader', 'Anchor'], B: STILL_ROSTER } as const;
+const F1_TRAPS = { A: ['D3', 'D4'], B: ['D1', 'D2'] } as const;
+const PULL_STEPS = [
+  'A:Anchor@B1', 'B:Trapper@B3', 'A:Upgrader@A3', 'B:Upgrader@A2', 'A:Puller@C2', 'B:Trapper>C3', 'A:Swapper@C1',
+  'B:Upgrader>A1', 'A:Upgrader>A2',
+];
+const SWAP_STEPS = ['A:Swapper@A3', 'B:Trapper@A4', 'A:Anchor@C4', 'B:Upgrader@C2', 'A:Upgrader@C3', 'B:TrapChecker@B3', 'A:Puller@B4'];
+
+// Tie-break positions, from seeded random play with the default rosters, B to move. In TIE a
+// Trapper placement and a Puller pull of an ally into a cell nobody has entered score the same;
+// in AHEAD such a pull scores two actions of mobility (0.1) above every other action.
+const TIE_STEPS = [
+  'A:TrapChecker@C1', 'B:Upgrader@C4', 'A:Pusher@C3', 'B:Puller@A3', 'A:TerrainWeaver@A2', 'B:Puller>A4', 'A:Teleporter@A3',
+  'B:Swapper@A1', 'A:TerrainWeaver!A3', 'B:Swapper!A2', 'A:TerrainWeaver+', 'B:Trapper@B1', 'A:TerrainWeaver!A2', 'B:Swapper+',
+  'A:TrapChecker!C2',
+];
+const AHEAD_STEPS = [
+  'A:Teleporter@C1', 'B:Puller@C2', 'A:TerrainWeaver@C3', 'B:Upgrader@A3', 'A:Pusher@A4', 'B:Upgrader>A2', 'A:TrapChecker@A3',
+  'B:Trapper@A1', 'A:TrapChecker!A2', 'B:Trapper!A2', 'A:Teleporter!D3', 'B:Swapper@B3', 'A:Pusher>B4', 'B:Swapper!B4',
+  'A:TrapChecker>A4',
+];
+const TIE_BREAK_TRAPS = { A: ['D3', 'D4'], B: ['D1', 'D2'] } as const;
+const tieBreakScenario = () => gridScenario('A', TIE_BREAK_TRAPS, DEFAULT_ROSTERS);
 
 /** Seeds for the positions above; a bot choosing at random among legal actions fails some. */
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 describe('bot test positions', () => {
-  it('keep every setup trap off the cells their actions enter', () => {
+  it('keep every setup trap off the cells their actions enter, except its owner entering it', () => {
     const cases = [
-      [WIN_STEPS, WIN_TRAPS],
-      [THREAT_STEPS, THREAT_TRAPS],
-      [HANDOVER_STEPS, HANDOVER_TRAPS],
-      [BLOCKADE_STEPS, BLOCKADE_TRAPS],
-      [MIDGAME_STEPS, MIDGAME_SCENARIO.traps!],
+      [gridScenario('B', WIN_TRAPS), WIN_STEPS],
+      [gridScenario('A', THREAT_TRAPS), THREAT_STEPS],
+      [gridScenario('A', HANDOVER_TRAPS), HANDOVER_STEPS],
+      [gridScenario('A', BLOCKADE_TRAPS), BLOCKADE_STEPS],
+      [MIDGAME_SCENARIO, BUDGET_STEPS],
+      [gridScenario('A', F1_TRAPS, F1_ROSTERS), PULL_STEPS],
+      [gridScenario('A', F1_TRAPS, F1_ROSTERS), SWAP_STEPS],
+      [tieBreakScenario(), TIE_STEPS],
+      [tieBreakScenario(), AHEAD_STEPS],
     ] as const;
-    for (const [steps, traps] of cases) {
-      const entered = enteredCells(steps);
-      for (const cell of [...traps.A!, ...traps.B!]) expect(entered.has(cell)).toBe(false);
+    for (const [scenario, steps] of cases) {
+      const state = play(scenario, steps);
+      const entered = enteredCells(state);
+      for (const player of ['A', 'B'] as const) {
+        for (const cell of scenario.traps![player]!) expect([...(entered.get(cell) ?? [])].every((owner) => owner === player)).toBe(true);
+      }
+      expect(state.history.flatMap((entry) => entry.events).some((event) => event.kind === 'trap-triggered')).toBe(false);
     }
   });
 });
@@ -250,20 +328,123 @@ describe('bot action choice', () => {
     }
   });
 
-  // Until abilities exist a midgame offers only a few moves, so depth 5 may finish within the
-  // budget there; the second position, one deploy in, has dozens of deploys per ply, so the
-  // position budget cuts depth 5 short on it either way.
-  it('chooses within one second on a midgame position with every fighter deployed (PRD B4)', () => {
-    const midgame = play(MIDGAME_SCENARIO, MIDGAME_STEPS);
-    expect(midgame.fighters.every((fighter) => fighter.cell !== null)).toBe(true);
-    expect(midgame.result).toBeNull();
-    const deploying = play(MIDGAME_SCENARIO, MIDGAME_STEPS.slice(0, 1));
-    for (const state of [midgame, deploying]) {
-      for (const options of [undefined, { maxDepth: 5 }]) {
-        const started = performance.now();
-        botChoice(state, options);
-        expect(performance.now() - started).toBeLessThan(1000);
+  it("prevents the human's square by pull or swap (paper test 01 F1)", () => {
+    const modes = [
+      [PULL_STEPS, 'A:Puller'],
+      [SWAP_STEPS, 'A:Swapper'],
+    ] as const;
+    for (const [steps, displacer] of modes) {
+      for (const seed of SEEDS) {
+        const state = play(gridScenario('A', F1_TRAPS, F1_ROSTERS), steps, seed);
+        expect(state.activePlayer).toBe(BOT);
+        const replies = listLegalActions(state).map((action) => winningActions(apply(state, action)));
+        // Some bot actions leave the human a win by the displacer's ability alone, with no walk-in.
+        const byDisplacer = (win: Action) => win.kind === 'ability' && win.fighter === displacer;
+        expect(replies.some((wins) => wins.length > 0 && wins.every(byDisplacer))).toBe(true);
+        expect(replies.some((wins) => wins.length === 0)).toBe(true);
+        for (const options of [undefined, { maxDepth: 3 }]) {
+          expect(hasImmediateWin(botChoice(state, options).next)).toBe(false);
+        }
       }
+    }
+  });
+
+  it('enters an unscouted cell only to break a tie: it prefers a scouted action of equal score', () => {
+    for (const seed of SEEDS) {
+      const state = play(tieBreakScenario(), TIE_STEPS, seed);
+      expect(state.activePlayer).toBe(BOT);
+      const { action, stats } = botSearch(state);
+      const top = stats.roots[0]!.score;
+      const tied = stats.roots.filter((root) => root.score >= top - 1e-9);
+      expect(tied.some((root) => root.unscouted)).toBe(true);
+      expect(tied.some((root) => !root.unscouted)).toBe(true);
+      const chosen = stats.roots.find((root) => sameAction(root.action, action))!;
+      expect(chosen.score).toBe(top);
+      expect(chosen.unscouted).toBe(false);
+    }
+  });
+
+  it('enters an unscouted cell when that scores better, even by only two actions of mobility', () => {
+    for (const seed of SEEDS) {
+      const state = play(tieBreakScenario(), AHEAD_STEPS, seed);
+      expect(state.activePlayer).toBe(BOT);
+      const { action, stats } = botSearch(state);
+      const chosen = stats.roots.find((root) => sameAction(root.action, action))!;
+      expect(chosen.unscouted).toBe(true);
+      expect(chosen.score).toBe(stats.roots[0]!.score);
+      // The best scouted action's exact score: the search over the scouted actions alone.
+      const scouted = stats.roots.filter((root) => !root.unscouted).map((root) => root.action);
+      const best = botSearch(state, {}, scouted).stats.roots[0]!.score;
+      expect(chosen.score - best).toBeGreaterThan(0);
+      expect(chosen.score - best).toBeLessThanOrEqual(0.1 + 1e-9);
+    }
+  });
+
+  it('completes depth 2 within the default budget on a midgame with abilities, and runs out of budget at depth 5', () => {
+    for (const state of [play(MIDGAME_SCENARIO, MIDGAME_STEPS), play(MIDGAME_SCENARIO, BUDGET_STEPS)]) {
+      expect(listLegalActions(state).some((action) => action.kind === 'ability')).toBe(true);
+      const { stats } = botSearch(state);
+      expect(DEFAULT_MAX_DEPTH).toBe(2);
+      expect(stats).toMatchObject({ completedDepth: 2, budgetExhausted: false });
+      expect(stats.positions).toBeLessThan(DEFAULT_BUDGET);
+    }
+    const wide = play(MIDGAME_SCENARIO, BUDGET_STEPS);
+    const deep = botSearch(wide, { maxDepth: 5 }).stats;
+    expect(deep.budgetExhausted).toBe(true);
+    expect(deep.positions).toBe(DEFAULT_BUDGET);
+    expect(deep.completedDepth).toBeGreaterThanOrEqual(2);
+    expect(deep.completedDepth).toBeLessThan(5);
+    // Given more positions, the same search goes deeper: the budget, not the position, stopped it.
+    const more = botSearch(wide, { maxDepth: 5, budget: 4 * DEFAULT_BUDGET }).stats;
+    expect(more.completedDepth).toBeGreaterThan(deep.completedDepth);
+  });
+
+  // The budget-bound case: at depth 5 on the wide midgame the search runs until the position
+  // budget is spent (asserted above and here), so its time is the worst a default budget allows.
+  it('chooses within one second at the defaults and at depth 5 on a midgame with every fighter deployed and charged (PRD B4)', () => {
+    const midgame = play(MIDGAME_SCENARIO, MIDGAME_STEPS);
+    const wide = play(MIDGAME_SCENARIO, BUDGET_STEPS);
+    for (const state of [midgame, wide]) {
+      expect(state.result).toBeNull();
+      expect(state.fighters.every((fighter) => fighter.cell !== null && fighter.charge === 1)).toBe(true);
+    }
+    const deploying = play(MIDGAME_SCENARIO, MIDGAME_STEPS.slice(0, 1));
+    for (const state of [midgame, wide, deploying]) {
+      for (const options of [{}, { maxDepth: 5 }]) {
+        const started = performance.now();
+        const { stats } = botSearch(state, options);
+        expect(performance.now() - started).toBeLessThan(1000);
+        if (state === wide && options.maxDepth === 5) expect(stats.budgetExhausted).toBe(true);
+      }
+    }
+  });
+});
+
+describe('bot match log (PRD L1, B3)', () => {
+  it('replays a seeded bot-against-bot match with abilities and trap triggers exactly, after a JSON round trip', { timeout: 60_000 }, () => {
+    let state = botMatch(1);
+    const states = [state];
+    for (let turn = 0; turn < 80 && !state.result; turn += 1) {
+      state = botChoice(state).next;
+      states.push(state);
+    }
+    const events = state.history.flatMap((entry) => entry.events);
+    expect(state.history.some((entry) => entry.action.kind === 'ability')).toBe(true);
+    expect(events.some((event) => event.kind === 'trap-triggered')).toBe(true);
+
+    const parsed = parseMatchLog(JSON.parse(JSON.stringify(matchLogOf(state))));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const replayed = replayMatchSteps(parsed.log, TILES);
+    expect(replayed.ok).toBe(true);
+    if (!replayed.ok) return;
+    expect(replayed.states).toHaveLength(states.length);
+    expect(replayed.states.at(-1)).toEqual(state);
+    expect(canonicalSignature(replayed.states.at(-1)!)).toBe(canonicalSignature(state));
+    // The bot makes the same choice on every replayed state (PRD B3).
+    for (const [index, action] of parsed.log.actions.entries()) {
+      expect(replayed.states[index]).toEqual(states[index]);
+      expect(botChoice(replayed.states[index]!).action).toEqual(action);
     }
   });
 });
