@@ -18,6 +18,7 @@ Each directory with a `feature.json` is a workflow feature (see the operator not
 | `playtest-ready` | `ux` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | visual design, turn clarity, action feedback and onboarding; presets, scenarios and bot depth at start; phone and keyboard; a full-match browser test |
 | `release-polish` | `engine` | `packages/rules/src/core`, `packages/rules/src/abilities`, `packages/content/src`, `packages/bot/src`, `tests/unit/bot.test.ts` | safe replay of stored logs, reliable bot timing proof |
 | `release-polish` | `web` | `apps/web/src`, `apps/web/index.html`, `apps/web/vite.config.ts`, `tests/e2e`, `docs/publishing.md` | the published game Constraint (PRD §5.8) |
+| `tabletop-ui` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | the tabletop interface (PRD §5.9) |
 
 Core and abilities share one lane because trap, lock and ability resolution are entangled (skeleton design challenge, attempt 1). `packages/rules/src/api` and `package-lock.json` belong to no parallel lane: change them in a small feature on `main` first.
 

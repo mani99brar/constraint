@@ -1,0 +1,142 @@
+{
+  "version": "1.2.0",
+  "feature": "Constraint tabletop UI",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "tests/e2e"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 900,
+          "scenarios": [
+            {
+              "id": "title-screen",
+              "description": "The title screen shows the game's title, New game, Continue when a match is saved, How to play, results by difficulty and a menu for settings."
+            },
+            {
+              "id": "setup-flow",
+              "description": "From New game the player picks a difficulty and four distinct fighters as tokens (a fifth or a duplicate is refused with its reason), places the setup traps by tapping board cells or uses the default setup, and starts."
+            },
+            {
+              "id": "match-screen",
+              "description": "During a match the screen shows only the board, the piece trays, the slim top bar (whose turn, the constraint as two emblems, recharge pips for both sides) and a menu button; no log, last-actions, status, reserve list, legend or settings panel is present."
+            },
+            {
+              "id": "piece-tray",
+              "description": "The player's unplaced fighters sit as tokens in a tray under the board and the bot's as face-down tokens above it; tapping a tray token then a glowing cell deploys it, and the player's tray disappears once all four are deployed."
+            },
+            {
+              "id": "piece-actions",
+              "description": "Tapping one of the player's tokens on the board makes its move cells glow and shows its ability and recharge buttons beside the token; tapping away cancels; an illegal cell shows its refusal reason."
+            },
+            {
+              "id": "legal-turn",
+              "description": "A deploy on a glowing edge cell updates the constraint emblems in the top bar, the bot replies, and the turn returns to the player."
+            },
+            {
+              "id": "highlight-toggle",
+              "description": "With highlights turned off in the menu, no cell glows, a legal move still works and an illegal one is still refused with its reason; the setting survives a reload."
+            },
+            {
+              "id": "event-toast",
+              "description": "With the page's randomness fixed by the test, the bot's reply enters one of the player's traps; the cells its move involved are marked on the board and a short toast names the trap trigger, then fades."
+            },
+            {
+              "id": "how-to-play",
+              "description": "The How to Play dialog opens from the title screen and from the match menu, explains matching, every fighter and the objective, closes with Escape or its close button, and returns focus to the button that opened it."
+            },
+            {
+              "id": "resume-match",
+              "description": "After a few turns the page is reloaded; Continue restores the same board, tokens, charges, constraint and turn."
+            },
+            {
+              "id": "full-match",
+              "description": "The test plays glowing legal actions until the match ends; the end screen shows the result, both objectives, both rosters and every trap, and the results for that difficulty count one more game."
+            },
+            {
+              "id": "sound-toggle",
+              "description": "Sound starts only after a user action, the mute setting in the menu survives a reload, and while muted no audio is played."
+            },
+            {
+              "id": "dark-theme",
+              "description": "With the dark colour scheme emulated, the board, tiles, emblems and tokens stay distinguishable and all text meets a 4.5:1 contrast ratio."
+            },
+            {
+              "id": "phone-layout",
+              "description": "At a 390 px wide viewport the board, both trays and the top bar fit without scrolling in either direction, and every cell, token and button is at least 44 px in both dimensions."
+            },
+            {
+              "id": "keyboard-play",
+              "description": "Using the keyboard only, the player starts a game, opens and closes the menu and How to Play, deploys a tray token on a legal cell and uses a token's ability button."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

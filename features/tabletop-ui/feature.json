@@ -1,0 +1,29 @@
+{
+  "version": "2.3.0",
+  "name": "Tabletop UI: Constraint as a finished board game screen, with the board as the whole interface, a piece tray, on-piece actions, a minimal HUD with event toasts, tabletop tile art, and no developer panels",
+  "branch_prefix": "feature/tabletop-ui",
+  "prd": "docs/prd.md",
+  "policy": "policy.json",
+  "workers": [
+    {
+      "node_id": "web",
+      "task": "web-task.md"
+    }
+  ],
+  "reviewers": [
+    {
+      "reviewer_id": "general",
+      "prompt": "builtin:general"
+    },
+    {
+      "reviewer_id": "coverage",
+      "prompt": "builtin:coverage"
+    }
+  ],
+  "sidecar": {
+    "prompt": "builtin:senior-review",
+    "cadence_seconds": 300,
+    "pass_timeout_seconds": 300,
+    "max_passes": 48
+  }
+}

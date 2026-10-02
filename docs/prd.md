@@ -109,6 +109,17 @@ The playtest build becomes the published game **Constraint**. Where this section
 - **E7. Results.** Wins, losses and draws per difficulty, kept only in the browser, with a reset.
 - **E8. Publishing.** The build is a static site with relative asset paths that runs on any static host or as an itch.io HTML5 upload, described in `docs/publishing.md`. No service worker, accounts, network calls or analytics.
 
+### 5.9 Tabletop interface (feature `tabletop-ui`)
+
+The match screen is a tabletop. Where this section differs from §5.1–§5.8, it governs.
+
+- **T1. Board only.** No log, last-actions, status, reserve-list, legend or settings panel. This replaces I2's persistent log: events are shown when they happen, as toasts and last-move marks, and no history stays on screen.
+- **T2. Piece trays.** Unplaced fighters are tokens in a tray (the bot's face-down), hidden once empty; deploying is tapping a tray token, then a cell.
+- **T3. Actions on the piece.** Tapping a token shows its move cells and, beside it, its ability and recharge buttons.
+- **T4. Top bar.** Whose turn, the constraint as two emblems, recharge pips for both sides, a goal chip and a menu (How to Play, highlights, sound, quit to title).
+- **T5. Tokens and cells carry state.** Charge, lock and protection on tokens; own traps and inspected marks on cells (I1).
+- **T6. Look.** Illustrated square tiles in a framed tray and round emblem tokens, original art drawn in code, in light and dark.
+
 ## 6. Rules preset `spec-v0.2`
 
 These are the spec's provisional defaults as of v0.2, after paper test 01. Change them here and in the preset data together. Rows marked *variant* are switches paper test 01 left open; the default is the spec as written.
@@ -162,6 +173,7 @@ Features run with the workflow controller (see `CLAUDE.md` and `features/README.
    - `web`, owning `apps/web` and `tests/e2e`: setup screens, legal-move highlighting, refusal reasons, the action log, the rules panel and the end screen, driven by the legal-action list so new abilities appear without UI changes.
 3. **`playtest-ready`**, two lanes: `engine` (two playtest presets, replay determinism with abilities, the bot's open review findings) and `ux` (visual design, turn clarity, action feedback and onboarding, U4–U7; presets, scenarios, seeds and bot depth at match start; phone layout and keyboard access; a full-match browser test). Log export, loading and step-through (L2, L3) were dropped from v1 by the operator on 2026-10-02.
 4. **`release-polish`**, two lanes: `engine` (safe replay of stored logs, a reliable bot timing proof) and `web` (§5.8: helpers removed, title screen, How to Play, highlight and sound settings, synthesized sound, resume, results, a static build and `docs/publishing.md`), plus the open playtest-ready review findings.
+5. **`tabletop-ui`**, one lane `web`: the tabletop interface of §5.9.
 
 ## 10. Risks and open questions
 
