@@ -14,22 +14,27 @@ Replace the random skeleton bot in `packages/bot` with the heuristic bot of `doc
 
 - Change only `packages/bot/src` and `tests/unit/bot.test.ts`. Never change `packages/rules`, `packages/content`, any `package.json`, `package-lock.json`, root configs, `docs/` or `features/`. Add no dependencies.
 - Import only the public entry point of `@okiya/rules`. Never read the real match state, the human's traps, reserve identities or inspection results (PRD B1).
-- Keep the exported signature `chooseSetup(input)`, and keep `chooseAction(view, legalActions)` callable with two arguments. `chooseAction` takes an optional third argument with a maximum search depth (default 2) and a time budget (default 800 ms); it searches depth by depth and returns the best action of the deepest completed level. `chooseSetup` draws only from `input.privateSeed`; `chooseAction` draws only from a generator seeded by the view's seed and turn (PRD B3).
+- Keep the exported signature `chooseSetup(input)`, and keep `chooseAction(view, legalActions)` callable with two arguments. `chooseAction` takes an optional third argument with a maximum search depth (default 2) and a search budget counted in positions evaluated (choose a default that lets depth 2 finish on a midgame position); it searches depth by depth and returns the best action of the deepest completed level. The budget is a count, never a clock, so the bot stays pure and deterministic. `chooseSetup` draws only from `input.privateSeed`; `chooseAction` draws only from a generator seeded by the view's seed and turn (PRD B3).
 - No `Math.random`, timers or wall-clock time inside the bot.
 
 ## Acceptance
 
-All in `tests/unit/bot.test.ts`, on positions built with `prepareMatch`, `startMatch` (scenarios allowed) and deploy or move actions through `applyAction`:
+All in `tests/unit/bot.test.ts`, on positions built with `prepareMatch`, `startMatch` (scenarios allowed) and deploy or move actions through `applyAction`. These tests must keep passing after the `rules` lane merges, when every charged fighter gains ability actions and traps trigger:
+
+- Assert outcomes, not specific actions: for example "after the bot's action, the human has no immediate Square win", computed through `listLegalActions`, `applyAction` and `objectiveResult`, never a hardcoded action or action list.
+- Place every setup trap on a cell the test's action sequence never enters.
+- Choose positions whose asserted outcome no ability can change, and explain in each test why that holds.
+
 
 - The bot only ever returns an action from the legal-action list.
 - It takes an available immediate Square win.
-- When the human threatens to complete a square next turn and a legal action blocks the hole, it blocks (paper test 01 F2).
+- When the human threatens to complete a square next turn and a legal action prevents it, the human has no immediate win after the bot's action (paper test 01 F2).
 - It prefers an action that leaves it at least one legal action next turn over one that blockades itself.
 - Among equal choices it does not hand over a constraint that gives the human an immediate win, when another action exists.
 - The same view and legal-action list give the same action, and the same setup input gives the same setup.
 - `chooseSetup` returns a setup `validateSetup` accepts under `spec-v0.2` and under a preset with a displacer limit of 1.
-- With a maximum depth of 1 the bot misses a threat that the human completes with the reply, and at the default depth of 2 it blocks it.
-- `chooseAction` returns within one second on a midgame position with every fighter deployed (PRD B4), both at the defaults and with a maximum depth of 5, where the time budget cuts the search short.
+- The maximum depth and the budget are honoured: depth 1 and depth 2 both return legal actions, depth 2 prevents the threat above, and a budget of one position still returns a legal action.
+- `chooseAction` returns within one second on a midgame position with every fighter deployed (PRD B4), both at the defaults and with a maximum depth of 5, where the position budget cuts the search short. Only the test measures time.
 
 ## Stop
 

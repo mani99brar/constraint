@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make `packages/rules` implement the complete rules of `docs/game-spec.md` v0.2 §6–§12 behind the existing `src/api/`: recharge, all eight fighters, traps, locks, protection, repetition draws and the terminal ordering. Prove it with the 45 edge cases and the full match of paper test 01, and implement the preset variant switches.
+Make `packages/rules` implement the complete rules of `docs/game-spec.md` v0.2 §6–§12 behind the existing `src/api/`: recharge, all nine fighters (Anchor included), traps, locks, protection, repetition draws and the terminal ordering. Prove it with the 45 edge cases and the full match of paper test 01, and implement the preset variant switches.
 
 ## Context
 
@@ -16,20 +16,21 @@ Make `packages/rules` implement the complete rules of `docs/game-spec.md` v0.2 �
 - Change only `packages/rules/src/core`, `packages/rules/src/abilities` and `packages/content/src`. Never change `packages/rules/src/api`, any `package.json`, `package-lock.json`, root configs, `docs/` or `features/`. Add no dependencies.
 - Ability modules return effects through `targets` and `resolve`; core applies them and resolves traps, locks, protection, constraints and the win check (spec §11 order). Reshape the internals of core and abilities freely; keep every public signature.
 - `packages/rules` never imports `packages/content`. Tests that need content data, such as the paper test 01 replay, live in `packages/content/src`.
-- Every provisional value and variant switch comes from the preset, never a constant (`docs/prd.md` §6).
+- Every provisional value and variant switch comes from the preset, never a constant (`docs/prd.md` §6), with two exceptions the content validator enforces instead: `trapCheckerLegalWithNothingFound` must be true, because false would let the legal-action list reveal hidden traps (spec §9), and `terminalPrecedence` must be the spec §11 order, which the step order fixes. The validator rejects other values.
+- `validateAction` handles every action kind exhaustively, checked at compile time. Refusing an unknown kind from untrusted input is deferred to `playtest-ready`, which loads logs and may add a refusal code to the API.
 - Keep the number and order of random draws in `prepareMatch` and `startMatch` unchanged, so a given seed keeps its board and starting player for the web lane's browser tests.
 - Purity rules stay as they are: no DOM, timers, wall-clock time or `Math.random`.
 
 ## Acceptance
 
 - Every rule of spec §6–§12 has a unit test naming the spec section it proves.
-- All 45 cases of `docs/paper-simulation.md` §8 are unit tests, each built from its `docs/paper-test-01.md` Phase B state with the outcome stated there. Each test title starts with `case <n>:`.
+- All 45 cases of `docs/paper-simulation.md` §8 are unit tests, each built from its `docs/paper-test-01.md` Phase B state with the outcome stated there. Each test title starts with `case <n>:`. The Phase B states were hand-built, and some cannot exist on the fixture or contradict the spec: known are cases 6, 28, 42 and 44 (wrong tile counts, a pushable locked fighter, a diagonal shuttle). For such a case, build the nearest valid state that exercises the same rule with the stated outcome, and record in the test what was wrong, citing the spec section. Never bend the engine to fit a walkthrough.
 - The paper test 01 match replays in `packages/content/src`: its fixture and 28 recorded actions end with B winning by Square on action 28, and the legal-action count before each action equals the report's list. Where the spec shows the hand-kept report is wrong, the test records the corrected value with the spec section and the turn, and the engine is never bent to match.
 - A unit test pins the paper test 01 scenario data cell by cell to the fixture table in `docs/paper-test-01.md`.
 - Each variant switch of `docs/prd.md` §6 has a unit test showing the behaviour it changes: Puller on allies, locked fighters counting toward the objective, Anchor duration, and the displacer limit in `validateSetup`.
 - Trap Checker follows spec v0.2 §9: one chosen adjacent cell, empty or enemy-occupied; its result appears only in its owner's view.
 - The repetition draw fires on the third occurrence of a start-of-turn signature (case 44), and the terminal precedence is objective, then blockade, then repetition (cases 41 and 42).
-- The deferred review findings are fixed, each with a test: scenarios from both setup calls merge; no lookahead trap id repeats; an unknown action kind returns a structured refusal; a view never contains the opponent's live trap cells or `trapHistory` during play, nor the opponent's objective when the two objectives differ.
+- The deferred review findings are fixed, each with a test: scenarios from both setup calls merge; no lookahead trap id repeats; a view never contains the opponent's live trap cells or `trapHistory` during play, nor the opponent's objective when the two objectives differ.
 
 ## Stop
 

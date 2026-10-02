@@ -28,7 +28,7 @@ Non-goals for v1: online play, local hotseat, a headless self-play simulator, ac
 | Play mode | Versus bot only | No server. The whole game runs in the browser. |
 | Bot and simulator | Heuristic bot, no simulator | Balance evidence comes from human play and match logs, not bot-vs-bot statistics. |
 | Rule values | Rules presets as data | Provisional values live in a named, validated preset; a match records its preset. |
-| Rules scope | Full spec, Square only | All 8 fighters, traps, recharge, locks, protection, blockade and repetition. |
+| Rules scope | Full spec, Square only | All 9 fighters, traps, recharge, locks, protection, blockade and repetition. |
 | Devices | Desktop first, responsive | Mouse on desktop is primary; the layout and tap targets also work on a phone. |
 | Rendering | DOM and SVG with React | The board is readable by browser tests and screen readers; animation stays modest. |
 | Replay | Seed and action log export | Any match can be exported and loaded to replay; scenario files can set up a fixed start. |
@@ -47,13 +47,13 @@ The experience the spec targets (§1) should come through: reading the bot's int
 ### 5.1 Match setup
 
 - **S1.** The player starts a match against the bot from the landing page, choosing a rules preset (default: the paper preset of section 6) and optionally a seed. With no seed, one is generated and shown.
-- **S2.** Setup follows spec §5 in order: the seeded shuffle reveals the board; both sides receive Square as their objective (spec §10); the player secretly picks four distinct fighters from the eight, within the preset's displacer limit if it sets one; the player places the preset's number of setup traps on distinct cells of the revealed board; the bot does the same from its own view, drawing its setup from a private seed that is independent of the match seed and never shown, so the displayed seed cannot reveal its traps; the seeded generator picks the starting player. The match log records both setups, so replays do not need the private seed.
+- **S2.** Setup follows spec §5 in order: the seeded shuffle reveals the board; both sides receive Square as their objective (spec §10); the player secretly picks four distinct fighters from the nine, within the preset's displacer limit if it sets one; the player places the preset's number of setup traps on distinct cells of the revealed board; the bot does the same from its own view, drawing its setup from a private seed that is independent of the match seed and never shown, so the displayed seed cannot reveal its traps; the seeded generator picks the starting player. The match log records both setups, so replays do not need the private seed.
 - **S3.** The player's objective, roster and traps are shown only to the player. The bot's roster identities, traps and objective are never rendered while the match is running.
 - **S4.** A scenario file may replace any part of setup (board layout, rosters, traps, starting player) for testing. Built-in scenarios: the paper test 01 fixture with its rosters, traps and starter (`paper-test-01.md`, Fixture), and the report's next test, the same fixture with B starting and the rosters swapped.
 
 ### 5.2 Turns and rules
 
-- **R1.** The rules engine implements spec §6–§12 completely: the matching constraint, the four action kinds, all eight fighters, trap triggering and effects, locks, protection, objective checks, blockade defeat, repetition draws, and the terminal ordering of §11.
+- **R1.** The rules engine implements spec §6–§12 completely: the matching constraint, the four action kinds, all nine fighters, trap triggering and effects, locks, protection, objective checks, blockade defeat, repetition draws, and the terminal ordering of §11.
 - **R2.** The opening deployment follows the preset's opening rule (spec §5 step 7: an outside-edge cell with no constraint).
 - **R3.** On the player's turn, the interface offers only legal actions. Selecting a fighter highlights its legal destinations or targets; selecting a reserve fighter highlights legal deployment cells.
 - **R4.** An attempted illegal action is refused with the reason (for example "Desert–Moon does not match Forest or Star"), spends nothing and does not end the turn (spec §11).
@@ -140,7 +140,7 @@ Features run with the workflow controller (see `CLAUDE.md` and `features/README.
 
 1. **`skeleton`, one lane.** The workspaces, toolchain and every shared API. That covers the full state shape (charges, traps, locks, protection, repetition history), the union of all action kinds, the effect-based ability contract, two-phase setup with a setup validator, resolution events, the player view with its redacted public log, the bot's setup and action choices, the preset and scenario types, and the match log format. Behind it sits a thin playable path: start a match, deploy and move under the matching constraint and opening rule, win by Square or lose by blockade, against a bot that picks a random legal action. Abilities, traps, recharge, locks, protection and repetition exist as types only.
 2. **`full-rules`, parallel lanes:**
-   - `rules`, owning `packages/rules/src/core` and `packages/rules/src/abilities`: recharge, traps, locks, protection, the terminal ordering, repetition and the eight fighters behind the effect-based ability contract, with all 45 edge cases, the paper test 01 replay and the variant switches. Core and abilities stay in one lane because trap, lock and ability resolution are entangled and most edge cases need both (design challenge of the skeleton run, attempt 1).
+   - `rules`, owning `packages/rules/src/core` and `packages/rules/src/abilities`: recharge, traps, locks, protection, the terminal ordering, repetition and the nine fighters behind the effect-based ability contract, with all 45 edge cases, the paper test 01 replay and the variant switches. Core and abilities stay in one lane because trap, lock and ability resolution are entangled and most edge cases need both (design challenge of the skeleton run, attempt 1).
    - `bot`, owning `packages/bot`: the heuristic bot against the legal-action list and player view.
    - `web`, owning `apps/web` and `tests/e2e`: setup screens, legal-move highlighting, refusal reasons, the action log, the rules panel and the end screen, driven by the legal-action list so new abilities appear without UI changes.
 3. **`playtest-ready`:** log export, load and step-through, the paper-simulation scenario, presets chosen at match start, phone layout and keyboard access, and a full-match browser test.
