@@ -58,7 +58,7 @@ Players who know Okiya or are learning it. They want the game to feel like the b
 ### 5.4 Bot
 
 - **B1.** The bot chooses one legal take per turn from the public state.
-- **B2.** Easy looks one take ahead, Normal three, and Hard plays perfectly from the second take of a game on: its take always keeps the best game value available. At the opening Hard may stop at a position budget.
+- **B2.** Easy looks one take ahead, Normal three, and Hard plays perfectly from the second take of a game on: its take always keeps the best game value available. At the opening Hard plays Normal's three-take search.
 - **B3.** Every difficulty takes an immediate win. Easy otherwise picks any legal take; Normal and Hard avoid a take that lets the opponent win at once whenever another take exists.
 - **B4.** The bot is deterministic for a given state and difficulty. Equal takes are broken by a value derived from the game's seed, so games vary.
 - **B5.** A bot take returns within one second on a mid-range laptop, and is shown after a short pause so the player can follow it. Tests prove the bound by counting searched positions against a budget, not with a clock.

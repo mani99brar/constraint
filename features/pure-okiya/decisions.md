@@ -7,7 +7,7 @@ From the requirements session of 2026-10-02 with the operator.
 - Constraint plays Okiya's rules, not a variant of them: `docs/game-spec.md` v1.0 replaces the fighter game of v0.2 (fighters, abilities, traps, recharge, rosters, hidden objectives). Consequence: the interface has no setup screen, trays, fighter actions or hidden information. The name stays Constraint, with its own tile theme and art.
 - A full board with no shape is a draw (spec §4). Consequence: the end screen and the results have a draw.
 - A match is one game; the first starter is random and Play again alternates it (spec §5). Consequence: no rounds or score display, and the results by difficulty stay as they are.
-- The bot keeps Easy, Normal and Hard. Easy takes an immediate win and otherwise any legal take; Normal searches three takes ahead; Hard plays perfectly from the second take of a game on, with a position budget at the opening only. Consequence: Hard is unbeatable whenever it can still force a win or a draw at its first take after the opening, and Easy and Normal can be beaten.
+- The bot keeps Easy, Normal and Hard. Easy takes an immediate win and otherwise any legal take; Normal searches three takes ahead; at the opening Hard plays Normal's search, and from the second take of a game on it plays perfectly. Consequence: Hard is unbeatable whenever it can still force a win or a draw at its first take after the opening, and Easy and Normal can be beaten.
 - The engine `@okiya/game` (`packages/game`) and the thin `chooseTake` in `packages/bot/src/take.ts` were put on the base before this run, beside the old packages, so `main` keeps building. Consequence: two parallel lanes. `bot` owns `packages/bot/src` and `web` owns `apps/web/src`, `apps/web/index.html` and `tests/e2e`; no lane owns `packages/game`.
 - The old engine and content packages (`packages/rules`, `packages/content`) and the old bot exports are deleted after this feature merges, outside the run. Consequence: `bot` keeps the old exports and `tests/unit/bot.test.ts` passing, and `web` stops importing the old packages.
 
@@ -19,6 +19,16 @@ From the requirements session of 2026-10-02 with the operator.
   - the web lane's browser tests use Easy or Normal with up to 10 seconds for the bot's reply.
 
   Consequence: the `bot` acceptance and the `web` browser-test rule were revised, and so were PRD B3 and B5.
+
+- After design challenge attempt 2, all findings were accepted under the operator's standing instruction:
+  - Hard's opening uses Normal's three-take search, so no test pays a budget-length search per game;
+  - Hard's perfect play is an exact win/draw/loss solve with simple tie-breaks (an immediate win; when losing, no immediate loss), not a fastest-win or longest-loss search;
+  - both solvers are cross-checked against a brute force on the engine;
+  - strength uses the fixed seeds 0–39, with Hard at least equal to Normal;
+  - the position budget is sized at about half a second here;
+  - the sample sizes and the 120-second test limit were set to fit.
+
+  Consequence: the `bot` acceptance was revised, and so was PRD B2.
 
 ## Assumptions
 
