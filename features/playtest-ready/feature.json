@@ -1,6 +1,6 @@
 {
   "version": "2.3.0",
-  "name": "Playtest-ready Okiya: match logs with export, load, step-through and continue, presets, scenarios and bot depth chosen at start, phone layout, keyboard play and a full-match browser test",
+  "name": "Playtest-ready Okiya: a better UI and UX (visual design, turn clarity, action feedback, onboarding), presets, scenarios and bot depth chosen at start, phone layout, keyboard play, and the bot's open review findings",
   "branch_prefix": "feature/playtest-ready",
   "prd": "docs/prd.md",
   "policy": "policy.json",
@@ -10,8 +10,8 @@
       "task": "engine-task.md"
     },
     {
-      "node_id": "web",
-      "task": "web-task.md"
+      "node_id": "ux",
+      "task": "ux-task.md"
     }
   ],
   "reviewers": [

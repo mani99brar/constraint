@@ -31,7 +31,7 @@ Non-goals for v1: online play, local hotseat, a headless self-play simulator, ac
 | Rules scope | Full spec, Square only | All 9 fighters, traps, recharge, locks, protection, blockade and repetition. |
 | Devices | Desktop first, responsive | Mouse on desktop is primary; the layout and tap targets also work on a phone. |
 | Rendering | DOM and SVG with React | The board is readable by browser tests and screen readers; animation stays modest. |
-| Replay | Seed and action log export | Any match can be exported and loaded to replay; scenario files can set up a fixed start. |
+| Replay | Deterministic seed and action log; export, loading and step-through deferred beyond v1 | Every match is reproducible from its log (L1); scenario files can set up a fixed start. Export and replay screens (L2, L3) were dropped from v1 in favour of UI and UX work (U4–U7). |
 | Trap Checker (after paper test 01) | Spec v0.2 single-cell rule | The spec is updated; the engine implements only the new rule. |
 | Open rules from paper test 01 | As written, variants as preset switches | Puller on allies, locked fighters counting toward Square, and Anchor duration can be flipped per match for playtesting. |
 | Roster balance | Free choice, optional displacer limit | Default stays free choice; a preset can cap displacers per roster. |
@@ -83,14 +83,18 @@ The experience the spec targets (§1) should come through: reading the bot's int
 ### 5.6 Replay and logs
 
 - **L1.** Every match has a seed. The rules engine is deterministic: the same preset, seed, setup choices and action list always give the same states.
-- **L2.** The player can export a match at any time as one JSON file: format version, preset, seed, scenario if any, both setups and the full action list. The export warns that it contains the bot's hidden information.
-- **L3.** The player can load an exported match and step through it turn by turn, forward and back, with the full referee view, or continue playing from any point.
+- **L2** (deferred beyond v1). The player can export a match at any time as one JSON file: format version, preset, seed, scenario if any, both setups and the full action list. The export warns that it contains the bot's hidden information.
+- **L3** (deferred beyond v1). The player can load an exported match and step through it turn by turn, forward and back, with the full referee view, or continue playing from any point.
 
 ### 5.7 Presentation
 
 - **U1.** Placeholder visuals: terrain as colour plus a text or icon label, symbols as icons with text labels, fighters as labelled tokens. Colour is never the only signal.
 - **U2.** Desktop first. At a phone width of 390 px the board, the constraint and the action controls fit without horizontal scrolling, and every tap target is at least 44 px.
 - **U3.** Every cell and fighter is reachable by keyboard and has an accessible name, for example "B3, Water–Moon, your Pusher, charged".
+- **U4. Visual design.** A consistent theme in light and dark that follows the system colour scheme: distinct terrain colours with shape or text labels, symbol icons, and fighter tokens that read at a glance, all drawn in code. Text meets a 4.5:1 contrast ratio.
+- **U5. Turn clarity.** Without reading the log, the player always sees whose turn it is, the constraint in words, what they can do now and why a move is refused. During the bot's turn the controls are disabled and the screen says so.
+- **U6. Action feedback.** Every action, the bot's reply included, is shown on the board: the cells it involved are highlighted and trap triggers are called out, with short animations that never block input and are off under reduced motion.
+- **U7. Onboarding.** A short first-match guide explains matching, the fighters and the objective in context. It can be dismissed, stays dismissed, and reopens from a help button.
 
 ## 6. Rules preset `spec-v0.2`
 
@@ -132,7 +136,7 @@ These are the spec's provisional defaults as of v0.2, after paper test 01. Chang
 - Determinism: a fixed preset, seed and action log give the same final state signature every run.
 - Hidden information: a unit test proves that a player view never contains the other side's traps, reserve identities, objective or inspection results.
 - The bot only ever returns actions from the legal-action list, and a test proves it takes an available immediate win.
-- Browser tests cover setup, a legal turn and a refused illegal action, a trap trigger, a full match to an end screen, and log export and replay, at a desktop and a phone viewport.
+- Browser tests cover setup, a legal turn and a refused illegal action, a trap trigger, a full match to an end screen, turn clarity, action feedback, the onboarding guide and the dark theme, at a desktop and a phone viewport.
 
 ## 9. Delivery plan
 
@@ -143,7 +147,7 @@ Features run with the workflow controller (see `CLAUDE.md` and `features/README.
    - `rules`, owning `packages/rules/src/core` and `packages/rules/src/abilities`: recharge, traps, locks, protection, the terminal ordering, repetition and the nine fighters behind the effect-based ability contract, with all 45 edge cases, the paper test 01 replay and the variant switches. Core and abilities stay in one lane because trap, lock and ability resolution are entangled and most edge cases need both (design challenge of the skeleton run, attempt 1).
    - `bot`, owning `packages/bot`: the heuristic bot against the legal-action list and player view.
    - `web`, owning `apps/web` and `tests/e2e`: setup screens, legal-move highlighting, refusal reasons, the action log, the rules panel and the end screen, driven by the legal-action list so new abilities appear without UI changes.
-3. **`playtest-ready`:** log export, load and step-through, the paper-simulation scenario, presets chosen at match start, phone layout and keyboard access, and a full-match browser test.
+3. **`playtest-ready`**, two lanes: `engine` (two playtest presets, replay determinism with abilities, the bot's open review findings) and `ux` (visual design, turn clarity, action feedback and onboarding, U4–U7; presets, scenarios, seeds and bot depth at match start; phone layout and keyboard access; a full-match browser test). Log export, loading and step-through (L2, L3) were dropped from v1 by the operator on 2026-10-02.
 
 ## 10. Risks and open questions
 

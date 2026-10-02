@@ -54,8 +54,8 @@
       ]
     },
     {
-      "node_id": "web",
-      "role": "frontend",
+      "node_id": "ux",
+      "role": "ui-ux",
       "required_check_kinds": [
         "typecheck",
         "unit",
@@ -134,12 +134,24 @@
               "description": "At match start the player chooses the preset spec-v0.2-two-displacers, and picking a third displacer is refused with its reason; choosing the paper test 01 scenario shows the fixture board and A to move."
             },
             {
-              "id": "log-export-replay",
-              "description": "After a few turns the player exports the match log (with a warning that it reveals the bot's secrets), loads it again, steps back and forward through it with the full referee view, and continues playing from an earlier step."
+              "id": "full-match",
+              "description": "From a fixed seed under spec-v0.2, the test plays highlighted legal actions until the match ends, and the end screen shows the result, both objectives, both rosters and every trap with its fate."
             },
             {
-              "id": "full-match",
-              "description": "A match loaded from a log one action before the human's Square win is finished in the browser, and the end screen shows the result, both objectives, both rosters and every trap with its fate."
+              "id": "turn-clarity",
+              "description": "On the player's turn the screen states whose turn it is, the constraint in words and what the player can do now; during the bot's turn the controls are disabled and the screen says the bot is thinking."
+            },
+            {
+              "id": "action-feedback",
+              "description": "After the bot replies, the cells its action involved are highlighted and any trap trigger is called out on the board; the highlight clears after the player's next action."
+            },
+            {
+              "id": "onboarding-guide",
+              "description": "On a first visit a short guide explains matching, the fighters and the Square objective; it can be dismissed, stays dismissed after a reload, and reopens from a help button."
+            },
+            {
+              "id": "dark-theme",
+              "description": "With the dark colour scheme emulated, the board, terrain, symbols and fighter tokens stay distinguishable and all text meets a 4.5:1 contrast ratio against its background."
             },
             {
               "id": "phone-layout",
