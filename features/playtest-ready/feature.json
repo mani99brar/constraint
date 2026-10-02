@@ -25,6 +25,9 @@
     }
   ],
   "sidecar": {
-    "prompt": "builtin:senior-review"
+    "prompt": "builtin:senior-review",
+    "cadence_seconds": 300,
+    "pass_timeout_seconds": 300,
+    "max_passes": 48
   }
 }

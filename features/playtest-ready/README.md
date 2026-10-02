@@ -5,7 +5,7 @@ The third feature of Okiya (`docs/prd.md` §9 step 3): a better UI and UX (visua
 - `engine` owns `packages/rules/src/core`, `packages/rules/src/abilities`, `packages/content/src`, `packages/bot/src` and `tests/unit/bot.test.ts`.
 - `ux` owns `apps/web/src`, `apps/web/index.html` and `tests/e2e`.
 
-The lanes meet only at interfaces already on `main` (commit `b3d30f7` added the log functions, the new preset and the swapped scenario). `packages/rules/src/api`, the `package.json` files, `package-lock.json` and root configs belong to no lane. A review sidecar (`builtin:senior-review`) reviews the lanes while they work.
+The lanes meet only at interfaces already on `main` (commit `b3d30f7` added the log functions, the new preset and the swapped scenario). `packages/rules/src/api`, the `package.json` files, `package-lock.json` and root configs belong to no lane. A review sidecar (`builtin:senior-review`) reviews the lanes every five minutes while they work, with passes capped at five minutes and at most 48 passes.
 
 - `feature.json`: the lanes, their task files, the reviewers, the sidecar and the `prd` the design challenge reads.
 - `policy.json`: each lane's owned paths and the checks the controller runs independently.
