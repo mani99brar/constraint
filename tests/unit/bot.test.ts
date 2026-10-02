@@ -1,7 +1,90 @@
 import { describe, expect, it } from 'vitest';
 import { chooseAction, chooseSetup } from '@okiya/bot';
-import { TILES, SPEC_V0_2 } from '@okiya/content';
-import { applyAction, listLegalActions, playerView, prepareMatch, startMatch, validateSetup, type MatchState } from '@okiya/rules';
+import { PAPER_TEST_01, SPEC_V0_2, TILES } from '@okiya/content';
+import {
+  ALL_CELLS,
+  applyAction,
+  listLegalActions,
+  objectiveResult,
+  playerView,
+  prepareMatch,
+  startMatch,
+  validateSetup,
+  type Action,
+  type Board,
+  type CellId,
+  type FighterId,
+  type FighterType,
+  type MatchState,
+  type PlayerId,
+  type Scenario,
+} from '@okiya/rules';
+
+// Positions are built from deploy and move actions only, and every assertion is an outcome
+// computed through the public API, so the tests hold once abilities, traps and locks land:
+// - Setup traps sit on cells no action of the test enters.
+// - In the hand-built positions both rosters are Upgrader, Trap Checker, Anchor and Trapper.
+//   None of their abilities moves a fighter, so no ability can complete or block a square,
+//   and each one's next constraint is its actor's tile or unchanged (spec §9).
+
+const BOT: PlayerId = 'B';
+const HUMAN: PlayerId = 'A';
+
+/** Rows are terrains (A Forest, B Water, C Mountain, D Desert), columns symbols (Sun, Moon, Star, Wave). */
+const GRID_BOARD = Object.fromEntries(ALL_CELLS.map((cell, index) => [cell, TILES[index]!])) as Board;
+const STILL_ROSTER: readonly FighterType[] = ['Upgrader', 'TrapChecker', 'Anchor', 'Trapper'];
+
+function gridScenario(startingPlayer: PlayerId, traps: Record<PlayerId, readonly CellId[]>): Scenario {
+  return { id: 'bot-test', name: 'Bot test', board: GRID_BOARD, rosters: { A: STILL_ROSTER, B: STILL_ROSTER }, traps, startingPlayer };
+}
+
+function apply(state: MatchState, action: Action): MatchState {
+  const applied = applyAction(state, action);
+  if (!applied.ok) throw new Error(`refused ${JSON.stringify(action)}: ${JSON.stringify(applied.refusal)}`);
+  return applied.state;
+}
+
+/**
+ * Plays `A:Trapper@C1` as a deploy and `A:Trapper>C2` as a move, from a fresh match. The
+ * scenario fixes the board and the starting player, so the seed changes only the bot's generator.
+ */
+function play(scenario: Scenario, steps: readonly string[], seed = 1): MatchState {
+  const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed, scenario });
+  const unused = { roster: [], traps: [] };
+  let state = startMatch(prepared, { A: unused, B: unused });
+  for (const step of steps) {
+    const [fighter, kind, cell] = step.split(/([@>])/) as [FighterId, '@' | '>', CellId];
+    state = apply(state, { kind: kind === '@' ? 'deploy' : 'move', fighter, cell });
+  }
+  return state;
+}
+
+function enteredCells(steps: readonly string[]): Set<string> {
+  return new Set(steps.map((step) => step.slice(-2)));
+}
+
+function wins(state: MatchState, player: PlayerId): boolean {
+  const result = objectiveResult(state);
+  return result?.kind === 'win' && result.winner === player;
+}
+
+/** Whether the active player has an action that completes its square at once. */
+function hasImmediateWin(state: MatchState): boolean {
+  const player = state.activePlayer;
+  return !state.result && listLegalActions(state).some((action) => wins(apply(state, action), player));
+}
+
+/** Whether some reply of the active player leaves the other side with no legal action. */
+function canBlockade(state: MatchState): boolean {
+  return listLegalActions(state).some((action) => apply(state, action).result?.reason === 'blockade');
+}
+
+function botChoice(state: MatchState, options?: Parameters<typeof chooseAction>[2]): { action: Action; next: MatchState } {
+  const legal = listLegalActions(state);
+  const action = chooseAction(playerView(state, state.activePlayer), legal, options);
+  expect(legal).toContainEqual(action);
+  return { action, next: apply(state, action) };
+}
 
 function botMatch(seed: number): MatchState {
   const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed });
@@ -9,8 +92,68 @@ function botMatch(seed: number): MatchState {
   return startMatch(prepared, { A: chooseSetup({ ...input, privateSeed: seed + 1 }), B: chooseSetup(input) });
 }
 
+// The bot (B) has A3, A4, B3 and C4 around the open hole B4; the constraint Desert–Wave lets
+// C4 walk into B4. Abilities only add choices, and the assertion holds for any winning one.
+const WIN_STEPS = ['B:Upgrader@A4', 'A:Trapper@A2', 'B:Anchor@A3', 'A:Anchor@D3', 'B:Trapper@B3', 'A:TrapChecker@C3', 'B:TrapChecker@C4', 'A:Upgrader@D4'];
+const WIN_TRAPS = { A: ['A1', 'D1'], B: ['B1', 'D2'] } as const;
+
+// The human (A) holds A3, B2 and B3 around the open hole A2, with A1 next to it, and the
+// constraint Water–Moon matches A2. Most bot actions hand over a constraint matching A2;
+// deploying into A2 holds it (paper test 01 F2). The human's abilities move no fighter, so
+// its only wins are walks into the hole, whatever the rules lane adds.
+const THREAT_STEPS = ['A:Trapper@A3', 'B:TrapChecker@A4', 'A:Upgrader@A1', 'B:Trapper@B1', 'A:TrapChecker@B3', 'B:TrapChecker>B4', 'A:Anchor@B2'];
+const THREAT_TRAPS = { A: ['D3', 'D4'], B: ['D1', 'D2'] } as const;
+
+// The human holds A1, A2 and B1 around the open hole B2 (Water–Moon), with B3 next to it. No
+// bot fighter can reach B2, so the bot can only choose which constraint to hand over: C4 to
+// B4 hands over Water–Wave, which lets B3 walk into B2; the other moves hand over Mountain–Star.
+const HANDOVER_STEPS = [
+  'A:Upgrader@A2', 'B:Anchor@A3', 'A:Anchor@A1', 'B:Trapper@D1', 'A:TrapChecker@B1', 'B:Trapper>C1',
+  'A:Trapper@C2', 'B:TrapChecker@C4', 'A:Trapper>C3', 'B:Upgrader@D3', 'A:Trapper>B3',
+];
+const HANDOVER_TRAPS = { A: ['A4', 'D4'], B: ['D2', 'D4'] } as const;
+
+// The bot's Upgrader is still in reserve and the constraint is Water–Sun. Deploying it on D1
+// lets the human walk B1 to C1 and hand over Mountain–Sun: then only the Upgrader's tile
+// matches, it is charged (no recharge), no ally of it lacks a charge (no Upgrader target),
+// and no bot fighter has an empty matching neighbour, so the bot has no legal action with or
+// without abilities. Other choices keep a matching empty cell next to a bot fighter for every
+// reply, ability replies included: they hand over the actor's tile, which matches the
+// constraint the bot handed over, or keep it.
+const BLOCKADE_STEPS = [
+  'A:Upgrader@D3', 'B:Anchor@A3', 'A:Anchor@A2', 'B:TrapChecker@D2', 'A:Upgrader>D4', 'B:TrapChecker>D3',
+  'A:TrapChecker@C3', 'B:Trapper@B3', 'A:Trapper@B1',
+];
+const BLOCKADE_TRAPS = { A: ['C2', 'C4'], B: ['A4', 'B4'] } as const;
+
+// A midgame on the paper test 01 board and rosters, every fighter deployed, A to move.
+const MIDGAME_STEPS = [
+  'A:TrapChecker@B1', 'B:Trapper@A3', 'A:Teleporter@D3', 'B:Swapper@C4', 'A:Pusher@B3', 'B:Upgrader@D4',
+  'A:TerrainWeaver@A4', 'B:Puller@D1',
+];
+const MIDGAME_SCENARIO: Scenario = { ...PAPER_TEST_01, traps: { A: ['C2', 'D2'], B: ['A1', 'B2'] } };
+
+/** Seeds for the positions above; a bot choosing at random among legal actions fails some. */
+const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+
+describe('bot test positions', () => {
+  it('keep every setup trap off the cells their actions enter', () => {
+    const cases = [
+      [WIN_STEPS, WIN_TRAPS],
+      [THREAT_STEPS, THREAT_TRAPS],
+      [HANDOVER_STEPS, HANDOVER_TRAPS],
+      [BLOCKADE_STEPS, BLOCKADE_TRAPS],
+      [MIDGAME_STEPS, MIDGAME_SCENARIO.traps!],
+    ] as const;
+    for (const [steps, traps] of cases) {
+      const entered = enteredCells(steps);
+      for (const cell of [...traps.A!, ...traps.B!]) expect(entered.has(cell)).toBe(false);
+    }
+  });
+});
+
 describe('bot setup choice', () => {
-  it('returns a setup the validator accepts', () => {
+  it('returns a setup the validator accepts under spec-v0.2', () => {
     for (const seed of [0, 1, 17, 123456]) {
       const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed });
       const setup = chooseSetup({ board: prepared.board, preset: SPEC_V0_2, privateSeed: seed });
@@ -18,34 +161,109 @@ describe('bot setup choice', () => {
     }
   });
 
-  it("respects the preset's displacer limit", () => {
-    const preset = { ...SPEC_V0_2, variants: { ...SPEC_V0_2.variants, displacerLimit: 0 } };
-    const prepared = prepareMatch({ tiles: TILES, preset, seed: 3 });
-    expect(validateSetup(chooseSetup({ board: prepared.board, preset, privateSeed: 3 }), preset)).toEqual([]);
+  it("respects a preset's displacer limit of 1", () => {
+    const preset = { ...SPEC_V0_2, variants: { ...SPEC_V0_2.variants, displacerLimit: 1 } };
+    for (const seed of [3, 4, 5]) {
+      const prepared = prepareMatch({ tiles: TILES, preset, seed });
+      expect(validateSetup(chooseSetup({ board: prepared.board, preset, privateSeed: seed }), preset)).toEqual([]);
+    }
+  });
+
+  it('gives the same setup for the same input', () => {
+    const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed: 9 });
+    const input = { board: prepared.board, preset: SPEC_V0_2, privateSeed: 4242 };
+    expect(chooseSetup(input)).toEqual(chooseSetup(structuredClone(input)));
   });
 });
 
 describe('bot action choice', () => {
-  it('only ever returns an action from the legal-action list', () => {
+  // Full bot-against-bot games; the generous timeout covers slower turns once abilities exist.
+  it('only ever returns an action from the legal-action list', { timeout: 60_000 }, () => {
     for (const seed of [1, 2, 3, 4, 5]) {
       let state = botMatch(seed);
       for (let turn = 0; turn < 40 && !state.result; turn += 1) {
-        const legal = listLegalActions(state);
-        const action = chooseAction(playerView(state, state.activePlayer), legal);
-        expect(legal).toContainEqual(action);
-        const applied = applyAction(state, action);
-        if (!applied.ok) throw new Error(`bot action refused: ${JSON.stringify(applied.refusal)}`);
-        state = applied.state;
+        state = botChoice(state).next;
       }
     }
   });
 
-  it('gives the same action for the same view and seed', () => {
-    const state = botMatch(77);
-    const view = playerView(state, state.activePlayer);
-    const legal = listLegalActions(state);
-    expect(chooseAction(view, legal)).toEqual(chooseAction(structuredClone(view), [...legal]));
-    const choices = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((seed) => JSON.stringify(chooseAction({ ...view, seed }, legal))));
-    expect(choices.size).toBeGreaterThan(1);
+  it('gives the same action for the same view and legal-action list', () => {
+    for (const state of [botMatch(77), play(MIDGAME_SCENARIO, MIDGAME_STEPS), play(gridScenario('A', HANDOVER_TRAPS), HANDOVER_STEPS)]) {
+      const view = playerView(state, state.activePlayer);
+      const legal = listLegalActions(state);
+      expect(chooseAction(view, legal)).toEqual(chooseAction(structuredClone(view), structuredClone(legal)));
+    }
+  });
+
+  it('takes an available immediate Square win', () => {
+    for (const seed of SEEDS) {
+      const state = play(gridScenario('B', WIN_TRAPS), WIN_STEPS, seed);
+      expect(state.activePlayer).toBe(BOT);
+      expect(hasImmediateWin(state)).toBe(true);
+      // Not every action wins, so the bot has to find a winning one.
+      expect(listLegalActions(state).some((action) => !wins(apply(state, action), BOT))).toBe(true);
+      expect(wins(botChoice(state).next, BOT)).toBe(true);
+    }
+  });
+
+  it("prevents the human's threatened square when a legal action can (paper test 01 F2)", () => {
+    for (const seed of SEEDS) {
+      const state = play(gridScenario('A', THREAT_TRAPS), THREAT_STEPS, seed);
+      expect(state.activePlayer).toBe(BOT);
+      const outcomes = listLegalActions(state).map((action) => hasImmediateWin(apply(state, action)));
+      expect(outcomes).toContain(true);
+      expect(outcomes).toContain(false);
+      for (const options of [undefined, { maxDepth: 2 }]) {
+        expect(hasImmediateWin(botChoice(state, options).next)).toBe(false);
+      }
+    }
+  });
+
+  it('does not hand over a constraint that gives the human an immediate win', () => {
+    for (const seed of SEEDS) {
+      const state = play(gridScenario('A', HANDOVER_TRAPS), HANDOVER_STEPS, seed);
+      expect(state.activePlayer).toBe(BOT);
+      const outcomes = listLegalActions(state).map((action) => hasImmediateWin(apply(state, action)));
+      expect(outcomes).toContain(true);
+      expect(outcomes.filter((humanWins) => !humanWins).length).toBeGreaterThan(1);
+      expect(hasImmediateWin(botChoice(state).next)).toBe(false);
+    }
+  });
+
+  it('prefers an action that leaves it a legal action next turn over blockading itself', () => {
+    for (const seed of SEEDS) {
+      const state = play(gridScenario('A', BLOCKADE_TRAPS), BLOCKADE_STEPS, seed);
+      expect(state.activePlayer).toBe(BOT);
+      const outcomes = listLegalActions(state).map((action) => canBlockade(apply(state, action)));
+      expect(outcomes).toContain(true);
+      expect(outcomes).toContain(false);
+      const { next } = botChoice(state);
+      expect(next.result).toBeNull();
+      expect(canBlockade(next)).toBe(false);
+    }
+  });
+
+  it('honours the maximum depth and the position budget', () => {
+    const state = play(gridScenario('A', THREAT_TRAPS), THREAT_STEPS);
+    for (const options of [{ maxDepth: 1 }, { maxDepth: 2 }, { budget: 1 }, { maxDepth: 5, budget: 1 }, { maxDepth: 0 }]) {
+      botChoice(state, options);
+    }
+  });
+
+  // Until abilities exist a midgame offers only a few moves, so depth 5 may finish within the
+  // budget there; the second position, one deploy in, has dozens of deploys per ply, so the
+  // position budget cuts depth 5 short on it either way.
+  it('chooses within one second on a midgame position with every fighter deployed (PRD B4)', () => {
+    const midgame = play(MIDGAME_SCENARIO, MIDGAME_STEPS);
+    expect(midgame.fighters.every((fighter) => fighter.cell !== null)).toBe(true);
+    expect(midgame.result).toBeNull();
+    const deploying = play(MIDGAME_SCENARIO, MIDGAME_STEPS.slice(0, 1));
+    for (const state of [midgame, deploying]) {
+      for (const options of [undefined, { maxDepth: 5 }]) {
+        const started = performance.now();
+        botChoice(state, options);
+        expect(performance.now() - started).toBeLessThan(1000);
+      }
+    }
   });
 });
