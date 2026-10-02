@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { Action, FighterState } from '@okiya/rules';
-import { highlightedCells, optionsFor, resolveCellClick } from './selection';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { SPEC_V0_2 } from '@okiya/content';
+import { ALL_CELLS, applyAction, listLegalActions, playerView, type Action, type CellId, type FighterState } from '@okiya/rules';
+import { Board } from './Board';
+import { createMatch, HUMAN, prepare } from './match';
+import { highlightedCells, markedCells, optionsFor, resolveCellClick } from './selection';
+import { defaultHumanSetup } from './setup';
+import { describeRefusal } from './text';
 
 // Hand-built: the worktree's engine offers no ability targets yet (PRD R3).
 const LEGAL: readonly Action[] = [
@@ -93,5 +100,53 @@ describe('cell clicks', () => {
       action: { kind: 'move', fighter: 'A:Pusher', cell: 'D4' },
     });
     expect(resolveCellClick({ cell: 'D4', human: 'A', selection: undefined, options: [], occupant: undefined }).kind).toBe('hint');
+  });
+});
+
+describe('move highlights setting (PRD E4)', () => {
+  const view = playerView(createMatch(prepare(1), defaultHumanSetup(1, SPEC_V0_2), 3), HUMAN);
+  const state = createMatch(prepare(1), defaultHumanSetup(1, SPEC_V0_2), 3);
+  const legal = listLegalActions(state);
+  it('starts with the human to move', () => expect(state.activePlayer).toBe(HUMAN));
+  const fighter = legal[0]!.fighter;
+  const options = optionsFor(legal, fighter);
+
+  function boardHtml(highlights: boolean) {
+    return renderToStaticMarkup(
+      createElement(Board, {
+        testId: 'board',
+        board: view.board,
+        human: HUMAN,
+        fighters: view.fighters,
+        ownTraps: new Set<CellId>(),
+        highlighted: markedCells(options, highlights),
+        onCellClick: () => {},
+      }),
+    );
+  }
+
+  it('marks the legal cells with highlights on, and no cell with them off', () => {
+    expect(options.length).toBeGreaterThan(0);
+    expect(markedCells(options, true).size).toBe(highlightedCells(options).size);
+    expect(boardHtml(true).match(/data-highlighted="true"/g)?.length).toBe(highlightedCells(options).size);
+    expect(markedCells(options, false).size).toBe(0);
+    expect(boardHtml(false)).not.toContain('data-highlighted="true"');
+    expect(boardHtml(false)).not.toContain(' highlighted');
+  });
+
+  it('leaves the legal actions and the refusal reasons unchanged with highlights off', () => {
+    // The setting only changes what the board marks: options and clicks come from the legal-action list.
+    const legalCell = options[0]!.cell!;
+    const click = (cell: CellId) =>
+      resolveCellClick({ cell, human: HUMAN, selection: view.fighters.find((candidate) => candidate.id === fighter), options, occupant: undefined });
+    expect(click(legalCell)).toEqual({ kind: 'apply', action: options[0]!.action });
+    const illegal = ALL_CELLS.find((cell) => !options.some((option) => option.cell === cell))!;
+    const attempt = click(illegal);
+    expect(attempt.kind).toBe('attempt');
+    if (attempt.kind !== 'attempt') return;
+    const refused = applyAction(state, attempt.action);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(describeRefusal(refused.refusal)).toMatch(/not on the outside edge|does not match|occupied/);
+    expect(listLegalActions(state)).toEqual(legal);
   });
 });

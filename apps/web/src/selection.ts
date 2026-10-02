@@ -71,3 +71,8 @@ export function resolveCellClick({ cell, human, selection, options, occupant }: 
   if (!selection) return { kind: 'hint', message: 'Select one of your fighters first.' };
   return { kind: 'attempt', action: { kind: selection.cell === null ? 'deploy' : 'move', fighter: selection.id, cell } };
 }
+
+/** The cells marked as playable on the board: the selection's legal cells, or none with highlights off (PRD E4). */
+export function markedCells(options: readonly ActionOption[], highlights: boolean): Set<CellId> {
+  return highlights ? new Set(highlightedCells(options).keys()) : new Set();
+}

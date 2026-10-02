@@ -8,6 +8,7 @@ import { SetupScreen } from './SetupScreen';
 import { Board } from './Board';
 import { EndScreen } from './EndScreen';
 import { createMatch, HUMAN, prepare } from './match';
+import { DEFAULT_SETTINGS } from './settings';
 import { defaultHumanSetup } from './setup';
 import { cellAccessibleName, fighterHelp } from './text';
 
@@ -107,11 +108,11 @@ describe('board accessible names (PRD U3)', () => {
   });
 });
 
-describe('objective and fighter help in words (PRD U7)', () => {
+describe('objective and fighter help in words (PRD E3)', () => {
   const square = OBJECTIVES.find((objective) => objective.id === 'Square')!;
-  const setupHtml = decode(renderToStaticMarkup(createElement(SetupScreen, { prepared: prepare(5), onStart: () => {}, onLeave: () => {} })));
+  const setupHtml = decode(renderToStaticMarkup(createElement(SetupScreen, { prepared: prepare(5), depth: 'normal', onStart: () => {}, onLeave: () => {} })));
   const matchHtml = decode(
-    renderToStaticMarkup(createElement(MatchScreen, { initialState: runningState, depth: 'normal', onLeave: () => {} })),
+    renderToStaticMarkup(createElement(MatchScreen, { initialState: runningState, depth: 'normal', settings: DEFAULT_SETTINGS, onLeave: () => {} })),
   );
 
   it('explains the player’s objective from its summary on the setup and match screens', () => {

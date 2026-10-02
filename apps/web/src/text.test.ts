@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SPEC_V0_2 } from '@okiya/content';
 import type { ActionRefusal, FighterState, SetupRefusal } from '@okiya/rules';
-import { cellAccessibleName, describeRefusal, describeSetupRefusal, fighterAccessibleName, presetRows } from './text';
+import { cellAccessibleName, describeRefusal, describeSetupRefusal, fighterAccessibleName } from './text';
 
 const tile = { terrain: 'Desert', symbol: 'Moon' } as const;
 const constraint = { terrain: 'Forest', symbol: 'Star' } as const;
@@ -86,19 +85,5 @@ describe('accessible names (PRD U3)', () => {
 
   it('names a reserve fighter', () => {
     expect(fighterAccessibleName({ ...pusher, cell: null }, 'A')).toBe('your Pusher, in reserve, charged');
-  });
-});
-
-describe('rules panel values (PRD I3)', () => {
-  it('shows the active preset values', () => {
-    const rows = Object.fromEntries(presetRows(SPEC_V0_2).map((row) => [row.label, row.value]));
-    expect(rows['Preset']).toContain('spec-v0.2');
-    expect(rows['Recharge actions per player']).toBe('3');
-    expect(rows['Setup traps per player']).toBe('2, on distinct cells');
-    expect(rows['Displacers per roster']).toBe('no limit');
-    expect(rows['Puller may target allies']).toBe('yes');
-    expect(rows['Terminal precedence']).toBe('objective, then blockade, then repetition');
-    const limited = presetRows({ ...SPEC_V0_2, variants: { ...SPEC_V0_2.variants, displacerLimit: 1 } });
-    expect(limited.find((row) => row.label === 'Displacers per roster')?.value).toBe('at most 1');
   });
 });

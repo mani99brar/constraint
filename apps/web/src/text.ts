@@ -9,7 +9,6 @@ import type {
   FighterType,
   MatchResult,
   PlayerId,
-  Preset,
   PublicLogEntry,
   SetupRefusal,
   Tile,
@@ -219,47 +218,4 @@ export function describeTrap(trap: TrapRecord, human: PlayerId): string {
       break;
   }
   return `${owner} ${source} at ${trap.cell}: ${fate}`;
-}
-
-function turnsText(count: number): string {
-  return `${count} of its owner's turn${count === 1 ? '' : 's'}`;
-}
-
-/** The active preset's values for the rules panel (PRD I3). */
-export function presetRows(preset: Preset): { readonly label: string; readonly value: string }[] {
-  const { variants } = preset;
-  return [
-    { label: 'Preset', value: `${preset.name} (${preset.id} ${preset.version})` },
-    { label: 'Roster size', value: String(preset.rosterSize) },
-    { label: 'Recharge actions per player', value: String(preset.rechargesPerPlayer) },
-    { label: 'Setup traps per player', value: `${preset.setupTrapsPerPlayer}${preset.setupTrapsOnDistinctCells ? ', on distinct cells' : ''}` },
-    { label: 'Live traps per owner per cell', value: String(preset.liveTrapsPerOwnerPerCell) },
-    {
-      label: 'Opening',
-      value: `outside-edge cell, no constraint; traps ${preset.trapsTriggerOnOpening ? 'can' : 'cannot'} trigger on it`,
-    },
-    { label: 'Lock duration', value: `misses ${turnsText(preset.lockOwnTurnsMissed)}` },
-    {
-      label: 'Anchor protection',
-      value:
-        variants.anchorProtection === 'through-opponent-next-turn'
-          ? "through the opponent's next turn"
-          : "through the owner's following turn",
-    },
-    {
-      label: 'Trap Checker',
-      value: `one adjacent empty or enemy cell${preset.trapCheckerLegalWithNothingFound ? '; legal with nothing found' : ''}`,
-    },
-    {
-      label: 'Trapper',
-      value: `destination ${preset.trapperDestinationMustMatch ? 'must' : 'need not'} match; constraint ${preset.trapperKeepsConstraint ? 'unchanged' : 'set'}`,
-    },
-    { label: 'Puller may target allies', value: variants.pullerMayTargetAllies ? 'yes' : 'no' },
-    { label: 'Locked fighters count toward the objective', value: variants.lockedFightersCountTowardObjective ? 'yes' : 'no' },
-    { label: 'Displacers per roster', value: variants.displacerLimit === null ? 'no limit' : `at most ${variants.displacerLimit}` },
-    { label: 'Same fighter types on both rosters', value: preset.sameTypesAcrossRosters ? 'allowed' : 'not allowed' },
-    { label: 'Repetition draw', value: `occurrence ${preset.repetitionThreshold} of the same start-of-turn state` },
-    { label: 'Terminal precedence', value: preset.terminalPrecedence.join(', then ') },
-    { label: 'Objectives', value: preset.objectivePool.join(', ') },
-  ];
 }

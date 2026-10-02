@@ -1,44 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { SPEC_V0_2 } from '@okiya/content';
 import { isEdgeCell, playerView } from '@okiya/rules';
-import { BOT, botStep, chooseSeed, createMatch, HUMAN, prepare, seedTextFromSearch } from './match';
+import { BOT, botStep, createMatch, generateSeed, HUMAN, PRESET, prepare } from './match';
 import { defaultHumanSetup } from './setup';
-import { SetupScreen } from './SetupScreen';
-
-function seedOf(text: string): number {
-  const choice = chooseSeed(text);
-  if (!choice.ok) throw new Error(choice.error);
-  return choice.seed;
-}
-
-const noop = () => {};
-
-describe('match seed (PRD S1, L1)', () => {
-  it('generates a seed when none is given, and the setup screen shows it', () => {
-    const seed = seedOf('');
-    expect(Number.isInteger(seed)).toBe(true);
-    expect(seed).toBeGreaterThanOrEqual(0);
-    expect(chooseSeed('', () => 31_337)).toEqual({ ok: true, seed: 31_337 });
-    const html = renderToStaticMarkup(createElement(SetupScreen, { prepared: prepare(31_337), onStart: noop, onLeave: noop }));
-    expect(html).toContain('Seed 31337');
-  });
-
-  it('gives the same board for a seed typed in the field and the same seed in ?seed=', () => {
-    expect(seedTextFromSearch('?seed=4242')).toBe('4242');
-    expect(seedTextFromSearch('')).toBe('');
-    const typed = prepare(seedOf('4242'));
-    const fromUrl = prepare(seedOf(seedTextFromSearch('?seed=4242')));
-    expect(fromUrl.board).toEqual(typed.board);
-    expect(prepare(seedOf('4243')).board).not.toEqual(typed.board);
-  });
-
-  it('refuses a malformed seed', () => {
-    expect(chooseSeed('abc').ok).toBe(false);
-    expect(chooseSeed('4294967296').ok).toBe(false);
-  });
-});
 
 describe('bot opening', () => {
   it('makes the opening deployment before the player’s first turn when the bot starts', () => {
@@ -64,5 +28,31 @@ describe('bot opening', () => {
     expect(next.constraint).not.toBeNull();
     // On the player's turn the bot does not move again.
     expect(botStep(next)).toBe(next);
+  });
+});
+
+describe('match randomness (PRD E1)', () => {
+  it('draws match seeds from crypto.getRandomValues and always plays spec-v0.2', () => {
+    const original = crypto.getRandomValues.bind(crypto);
+    const calls: number[] = [];
+    Object.defineProperty(crypto, 'getRandomValues', {
+      configurable: true,
+      value: <T extends ArrayBufferView | null>(array: T) => {
+        calls.push(1);
+        (array as unknown as Uint32Array)[0] = 0xdead_beef;
+        return array;
+      },
+    });
+    try {
+      expect(generateSeed()).toBe(0xdead_beef >>> 1);
+      const prepared = prepare();
+      expect(prepared.seed).toBe(0xdead_beef >>> 1);
+      expect(prepared.preset).toBe(SPEC_V0_2);
+      expect(PRESET).toBe(SPEC_V0_2);
+      expect(prepared.scenario).toBeNull();
+      expect(calls).toHaveLength(2);
+    } finally {
+      Object.defineProperty(crypto, 'getRandomValues', { configurable: true, value: original });
+    }
   });
 });

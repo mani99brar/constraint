@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Action, CellId, FighterId, FighterState, MatchState, PlayerId, PlayerView } from '@okiya/rules';
 import { Board } from './Board';
+import { depthLabel, type BotDepthId } from './difficulty';
 import { EndScreen } from './EndScreen';
 import { describeEvents, inspectedOwnTraps, recentAction } from './events';
-import { objectiveSummary } from './guide';
+import { objectiveSummary } from './howto';
 import { SymbolIcon, TerrainIcon } from './icons';
 import { BOT, HUMAN } from './match';
-import { PresetBadge } from './PresetBadge';
-import { RulesPanel } from './RulesPanel';
-import { highlightedCells, optionsFor, resolveCellClick, type CellChoice } from './selection';
-import { depthLabel, type BotDepthId } from './start';
+import { outcomeOf } from './results';
+import { markedCells, optionsFor, resolveCellClick, type CellChoice } from './selection';
+import type { Settings } from './settings';
+import { SettingsPanel } from './SettingsPanel';
+import type { SoundEffect, SoundPlayer } from './sound';
 import {
   describeLogEntry,
   describeOption,
@@ -130,45 +132,86 @@ function FighterButtons({ fighters, selection, legalActions, disabled, onSelect 
   );
 }
 
+const SILENT: SoundPlayer = { unlock: () => {}, play: () => false };
+
+/** The sound of the newest log entry: a trap springing, the player's action or the bot's, or the result. */
+function soundOf(view: PlayerView): SoundEffect | null {
+  const entry = view.log[view.log.length - 1];
+  if (!entry) return null;
+  if (view.result) return outcomeOf(view.result, HUMAN);
+  if (entry.events.some((event) => event.kind === 'trap-triggered')) return 'trap';
+  return entry.player === HUMAN ? 'place' : 'bot';
+}
+
 export interface MatchScreenProps {
   readonly initialState: MatchState;
   readonly depth: BotDepthId;
-  readonly scenarioName?: string | null;
+  readonly settings: Settings;
+  readonly onSettings?: (settings: Settings) => void;
+  readonly sound?: SoundPlayer;
+  /** Hears every new state once, to save the match or record its result. */
+  readonly onChange?: (state: MatchState) => void;
+  readonly onHowTo?: (opener: HTMLElement) => void;
+  readonly onNewGame?: () => void;
   readonly onLeave: () => void;
 }
 
-export function MatchScreen({ initialState, depth, scenarioName = null, onLeave }: MatchScreenProps) {
-  const { view, legalActions, attempt } = useMatch(initialState, depth);
+export function MatchScreen(props: MatchScreenProps) {
+  const { initialState, depth, settings, onSettings, sound = SILENT, onChange, onHowTo, onNewGame, onLeave } = props;
+  const { view, legalActions, attempt } = useMatch(initialState, depth, onChange);
   const [selected, setSelected] = useState<FighterId | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [choices, setChoices] = useState<{ cell: CellId; choices: readonly CellChoice[] } | null>(null);
+  const heard = useRef(view.log.length);
+
+  useEffect(() => {
+    // One sound per new action; a resumed match starts silent.
+    if (view.log.length === heard.current) return;
+    heard.current = view.log.length;
+    const effect = soundOf(view);
+    if (effect) sound.play(effect);
+  }, [view, sound]);
 
   const humanTurn = view.activePlayer === HUMAN && !view.result;
   const ownFighters = view.fighters.filter((fighter) => fighter.owner === HUMAN);
   const reserve = ownFighters.filter((fighter) => fighter.cell === null);
   const deployed = ownFighters.filter((fighter) => fighter.cell !== null);
-  // Without an explicit choice, the first reserve fighter is selected.
-  const selection = ownFighters.find((fighter) => fighter.id === selected) ?? (humanTurn ? reserve[0] : undefined);
+  // Nothing is selected until the player chooses, so the turn bar shows every available action.
+  const selection = humanTurn ? ownFighters.find((fighter) => fighter.id === selected) : undefined;
   const options = humanTurn ? optionsFor(legalActions, selection?.id) : [];
-  const highlighted = highlightedCells(options);
   const turn = turnState(view, {
     human: HUMAN,
     legalCount: legalActions.length,
-    selection: selection && humanTurn ? { name: fighterName(selection.type), optionCount: options.length } : null,
+    highlights: settings.highlights,
+    selection: selection
+      ? {
+          name: fighterName(selection.type),
+          type: selection.type,
+          cell: selection.cell,
+          tile: selection.cell ? view.board[selection.cell] : null,
+          options: options.map((option) => option.action),
+        }
+      : null,
   });
   const recent = recentAction(view, HUMAN);
+
+  function refuse(text: string) {
+    setRefusal(text);
+    sound.play('refuse');
+  }
 
   function select(fighter: FighterId) {
     setSelected(fighter);
     setRefusal(null);
     setChoices(null);
+    sound.play('select');
   }
 
   function run(action: Action) {
     const refused = attempt(action);
     setChoices(null);
     if (refused) {
-      setRefusal(describeRefusal(refused));
+      refuse(describeRefusal(refused));
     } else {
       setRefusal(null);
       setSelected(null);
@@ -194,7 +237,7 @@ export function MatchScreen({ initialState, depth, scenarioName = null, onLeave 
         setRefusal(null);
         return setChoices({ cell: click.cell, choices: click.choices });
       case 'hint':
-        return setRefusal(click.message);
+        return refuse(click.message);
     }
   }
 
@@ -204,16 +247,30 @@ export function MatchScreen({ initialState, depth, scenarioName = null, onLeave 
   return (
     <main className="match">
       <header className="match-header">
-        <span data-testid="seed">Seed {view.seed}</span>
-        <PresetBadge preset={view.preset} />
+        <h1 className="visually-hidden">Match</h1>
         <span data-testid="bot-depth">Bot: {depthLabel(depth)}</span>
-        {scenarioName && <span data-testid="scenario">Scenario: {scenarioName}</span>}
-        <button type="button" onClick={onLeave}>
-          New match
-        </button>
+        <span className="header-actions">
+          {onHowTo && (
+            <button type="button" data-testid="match-how-to-play" onClick={(event) => onHowTo(event.currentTarget)}>
+              How to play
+            </button>
+          )}
+          <button type="button" data-testid="menu" onClick={onLeave}>
+            Menu
+          </button>
+        </span>
       </header>
 
-      <EndScreen view={view} human={HUMAN} />
+      <EndScreen view={view} human={HUMAN}>
+        {onNewGame && (
+          <button type="button" className="primary" onClick={onNewGame}>
+            New game
+          </button>
+        )}
+        <button type="button" onClick={onLeave}>
+          Title screen
+        </button>
+      </EndScreen>
       <TurnBar view={view} turn={turn} />
 
       <div className="layout">
@@ -225,7 +282,7 @@ export function MatchScreen({ initialState, depth, scenarioName = null, onLeave 
             fighters={view.fighters}
             ownTraps={new Set(view.ownTraps.map((trap) => trap.cell))}
             inspectedTraps={inspectedOwnTraps(view, HUMAN)}
-            highlighted={new Set(highlighted.keys())}
+            highlighted={markedCells(options, settings.highlights)}
             selected={selection?.id}
             recent={recent}
             disabled={!humanTurn}
@@ -235,7 +292,7 @@ export function MatchScreen({ initialState, depth, scenarioName = null, onLeave 
             <strong>Your objective: {objective}.</strong> {objectiveSummary(objective)}
           </p>
           <p className="legend" aria-hidden="true">
-            <span className="legend-item legal">Legal for the selected fighter</span>
+            {settings.highlights && <span className="legend-item legal">Legal for the selected fighter</span>}
             <span className="legend-item recent">Last action</span>
             <span className="legend-item own">● you</span>
             <span className="legend-item enemy">◆ bot</span>
@@ -324,7 +381,7 @@ export function MatchScreen({ initialState, depth, scenarioName = null, onLeave 
             </ol>
           </section>
 
-          <RulesPanel preset={view.preset} />
+          {onSettings && <SettingsPanel settings={settings} onChange={onSettings} compact />}
         </div>
       </div>
     </main>

@@ -1,15 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyAction, listLegalActions, playerView, type Action, type ActionRefusal, type MatchState } from '@okiya/rules';
+import { searchOptionsFor, type BotDepthId } from './difficulty';
 import { BOT_DELAY_MS, botStep, botToMove, HUMAN } from './match';
-import { searchOptionsFor, type BotDepthId } from './start';
 
 /**
  * Holds the referee state and exposes only the human's player view, the human's legal actions and
  * a way to attempt an action. The bot moves from its own view after a short pause, searching to
- * the chosen depth.
+ * the chosen depth. `onChange` hears every new state once, to save the match or record its result.
  */
-export function useMatch(initialState: MatchState, depth: BotDepthId) {
+export function useMatch(initialState: MatchState, depth: BotDepthId, onChange?: (state: MatchState) => void) {
   const [state, setState] = useState(initialState);
+  const listener = useRef(onChange);
+  listener.current = onChange;
+  const reported = useRef<MatchState | null>(null);
+
+  useEffect(() => {
+    // StrictMode runs effects twice; each state is reported once.
+    if (reported.current === state) return;
+    reported.current = state;
+    listener.current?.(state);
+  }, [state]);
 
   useEffect(() => {
     if (!botToMove(state)) return;

@@ -1,5 +1,5 @@
-import type { PlayerId, PlayerView } from '@okiya/rules';
-import { constraintText, describeResult } from './text';
+import type { Action, CellId, FighterType, PlayerId, PlayerView, Tile } from '@okiya/rules';
+import { constraintText, describeResult, tileName } from './text';
 
 /** What the status bar says about the turn (PRD U5), without reading the log. */
 export interface TurnState {
@@ -13,12 +13,42 @@ export interface TurnState {
   readonly botThinking: boolean;
 }
 
+/**
+ * Which tile an ability's matching applies to (spec §9): the actor's own tile for the abilities
+ * gated on the actor, the target's tile for the displacers, and the destination for Teleporter.
+ */
+export type AbilityMatch = 'actor' | 'target' | 'destination';
+
+export const ABILITY_MATCH: Readonly<Record<FighterType, AbilityMatch>> = {
+  Teleporter: 'destination',
+  Pusher: 'target',
+  Swapper: 'target',
+  Puller: 'target',
+  Upgrader: 'actor',
+  TrapChecker: 'actor',
+  Anchor: 'actor',
+  TerrainWeaver: 'actor',
+  Trapper: 'actor',
+};
+
+/** The selected fighter, where it stands and its legal actions. */
+export interface TurnSelection {
+  readonly name: string;
+  readonly type: FighterType;
+  readonly cell: CellId | null;
+  /** The tile under the fighter, when it is deployed. */
+  readonly tile: Tile | null;
+  readonly options: readonly Action[];
+}
+
 export interface TurnInput {
   readonly human: PlayerId;
   /** The number of legal actions available to the human now. */
   readonly legalCount: number;
-  /** The selected fighter's name and its number of legal actions, if one is selected. */
-  readonly selection?: { readonly name: string; readonly optionCount: number } | null;
+  /** The selected fighter, if the player has selected one; nothing is selected by default. */
+  readonly selection?: TurnSelection | null;
+  /** Whether legal cells are highlighted on the board (PRD E4); the words follow the setting. */
+  readonly highlights?: boolean;
 }
 
 function actionsText(count: number): string {
@@ -29,7 +59,43 @@ export function constraintWords(view: Pick<PlayerView, 'constraint'>): string {
   return view.constraint ? constraintText(view.constraint) : 'any outside-edge cell (opening, no constraint yet)';
 }
 
-export function turnState(view: PlayerView, { human, legalCount, selection }: TurnInput): TurnState {
+/** "a highlighted target" with highlights on, "a target" or "an empty cell" with them off. */
+type Mark = (noun: string) => string;
+
+function marker(highlights: boolean): Mark {
+  return (noun) => (highlights ? `a highlighted ${noun}` : `${/^[aeiou]/i.test(noun) ? 'an' : 'a'} ${noun}`);
+}
+
+function selectionPrompt(selection: TurnSelection, constraint: string, opening: boolean, mark: Mark): string {
+  const { name, options } = selection;
+  if (options.length === 0) return `${name} selected: no legal action now. Select another fighter.`;
+  const head = `${name} selected: ${actionsText(options.length)}.`;
+  if (selection.cell === null) {
+    return `${head} Deploy it on ${opening ? mark('outside-edge cell') : `${mark('empty cell')} matching ${constraint}`}.`;
+  }
+  const count = (kind: Action['kind']) => options.filter((option) => option.kind === kind).length;
+  const parts = [head];
+  if (count('move') > 0) parts.push(`Move: ${mark('adjacent empty cell')} matching ${constraint}.`);
+  if (count('ability') > 0) {
+    switch (ABILITY_MATCH[selection.type]) {
+      case 'actor': {
+        const tile = selection.tile ? ` (${selection.cell}, ${tileName(selection.tile)})` : '';
+        parts.push(`Ability: ${name}'s own tile${tile} must match ${constraint}, not the target's; choose ${mark('target')}.`);
+        break;
+      }
+      case 'target':
+        parts.push(`Ability: choose ${mark('target')} whose tile matches ${constraint}.`);
+        break;
+      case 'destination':
+        parts.push(`Ability: choose ${mark('empty cell')} matching ${constraint}.`);
+        break;
+    }
+  }
+  if (count('recharge') > 0) parts.push(`Recharge: its tile matches ${constraint}; use the Recharge button.`);
+  return parts.join(' ');
+}
+
+export function turnState(view: PlayerView, { human, legalCount, selection, highlights = true }: TurnInput): TurnState {
   const constraint = constraintWords(view);
   if (view.result) {
     return { headline: describeResult(view.result, human), constraint, prompt: 'The match is over.', humanTurn: false, botThinking: false };
@@ -43,12 +109,13 @@ export function turnState(view: PlayerView, { human, legalCount, selection }: Tu
       botThinking: true,
     };
   }
-  const target = view.constraint ? `a highlighted cell matching ${constraint}` : 'a highlighted outside-edge cell';
+  const mark = marker(highlights);
+  const opening = view.constraint === null;
   const prompt = selection
-    ? `${selection.name} selected: ${actionsText(selection.optionCount)}. Choose ${target}${
-        selection.optionCount > 0 ? ', or an action button' : ''
-      }.`
-    : `You have ${actionsText(legalCount)}. Select a fighter, then ${target}.`;
+    ? selectionPrompt(selection, constraint, opening, mark)
+    : `You have ${actionsText(legalCount)}. Select a fighter, then ${
+        opening ? mark('outside-edge cell') : `${mark('cell')} matching ${constraint}`
+      }.`;
   return { headline: 'Your turn', constraint, prompt, humanTurn: true, botThinking: false };
 }
 

@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import type { PlayerId, PlayerView } from '@okiya/rules';
-import { objectiveSummary } from './guide';
+import { objectiveSummary } from './howto';
 import { describeResult, describeTrap, fighterName } from './text';
 
 /** The end screen (PRD R6): the result, then both objectives, both rosters and every trap. */
-export function EndScreen({ view, human }: { view: PlayerView; human: PlayerId }) {
+export function EndScreen({ view, human, children }: { view: PlayerView; human: PlayerId; children?: ReactNode }) {
   if (!view.result || !view.reveal) return null;
   const { reveal } = view;
   const bot: PlayerId = human === 'A' ? 'B' : 'A';
@@ -24,6 +25,7 @@ export function EndScreen({ view, human }: { view: PlayerView; human: PlayerId }
           </li>
         ))}
       </ul>
+      {children && <div className="button-row">{children}</div>}
     </section>
   );
 }

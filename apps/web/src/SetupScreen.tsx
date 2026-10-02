@@ -2,20 +2,22 @@ import { useState } from 'react';
 import { FIGHTERS } from '@okiya/content';
 import type { PreparedMatch, Setup } from '@okiya/rules';
 import { Board } from './Board';
-import { objectiveSummary } from './guide';
+import { depthLabel, type BotDepthId } from './difficulty';
+import { objectiveSummary } from './howto';
 import { HUMAN } from './match';
 import { addFighter, defaultHumanSetup, EMPTY_DRAFT, removeFighter, setupRefusals, toggleTrap, type DraftChange, type SetupDraft } from './setup';
 import { describeSetupRefusal, fighterName } from './text';
-import { PresetBadge } from './PresetBadge';
 
 export interface SetupScreenProps {
   readonly prepared: PreparedMatch;
+  readonly depth: BotDepthId;
   readonly onStart: (setup: Setup) => void;
   readonly onLeave: () => void;
+  readonly onHowTo?: (opener: HTMLElement) => void;
 }
 
 /** Setup (spec §5, PRD S2): the revealed board, the secret roster and the setup traps. */
-export function SetupScreen({ prepared, onStart, onLeave }: SetupScreenProps) {
+export function SetupScreen({ prepared, depth, onStart, onLeave, onHowTo }: SetupScreenProps) {
   const { preset } = prepared;
   const [draft, setDraft] = useState<SetupDraft>(EMPTY_DRAFT);
   const [refusals, setRefusals] = useState<string[]>([]);
@@ -41,11 +43,17 @@ export function SetupScreen({ prepared, onStart, onLeave }: SetupScreenProps) {
     <main className="setup">
       <header className="match-header">
         <h1>Setup</h1>
-        <span data-testid="seed">Seed {prepared.seed}</span>
-        <PresetBadge preset={preset} />
-        <button type="button" onClick={onLeave}>
-          Back
-        </button>
+        <span data-testid="bot-depth">Bot: {depthLabel(depth)}</span>
+        <span className="header-actions">
+          {onHowTo && (
+            <button type="button" onClick={(event) => onHowTo(event.currentTarget)}>
+              How to play
+            </button>
+          )}
+          <button type="button" onClick={onLeave}>
+            Back
+          </button>
+        </span>
       </header>
       <p className="objective" data-testid="objective">
         <strong>Your objective: {objective}.</strong> {objectiveSummary(objective)}
@@ -119,7 +127,7 @@ export function SetupScreen({ prepared, onStart, onLeave }: SetupScreenProps) {
             <button type="button" className="primary" onClick={start}>
               Start with this setup
             </button>
-            <button type="button" onClick={() => onStart(defaultHumanSetup(prepared.seed, preset))}>
+            <button type="button" data-testid="default-setup" onClick={() => onStart(defaultHumanSetup(prepared.seed, preset))}>
               Use default setup
             </button>
           </div>

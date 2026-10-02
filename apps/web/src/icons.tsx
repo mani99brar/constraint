@@ -98,3 +98,20 @@ export function TrapIcon() {
     </svg>
   );
 }
+
+/** The game's mark: four terrain tiles forming the 2×2 square of the objective, ringed by the constraint. */
+export function Logo({ size = 72 }: { size?: number }) {
+  return (
+    <svg aria-hidden focusable={false} viewBox="0 0 64 64" width={size} height={size} className="logo" data-testid="logo">
+      <rect x="2" y="2" width="60" height="60" rx="12" fill="var(--surface)" stroke="var(--text)" strokeWidth="3" />
+      <rect x="10" y="10" width="20" height="20" rx="4" fill="var(--forest)" stroke="var(--border)" />
+      <rect x="34" y="10" width="20" height="20" rx="4" fill="var(--water)" stroke="var(--border)" />
+      <rect x="10" y="34" width="20" height="20" rx="4" fill="var(--mountain)" stroke="var(--border)" />
+      <rect x="34" y="34" width="20" height="20" rx="4" fill="var(--desert)" stroke="var(--border)" />
+      <circle cx="20" cy="20" r="5" fill="var(--own)" />
+      <circle cx="44" cy="20" r="5" fill="var(--own)" />
+      <circle cx="20" cy="44" r="5" fill="var(--own)" />
+      <circle cx="44" cy="44" r="5" fill="var(--own)" />
+    </svg>
+  );
+}

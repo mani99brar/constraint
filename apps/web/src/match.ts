@@ -9,8 +9,6 @@ import {
   type MatchState,
   type PlayerId,
   type PreparedMatch,
-  type Preset,
-  type Scenario,
   type Setup,
 } from '@okiya/rules';
 
@@ -18,46 +16,25 @@ import {
 export const HUMAN = 'A' satisfies PlayerId;
 export const BOT = 'B' satisfies PlayerId;
 
+/** The published game always plays the spec's current defaults (PRD E1). */
+export const PRESET = SPEC_V0_2;
+
 /** Pause before the bot's move, so the player can follow it (PRD B4). */
 export const BOT_DELAY_MS = 600;
 
-const MAX_SEED = 0xffff_ffff;
-
-export function parseSeed(text: string | null): number | null {
-  if (text === null || !/^\d+$/.test(text.trim())) return null;
-  const seed = Number(text.trim());
-  return seed <= MAX_SEED ? seed : null;
-}
-
+/** A fresh seed from the browser's cryptographic generator. Seeds are never shown (PRD E1). */
 export function generateSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0]! >>> 1;
 }
 
-/** The seed field's initial text: the `?seed=` parameter of the page, or empty. */
-export function seedTextFromSearch(search: string): string {
-  return new URLSearchParams(search).get('seed') ?? '';
-}
-
-export type SeedChoice = { readonly ok: true; readonly seed: number } | { readonly ok: false; readonly error: string };
-
-/** The match seed from the field: generated when the field is empty (PRD S1), refused when malformed. */
-export function chooseSeed(text: string, generate: () => number = generateSeed): SeedChoice {
-  if (text.trim() === '') return { ok: true, seed: generate() };
-  const seed = parseSeed(text);
-  return seed === null ? { ok: false, error: 'The seed must be a whole number from 0 to 4294967295.' } : { ok: true, seed };
-}
-
-/**
- * Setup phase one (spec §5 step 1): the board the seed reveals, before either side chooses. A
- * scenario's board replaces the shuffle; its rosters, traps and starter apply at the start (PRD S4).
- */
-export function prepare(seed: number, preset: Preset = SPEC_V0_2, scenario?: Scenario): PreparedMatch {
-  return prepareMatch(scenario ? { tiles: TILES, preset, seed, scenario } : { tiles: TILES, preset, seed });
+/** Setup phase one (spec §5 step 1): the board the seed reveals, before either side chooses. */
+export function prepare(seed: number = generateSeed()): PreparedMatch {
+  return prepareMatch({ tiles: TILES, preset: PRESET, seed });
 }
 
 /**
  * Starts the match from the human's setup and the bot's (spec §5). The bot's setup uses its own
- * private seed, never shown, so the displayed match seed cannot reveal the bot's traps.
+ * private seed, independent of the match seed, so the match's randomness cannot reveal its traps.
  */
 export function createMatch(prepared: PreparedMatch, humanSetup: Setup, botPrivateSeed: number = generateSeed()): MatchState {
   const botSetup = chooseSetup({ board: prepared.board, preset: prepared.preset, privateSeed: botPrivateSeed });
