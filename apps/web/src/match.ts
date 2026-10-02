@@ -9,6 +9,21 @@ export const BOT = 'B' satisfies Player;
 /** Pause before the bot's take, so the player can follow it (PRD B5). */
 export const BOT_DELAY_MS = 600;
 
+/**
+ * Schedules the bot's take for the turn `state` is at, after `BOT_DELAY_MS` (PRD B5), and delivers the next state.
+ * Returns the cancel function; a cancelled schedule never delivers.
+ */
+export function scheduleBotTake(
+  state: GameState,
+  difficulty: Difficulty,
+  deliver: (next: GameState) => void,
+  timers: { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout } = globalThis,
+): () => void {
+  const scheduled = state.takes.length;
+  const timer = timers.setTimeout(() => deliver(botStep(state, scheduled, difficulty)), BOT_DELAY_MS);
+  return () => timers.clearTimeout(timer);
+}
+
 /** A fresh seed from the browser's cryptographic generator. Seeds are never shown (PRD S1). */
 export function generateSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0]! >>> 1;

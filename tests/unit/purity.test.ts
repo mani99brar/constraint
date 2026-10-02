@@ -9,7 +9,7 @@ const root = join(import.meta.dirname, '..', '..');
 
 const FORBIDDEN: readonly { readonly name: string; readonly pattern: RegExp }[] = [
   { name: 'Math.random', pattern: /\bMath\s*\.\s*random\b/ },
-  { name: 'wall-clock time', pattern: /\bDate\s*\.\s*now\b|\bnew\s+Date\b|\bperformance\s*\.\s*now\b/ },
+  { name: 'wall-clock time', pattern: /\bDate\s*\.\s*now\b|\bnew\s+Date\b|\bperformance\s*\.\s*now\b|\bhrtime\b/ },
   { name: 'timers', pattern: /\b(setTimeout|setInterval|setImmediate|requestAnimationFrame|queueMicrotask)\s*\(|['"](node:)?timers(\/promises)?['"]/ },
   { name: 'DOM globals', pattern: /\b(window|document|navigator|localStorage|sessionStorage)\s*\./ },
   { name: 'network', pattern: /\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|['"](node:)?(http|https|net|dgram|tls)['"]/ },
@@ -40,6 +40,8 @@ describe('purity of the authoritative packages', () => {
   it('detects each forbidden kind of import or call', () => {
     expect(violations('const x = Math.random();')).toEqual(['Math.random']);
     expect(violations('const t = Date.now();')).toEqual(['wall-clock time']);
+    expect(violations('const t = process.hrtime.bigint();')).toEqual(['wall-clock time']);
+    expect(violations('const [s] = process.hrtime();')).toEqual(['wall-clock time']);
     expect(violations('setTimeout(() => 1, 5);')).toEqual(['timers']);
     expect(violations('document.title = "x";')).toEqual(['DOM globals']);
     expect(violations("import http from 'node:http';")).toEqual(['network']);

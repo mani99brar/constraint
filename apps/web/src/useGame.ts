@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { take, type CellId, type GameState, type TakeRefusal } from '@okiya/game';
 import type { Difficulty } from './difficulty';
-import { BOT_DELAY_MS, botStep, botToMove, humanToMove } from './match';
+import { botToMove, humanToMove, scheduleBotTake } from './match';
 
 /**
  * Holds the game state, lets the human attempt a take and lets the bot take after a short pause.
@@ -22,14 +22,9 @@ export function useGame(initialState: GameState, difficulty: Difficulty, onChang
 
   useEffect(() => {
     if (!botToMove(state)) return;
-    const scheduled = state.takes.length;
-    // StrictMode mounts effects twice: the first timer is cleared, and `botStep` only takes for the
+    // StrictMode mounts effects twice: the first schedule is cancelled, and `botStep` only takes for the
     // scheduled turn. The bot chooses once, outside the state updater, which StrictMode may call twice.
-    const timer = setTimeout(() => {
-      const next = botStep(state, scheduled, difficulty);
-      setState((current) => (current === state ? next : current));
-    }, BOT_DELAY_MS);
-    return () => clearTimeout(timer);
+    return scheduleBotTake(state, difficulty, (next) => setState((current) => (current === state ? next : current)));
   }, [state, difficulty]);
 
   /** Takes the tile at `cell` for the human, or returns the refusal without changing anything. */

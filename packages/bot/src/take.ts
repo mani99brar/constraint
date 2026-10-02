@@ -138,12 +138,22 @@ function shapeScore(mine: number, theirs: number): number {
   return score;
 }
 
+/**
+ * Normal's search at another depth, for tests only: it shows what a shallower or deeper search would take. The
+ * bot itself always searches `NORMAL_DEPTH` takes.
+ */
+export function normalTakeAtDepth(state: GameState, depth: number): CellId {
+  const match = matchMasks(state.board);
+  return normalChoice(match, positionOf(state), POSITION_BUDGET, (cells) => ALL_CELLS[tieBreak(state, cells)]!, depth).take;
+}
+
 /** Normal: a full minimax of `NORMAL_DEPTH` takes, every root take scored exactly, then the seeded tie-break. */
 function normalChoice(
   match: Int32Array,
   position: Position,
   budget: number,
   pick: (cells: readonly number[]) => CellId,
+  depth: number = NORMAL_DEPTH,
 ): { readonly take: CellId; readonly positions: number } {
   let positions = 0;
   const search = (own: number, opp: number, last: number, depth: number, ply: number): number => {
@@ -173,7 +183,7 @@ function normalChoice(
     const mine = position.own | (1 << cell);
     if (outcome === TAKER_WINS) return WIN_SCORE;
     if (outcome === FULL_BOARD) return DRAW;
-    return -search(position.opp, mine, cell, NORMAL_DEPTH - 1, 1);
+    return depth <= 1 ? shapeScore(mine, position.opp) : -search(position.opp, mine, cell, depth - 1, 1);
   });
   const best = Math.max(...scores);
   return { take: pick(takes.filter((_, k) => scores[k] === best)), positions };
