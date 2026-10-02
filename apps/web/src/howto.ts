@@ -62,7 +62,8 @@ export function howToSections(objective: ObjectiveId = 'Square'): HowToSection[]
       title: 'Your turn',
       paragraphs: [
         'Take exactly one action. Deploy a reserve fighter on an empty matching cell; move a fighter one step up, down, left or right to an empty matching cell; recharge a spent fighter standing on a matching tile (three recharges per match); or spend a fighter’s charge on its ability.',
-        'Select a fighter to see its options. With move highlights on, its legal cells are marked on the board; an illegal choice is always refused with the reason.',
+        'Tap one of your tokens, in your tray or on the board, and the cells where it can go glow. When its ability or a recharge is legal, a button appears beside the token; choose the ability and its targets glow. Tap the token again, or off the board, to cancel.',
+        'Highlights can be turned off in the menu: then nothing glows, and an illegal choice is still refused with the reason.',
       ],
     },
     {
@@ -77,7 +78,7 @@ export function howToSections(objective: ObjectiveId = 'Square'): HowToSection[]
       title: 'Traps',
       paragraphs: [
         'Before the match each side hides two traps on the board. An enemy fighter that enters your trap loses its charge, or is locked for a turn if it has none. Your own traps never affect you.',
-        'You see only your own traps. The bot’s show up when they spring.',
+        'You see only your own traps, as small marks on their cells. The bot’s show up when they spring, with a short notice at the top of the board.',
       ],
     },
     {

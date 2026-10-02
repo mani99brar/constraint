@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FIGHTERS, OBJECTIVES, SPEC_V0_2 } from '@okiya/content';
-import { ALL_CELLS, playerView, type FighterState, type PlayerView } from '@okiya/rules';
+import { ALL_CELLS, applyAction, listLegalActions, playerView, type FighterState, type MatchState, type PlayerView } from '@okiya/rules';
 import { MatchScreen } from './MatchScreen';
 import { SetupScreen } from './SetupScreen';
 import { Board } from './Board';
@@ -10,7 +10,8 @@ import { EndScreen } from './EndScreen';
 import { createMatch, HUMAN, prepare } from './match';
 import { DEFAULT_SETTINGS } from './settings';
 import { defaultHumanSetup } from './setup';
-import { cellAccessibleName, fighterHelp } from './text';
+import { fighterHelp } from './text';
+import { cellAccessibleName } from './tokens';
 
 function decode(html: string): string {
   return html.replaceAll('&#x27;', "'").replaceAll('&amp;', '&').replaceAll('&quot;', '"');
@@ -102,9 +103,47 @@ describe('board accessible names (PRD U3)', () => {
       expect(html).toContain(`aria-label="${cellAccessibleName(cell, running.board[cell], fighter, HUMAN, cell === 'D4')}"`);
     }
     const b3 = running.board.B3;
-    expect(html).toContain(`aria-label="B3, ${b3.terrain}–${b3.symbol}, your Pusher, charged"`);
-    expect(html).toContain(`bot's Swapper, spent"`);
+    expect(html).toContain(`aria-label="B3, ${b3.terrain}–${b3.symbol}, Your Pusher on B3, charged, not locked, not protected"`);
+    expect(html).toContain(`Bot's Swapper on C1, spent, not locked, not protected"`);
     expect(html).toContain(', your trap"');
+  });
+});
+
+/** A match a few actions in, so the log, both trays and the board all have something to show. */
+function played(actions: number): MatchState {
+  let state = runningState;
+  for (let i = 0; i < actions && !state.result; i += 1) {
+    const applied = applyAction(state, listLegalActions(state)[0]!);
+    if (!applied.ok) throw new Error('first legal action refused');
+    state = applied.state;
+  }
+  return state;
+}
+
+describe('the tabletop match screen (PRD T1)', () => {
+  const state = played(4);
+  const html = decode(renderToStaticMarkup(createElement(MatchScreen, { initialState: state, depth: 'normal', settings: DEFAULT_SETTINGS, onLeave: () => {} })));
+
+  it('renders no log, last-actions, status, reserve-list, on-the-board, legend or settings panel', () => {
+    expect(playerView(state, HUMAN).log.length).toBe(4);
+    for (const testId of ['log', 'resolution', 'status', 'charges', 'deployed', 'reserve', 'on-board', 'legend', 'settings', 'menu-settings', 'turn-prompt', 'actions', 'chooser']) {
+      expect(html, testId).not.toContain(`data-testid="${testId}"`);
+    }
+    for (const heading of ['Log', 'Last actions', 'Status', 'Your reserve', 'On the board', 'Settings', 'Legend']) {
+      expect(html, heading).not.toMatch(new RegExp(`<h[1-6][^>]*>${heading}</h`));
+      expect(html, heading).not.toContain(`aria-label="${heading}"`);
+    }
+    expect(html).not.toContain('class="legend');
+    expect(html).not.toMatch(/Turn \d+ ·/);
+    expect(html).not.toMatch(/legal actions?\b/);
+  });
+
+  it('renders the top bar, both trays and the board, and nothing else but the menu button', () => {
+    for (const testId of ['top-bar', 'turn', 'constraint', 'recharges', 'goal-chip', 'menu-button', 'bot-tray', 'board', 'own-tray', 'toasts']) {
+      expect(html, testId).toContain(`data-testid="${testId}"`);
+    }
+    expect(html).not.toContain('data-testid="menu"');
+    expect(html).not.toContain('data-testid="end-screen"');
   });
 });
 
@@ -115,9 +154,9 @@ describe('objective and fighter help in words (PRD E3)', () => {
     renderToStaticMarkup(createElement(MatchScreen, { initialState: runningState, depth: 'normal', settings: DEFAULT_SETTINGS, onLeave: () => {} })),
   );
 
-  it('explains the player’s objective from its summary on the setup and match screens', () => {
-    expect(setupHtml).toContain(`Your objective: Square.</strong> ${square.summary}`);
-    expect(matchHtml).toContain(`Your objective: Square.</strong> ${square.summary}`);
+  it('explains the player’s objective from its summary on the setup screen, and as the goal chip during the match', () => {
+    expect(setupHtml).toContain(`Your goal: Square.</strong> ${square.summary}`);
+    expect(matchHtml).toMatch(/data-testid="goal-chip"[^>]*>Goal: Square</);
   });
 
   it('takes every fighter’s help text from FIGHTERS', () => {
@@ -125,10 +164,7 @@ describe('objective and fighter help in words (PRD E3)', () => {
       expect(fighterHelp(fighter.type)).toBe(fighter.summary);
       expect(setupHtml).toContain(fighter.summary);
     }
-    for (const type of defaultHumanSetup(5, SPEC_V0_2).roster) {
-      expect(matchHtml).toContain(`data-help="${type}"`);
-      expect(matchHtml).toContain(FIGHTERS.find((fighter) => fighter.type === type)!.summary);
-    }
+    for (const type of defaultHumanSetup(5, SPEC_V0_2).roster) expect(matchHtml).toContain(`data-fighter="A:${type}"`);
   });
 
   it('renders none of the bot’s reserve, traps or objective while the match runs (PRD I4)', () => {

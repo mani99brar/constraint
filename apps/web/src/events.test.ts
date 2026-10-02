@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { projectEvents, type PlayerEvent, type PublicLogEntry, type ResolutionEvent } from '@okiya/rules';
-import { describeEvent, describeEvents, fighterCells, involvedCells, inspectedOwnTraps, orderEvents, recentAction, trapCallouts } from './events';
-import { describeLogEntry } from './text';
+import { describeEvent, fighterCells, involvedCells, inspectedOwnTraps, lastMove, orderEvents } from './events';
+
+const describeEvents = (events: readonly PlayerEvent[], human: 'A' | 'B') => orderEvents(events).map((event) => describeEvent(event, human));
 
 // Hand-built: a swap that enters two traps at once (spec §8.3), listed out of order (PRD R5).
 const SWAP_INTO_TRAP: readonly PlayerEvent[] = [
@@ -64,10 +65,6 @@ describe('resolution feedback order (spec §11, PRD R5)', () => {
       'charge-lost B:Pusher',
       'constraint-set',
     ]);
-    expect(trapCallouts(batched, 'A')).toEqual([
-      { cell: 'B3', owner: 'B', text: "Bot's trap! Your Swapper: locked", short: 'Trap: locked' },
-      { cell: 'B2', owner: 'A', text: "Your trap! Bot's Pusher: charge lost", short: 'Trap: charge lost' },
-    ]);
   });
 
   it('keeps the engine order within one step', () => {
@@ -105,8 +102,9 @@ describe('hidden trap placement (PRD I2)', () => {
   it('shows a Trapper placement by the bot without its cell', () => {
     const projected = projectEvents(placed, 'A');
     const entry: PublicLogEntry = { turn: 6, player: 'B', action: { kind: 'ability', fighter: 'B:Trapper', target: null }, events: projected };
-    const lines = [describeLogEntry(entry, 'A'), ...describeEvents(projected, 'A')];
-    expect(lines).toEqual(['Bot: Trapper placed a trap', "Bot's Trapper spent its charge.", 'Bot placed a trap.']);
+    expect(entry.action).toEqual({ kind: 'ability', fighter: 'B:Trapper', target: null });
+    const lines = describeEvents(projected, 'A');
+    expect(lines).toEqual(["Bot's Trapper spent its charge.", 'Bot placed a trap.']);
     for (const line of lines) expect(line).not.toMatch(/[A-D][1-4]/);
   });
 
@@ -122,7 +120,7 @@ describe('hidden trap placement (PRD I2)', () => {
   });
 });
 
-describe('action highlights (PRD U6)', () => {
+describe('last-move cells (PRD T1, U6)', () => {
   const fighters = fighterCells([
     { id: 'B:Swapper', owner: 'B', type: 'Swapper', cell: 'B3', charge: 0, lock: { expiresAfterTurn: 8 }, protection: null },
     { id: 'A:Pusher', owner: 'A', type: 'Pusher', cell: 'B2', charge: 0, lock: null, protection: null },
@@ -161,18 +159,17 @@ describe('action highlights (PRD U6)', () => {
     expect([...involvedCells([{ kind: 'protection-applied', fighter: 'A:Pusher', expiresAfterTurn: 4 }], fighters)]).toEqual(['B2']);
   });
 
-  it('describes the last action of the log, and none before the first', () => {
+  it('marks the cells of the latest action until the next one, and none before the first', () => {
     const entry: PublicLogEntry = { turn: 7, player: 'B', action: { kind: 'ability', fighter: 'B:Swapper', target: 'B2' }, events: SWAP_INTO_TRAP };
     const fighterList = [
       { id: 'B:Swapper', owner: 'B', type: 'Swapper', cell: 'B3', charge: 0, lock: null, protection: null },
       { id: 'A:Pusher', owner: 'A', type: 'Pusher', cell: 'B2', charge: 0, lock: null, protection: null },
     ] as const;
-    const recent = recentAction({ log: [entry], fighters: fighterList }, 'A')!;
+    const recent = lastMove({ log: [entry], fighters: fighterList })!;
     expect(recent.turn).toBe(7);
     expect(recent.player).toBe('B');
     expect([...recent.cells].sort()).toEqual(['B2', 'B3']);
-    expect(recent.callouts.map((callout) => callout.cell)).toEqual(['B3', 'B2']);
-    expect(recentAction({ log: [], fighters: fighterList }, 'A')).toBeNull();
+    expect(lastMove({ log: [], fighters: fighterList })).toBeNull();
   });
 });
 

@@ -1,25 +1,15 @@
 import { FIGHTERS } from '@okiya/content';
 import type {
-  Action,
   ActionRefusal,
-  CellId,
   Constraint,
   FighterId,
-  FighterState,
   FighterType,
   MatchResult,
   PlayerId,
-  PublicLogEntry,
   SetupRefusal,
   Tile,
   TrapRecord,
 } from '@okiya/rules';
-
-const SYMBOL_ICONS: Record<Tile['symbol'], string> = { Sun: '☀', Moon: '☾', Star: '★', Wave: '≈' };
-
-export function symbolIcon(symbol: Tile['symbol']): string {
-  return SYMBOL_ICONS[symbol];
-}
 
 export function tileName(tile: Tile): string {
   return `${tile.terrain}–${tile.symbol}`;
@@ -43,10 +33,6 @@ export function fighterAbbreviation(type: FighterType | string): string {
   return FIGHTERS.find((fighter) => fighter.type === type)?.abbreviation ?? type.slice(0, 2).toUpperCase();
 }
 
-export function isDisplacer(type: FighterType | string): boolean {
-  return FIGHTERS.find((fighter) => fighter.type === type)?.displacer ?? false;
-}
-
 export function fighterIdName(id: FighterId | string): string {
   return fighterName(id.slice(id.indexOf(':') + 1));
 }
@@ -68,35 +54,6 @@ export function fighterPhrase(id: FighterId | string, human: PlayerId): string {
 export function fighterLabel(id: FighterId | string, human: PlayerId): string {
   const phrase = fighterPhrase(id, human);
   return phrase.charAt(0).toUpperCase() + phrase.slice(1);
-}
-
-/** A fighter's public status: charge, lock and protection (PRD I1). */
-export function fighterStatus(fighter: FighterState): string {
-  const parts = [fighter.charge === 1 ? 'charged' : 'spent'];
-  if (fighter.lock) parts.push(`locked through turn ${fighter.lock.expiresAfterTurn}`);
-  if (fighter.protection) parts.push(`protected through turn ${fighter.protection.expiresAfterTurn}`);
-  return parts.join(', ');
-}
-
-/** Accessible name of a fighter, for example "your Pusher, charged" (PRD U3). */
-export function fighterAccessibleName(fighter: FighterState, human: PlayerId): string {
-  const where = fighter.cell === null ? 'in reserve, ' : '';
-  return `${fighterPhrase(fighter.id, human)}, ${where}${fighterStatus(fighter)}`;
-}
-
-/** Accessible name of a board cell, for example "B3, Water–Moon, your Pusher, charged" (PRD U3). */
-export function cellAccessibleName(
-  cell: CellId,
-  tile: Tile,
-  fighter: FighterState | undefined,
-  human: PlayerId,
-  ownTrap: boolean,
-  trapInspected = false,
-): string {
-  const parts = [cell, tileName(tile)];
-  if (fighter) parts.push(fighterAccessibleName(fighter, human));
-  if (ownTrap) parts.push(trapInspected ? 'your trap, inspected by the bot, may have been removed' : 'your trap');
-  return parts.join(', ');
 }
 
 /** Readable reason for a structured action refusal (PRD R4). */
@@ -158,38 +115,6 @@ export function describeSetupRefusal(refusal: SetupRefusal): string {
       return `${refusal.cell} already holds one of your traps; setup traps go on distinct cells.`;
     default:
       return `That setup is not allowed (${(refusal as { code: string }).code}).`;
-  }
-}
-
-/** A legal action as a choice for its fighter, for example "Move to B2" or "Ability on C3". */
-export function describeOption(action: Action): string {
-  switch (action.kind) {
-    case 'deploy':
-      return `Deploy at ${action.cell}`;
-    case 'move':
-      return `Move to ${action.cell}`;
-    case 'recharge':
-      return 'Recharge';
-    case 'ability':
-      return `Ability on ${action.target}`;
-  }
-}
-
-/** One public log line in spec notation (PRD I2). */
-export function describeLogEntry(entry: PublicLogEntry, human: PlayerId): string {
-  const who = sideName(entry.player, human);
-  const { action } = entry;
-  switch (action.kind) {
-    case 'deploy':
-      return `${who}: deploy ${fighterIdName(action.fighter)} at ${action.cell}`;
-    case 'move':
-      return `${who}: move ${fighterIdName(action.fighter)} to ${action.cell}`;
-    case 'recharge':
-      return `${who}: recharge ${fighterIdName(action.fighter)}`;
-    case 'ability':
-      return action.target === null
-        ? `${who}: ${fighterIdName(action.fighter)} placed a trap`
-        : `${who}: ${fighterIdName(action.fighter)} ability on ${action.target}`;
   }
 }
 

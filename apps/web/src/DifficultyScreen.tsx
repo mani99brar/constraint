@@ -9,7 +9,7 @@ export interface DifficultyScreenProps {
 export function DifficultyScreen({ onChoose, onBack }: DifficultyScreenProps) {
   return (
     <main className="new-game" data-testid="difficulty-screen">
-      <header className="match-header">
+      <header className="screen-head">
         <h1>New game</h1>
         <button type="button" onClick={onBack}>
           Back

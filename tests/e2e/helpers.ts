@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 // The DOM library types the callbacks that run in the page (addInitScript, evaluate).
-import { expect, type Page, type TestInfo } from '@playwright/test';
+import { expect, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 export async function attachScreenshot(page: Page, testInfo: TestInfo, id: string) {
   const path = testInfo.outputPath(`${id}.png`);
@@ -43,8 +43,15 @@ export async function skipFirstVisitHowTo(page: Page) {
   await page.addInitScript(() => window.localStorage.setItem('okiya.howto.seen', 'true'));
 }
 
-/** With randomness 1, the human opens, and the Easy bot's first reply enters a setup trap of the player's default setup. */
+/**
+ * With randomness 1 the human opens; deploying the first tray token on the first glowing cell
+ * (the Teleporter on A1) makes the Easy bot reply into one of the player's default setup traps,
+ * and on the next turn the Teleporter has a legal ability but no move.
+ */
 export const HUMAN_STARTS = 1;
+
+/** With randomness 6 the human opens, and after the first deploy and the reply the Teleporter has both moves and its ability. */
+export const MOVES_AND_ABILITY = 6;
 
 /** Opens the title screen with fixed randomness and How to Play already seen. */
 export async function openTitle(page: Page, seed: number = HUMAN_STARTS) {
@@ -71,41 +78,67 @@ export async function startMatch(page: Page, { seed = HUMAN_STARTS, depth = 'Eas
 
 export const isEdge = (cell: string) => /^[AD]/.test(cell) || /[14]$/.test(cell);
 
-/** Deploys the first reserve fighter onto the first highlighted cell; returns the cell and the fighter's name. */
-export async function deployFirst(page: Page) {
-  const button = page.getByTestId('reserve').getByRole('button').first();
-  const name = (await button.textContent())!;
-  await button.click();
-  const target = page.locator('[data-testid="board"] [data-highlighted="true"]').first();
-  await expect(target).toBeVisible();
-  const cell = (await target.getAttribute('data-cell'))!;
-  await target.click();
-  return { cell, name };
+export const board = (page: Page) => page.getByTestId('board');
+export const glowing = (page: Page) => page.locator('[data-testid="board"] [data-cell][data-glow="true"]');
+export const ownTray = (page: Page) => page.getByTestId('own-tray');
+export const trayTokens = (page: Page) => page.locator('[data-testid="own-tray"] button[data-fighter]');
+export const toasts = (page: Page) => page.getByTestId('toast');
+
+/** The engine's turn number, which grows by one per action; it is not shown on screen. */
+export async function turnNumber(page: Page): Promise<number> {
+  return Number(await page.getByTestId('turn').getAttribute('data-turn'));
+}
+
+export async function cellsOf(locator: Locator): Promise<string[]> {
+  return locator.evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-cell')!));
 }
 
 /** Waits until the human may act again, or the match has ended. */
 export async function waitForHumanTurn(page: Page) {
-  await expect(page.getByTestId('turn')).not.toHaveText("Bot's turn", { timeout: 15_000 });
+  await expect
+    .poll(
+      async () => (await page.getByTestId('turn').getAttribute('data-active')) === 'A' || (await page.getByTestId('end-screen').count()) > 0,
+      { timeout: 15_000 },
+    )
+    .toBe(true);
 }
 
-/** Plays one human action: the first fighter with legal actions, then its first highlighted cell. */
-export async function playHighlightedAction(page: Page) {
-  const log = page.getByTestId('log').locator('li');
-  const before = await log.count();
-  await page.locator('[data-testid="reserve"], [data-testid="on-board"]').locator('button[data-has-actions="true"]').first().click();
-  const highlighted = page.locator('[data-testid="board"] [data-highlighted="true"]');
-  if ((await highlighted.count()) > 0) {
-    await highlighted.first().click();
+/** Deploys the first tray token onto the first glowing cell; returns the cell and the fighter id. */
+export async function deployFirst(page: Page) {
+  const token = trayTokens(page).first();
+  const fighter = (await token.getAttribute('data-fighter'))!;
+  await token.click();
+  const target = glowing(page).first();
+  await expect(target).toBeVisible();
+  const cell = (await target.getAttribute('data-cell'))!;
+  const before = await turnNumber(page);
+  await target.click();
+  await expect.poll(() => turnNumber(page)).toBeGreaterThan(before);
+  return { cell, fighter };
+}
+
+/**
+ * Plays one glowing legal action: the first token that glows (board in reading order, then the
+ * tray), then its first glowing cell, or else its ability button and the first glowing target,
+ * or its recharge button.
+ */
+export async function playGlowingAction(page: Page) {
+  const before = await turnNumber(page);
+  await page.locator('[data-testid="board"] [data-cell][data-playable], [data-testid="own-tray"] button[data-playable]').first().click();
+  // A selected token shows glowing cells, an on-token button, or both.
+  await expect(page.locator('[data-testid="board"] [data-glow="true"], [data-testid="token-actions"]').first()).toBeVisible();
+  if ((await glowing(page).count()) === 0) {
+    const button = page.getByTestId('token-actions').getByRole('button').first();
+    const kind = await button.getAttribute('data-kind');
+    await button.click();
+    if (kind === 'ability') await glowing(page).first().click();
   } else {
-    await page.getByTestId('actions').getByRole('button').first().click();
+    await glowing(page).first().click();
   }
-  const chooser = page.getByTestId('chooser');
-  await expect.poll(async () => (await log.count()) > before || (await chooser.isVisible())).toBe(true);
-  if ((await log.count()) === before) await chooser.getByRole('button').first().click();
-  await expect.poll(() => log.count()).toBeGreaterThan(before);
+  await expect.poll(() => turnNumber(page)).toBeGreaterThan(before);
 }
 
-/** Everything the board, the turn bar and the status panel show, for comparing two moments of a match. */
+/** Everything the board, the trays and the top bar show, for comparing two moments of a match. */
 export async function matchSnapshot(page: Page) {
   return page.evaluate(() => {
     const attr = (selector: string, name: string) => document.querySelector(selector)?.getAttribute(name) ?? null;
@@ -117,16 +150,14 @@ export async function matchSnapshot(page: Page) {
         trap: cell.getAttribute('data-own-trap'),
         label: cell.getAttribute('aria-label'),
       })),
-      tokens: [...document.querySelectorAll('[data-testid="board"] .token')].map(
-        (token) => `${token.getAttribute('data-fighter')}:${token.getAttribute('data-charge')}`,
-      ),
+      tokens: [...document.querySelectorAll('[data-testid="board"] [data-testid="token"]')].map((token) => token.getAttribute('data-label')),
+      tray: [...document.querySelectorAll('[data-testid="own-tray"] button')].map((button) => button.getAttribute('aria-label')),
+      botTray: attr('[data-testid="bot-tray"]', 'data-count'),
       constraint: `${attr('[data-testid="constraint"]', 'data-terrain')}-${attr('[data-testid="constraint"]', 'data-symbol')}`,
+      constraintText: document.querySelector('[data-testid="constraint"]')?.textContent ?? null,
       turn: attr('[data-testid="turn"]', 'data-turn'),
       active: attr('[data-testid="turn"]', 'data-active'),
       recharges: `${attr('[data-testid="recharges"]', 'data-a')}/${attr('[data-testid="recharges"]', 'data-b')}`,
-      charges: [...document.querySelectorAll('[data-testid="charges"] li')].map((item) => item.textContent),
-      reserve: [...document.querySelectorAll('[data-testid="reserve"] button')].map((button) => button.textContent),
-      log: [...document.querySelectorAll('[data-testid="log"] li')].map((item) => item.textContent),
     };
   });
 }
