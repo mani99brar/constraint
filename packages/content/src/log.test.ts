@@ -11,8 +11,9 @@ import {
   type Action,
   type MatchLog,
   type MatchState,
+  type Preset,
 } from '@okiya/rules';
-import { defaultSetup, PAPER_TEST_01_SWAPPED, PRESETS, SPEC_V0_2, TILES, validatePreset, validateScenario } from './index';
+import { defaultSetup, OBJECTIVES, PAPER_TEST_01_SWAPPED, PRESETS, SPEC_V0_2, TILES, validatePreset, validateScenario } from './index';
 
 function playedMatch(actions: number): MatchState {
   const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed: 7 });
@@ -102,5 +103,50 @@ describe('built-in presets and scenarios', () => {
     expect(validateScenario(PAPER_TEST_01_SWAPPED, SPEC_V0_2)).toEqual([]);
     expect(PAPER_TEST_01_SWAPPED.startingPlayer).toBe('B');
     expect(PAPER_TEST_01_SWAPPED.rosters?.A).toEqual(['Swapper', 'Upgrader', 'Puller', 'Trapper']);
+  });
+});
+
+describe('validatePreset and parseMatchLog apply one rule set (PRD P1, L3)', () => {
+  const variant = (patch: Record<string, unknown>) => ({ ...SPEC_V0_2.variants, ...patch });
+  const { name: _name, ...nameless } = SPEC_V0_2;
+  const presets: readonly object[] = [
+    ...PRESETS,
+    { ...SPEC_V0_2, rosterSize: 5 },
+    { ...SPEC_V0_2, rechargesPerPlayer: '3' },
+    { ...SPEC_V0_2, setupTrapsPerPlayer: 17 },
+    { ...SPEC_V0_2, setupTrapsOnDistinctCells: 'yes' },
+    { ...SPEC_V0_2, trapsTriggerOnOpening: null },
+    { ...SPEC_V0_2, objectivePool: ['Line'] },
+    { ...SPEC_V0_2, id: 7 },
+    nameless,
+    { ...SPEC_V0_2, variants: null },
+    { ...SPEC_V0_2, variants: variant({ displacerLimit: -1 }) },
+    { ...SPEC_V0_2, variants: variant({ lockedFightersCountTowardObjective: 1 }) },
+    { ...SPEC_V0_2, repetitionThreshold: 1, variants: variant({ pullerMayTargetAllies: undefined }) },
+  ];
+
+  it('refuse a preset in the same first field, and validatePreset reports every bad field', () => {
+    const empty = { roster: [], traps: [] };
+    for (const preset of presets) {
+      const log = { ...asLoaded(matchLogOf(playedMatch(0))) as Record<string, unknown>, preset: { id: 'p', version: '1', values: preset } };
+      const parsed = parseMatchLog({ ...log, setups: { A: empty, B: empty } });
+      const issues = validatePreset(preset as unknown as Preset);
+      const label = JSON.stringify(preset);
+      if (parsed.ok) {
+        expect(issues, label).toEqual([]);
+      } else {
+        expect(issues[0], label).toMatchObject({ code: 'invalid-preset-value' });
+        const field = issues[0]?.code === 'invalid-preset-value' ? issues[0].field : '';
+        expect(parsed.refusal, label).toEqual({ code: 'not-a-match-log', field: `preset.values.${field}` });
+      }
+    }
+    const twice = validatePreset({ ...SPEC_V0_2, repetitionThreshold: 1, variants: variant({ pullerMayTargetAllies: undefined }) } as unknown as Preset);
+    expect(twice).toEqual([
+      { code: 'invalid-preset-value', field: 'repetitionThreshold', value: 1 },
+      { code: 'invalid-preset-value', field: 'variants.pullerMayTargetAllies', value: undefined },
+    ]);
+    expect(validatePreset(nameless as unknown as Preset)).toEqual([{ code: 'invalid-preset-value', field: 'name', value: undefined }]);
+    // Content describes exactly the objectives the engine plays.
+    expect(validatePreset({ ...SPEC_V0_2, objectivePool: OBJECTIVES.map((objective) => objective.id) })).toEqual([]);
   });
 });

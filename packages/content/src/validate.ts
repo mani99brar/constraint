@@ -2,6 +2,8 @@ import {
   ALL_CELLS,
   DISPLACER_TYPES,
   FIGHTER_TYPES,
+  MATCH_LOG_FORMAT_VERSION,
+  parseMatchLog,
   PLAYERS,
   SYMBOLS,
   TERRAINS,
@@ -11,11 +13,10 @@ import {
   type Preset,
   type Scenario,
   type SetupRefusal,
-  type TerminalCheck,
   type Tile,
 } from '@okiya/rules';
 import { DEFAULT_ROSTERS } from './defaults';
-import { OBJECTIVES } from './fighters';
+import { SPEC_V0_2 } from './presets';
 
 /** A structured content problem; an empty list means the data is valid. */
 export type ContentIssue =
@@ -69,53 +70,44 @@ export function validateFighters(definitions: readonly FighterDefinition[]): Con
   return issues;
 }
 
-/** Objective, then blockade, then repetition: the order of the checks in spec §11. */
-const SPEC_TERMINAL_PRECEDENCE: readonly TerminalCheck[] = ['objective', 'blockade', 'repetition'];
+/** A log that carries only a preset, so `parseMatchLog` judges the preset values alone. */
+function presetOnlyLog(values: unknown): unknown {
+  const empty = { roster: [], traps: [] };
+  const preset = { id: SPEC_V0_2.id, version: SPEC_V0_2.version, values };
+  return { formatVersion: MATCH_LOG_FORMAT_VERSION, preset, seed: 0, scenario: null, setups: { A: empty, B: empty }, actions: [] };
+}
 
-const isInteger = (value: number, min: number, max = Number.MAX_SAFE_INTEGER) =>
-  Number.isInteger(value) && value >= min && value <= max;
+/** Whether the engine refuses a preset value at `field`, a path such as `variants.displacerLimit`. */
+function engineRefuses(values: unknown, field: string): boolean {
+  const parsed = parseMatchLog(presetOnlyLog(values));
+  return !parsed.ok && parsed.refusal.code === 'not-a-match-log' && parsed.refusal.field === `preset.values.${field}`;
+}
 
-/** Rejects impossible presets (PRD P1). */
+/**
+ * Rejects impossible presets (PRD P1) with the engine's own rules, those `parseMatchLog` applies
+ * to a loaded or restored match, so content never accepts a preset a match log cannot replay.
+ * Each value is judged alone inside `spec-v0.2`, so every bad field is reported, in field order.
+ */
 export function validatePreset(preset: Preset): ContentIssue[] {
   const issues: ContentIssue[] = [];
-  const check = (field: string, value: unknown, ok: boolean) => {
-    if (!ok) issues.push({ code: 'invalid-preset-value', field, value });
-  };
-  check('id', preset.id, preset.id.trim() !== '');
-  check('version', preset.version, preset.version.trim() !== '');
-  check('rosterSize', preset.rosterSize, preset.rosterSize === 4);
-  check('rechargesPerPlayer', preset.rechargesPerPlayer, isInteger(preset.rechargesPerPlayer, 0));
-  check('setupTrapsPerPlayer', preset.setupTrapsPerPlayer, isInteger(preset.setupTrapsPerPlayer, 0, ALL_CELLS.length));
-  check('liveTrapsPerOwnerPerCell', preset.liveTrapsPerOwnerPerCell, isInteger(preset.liveTrapsPerOwnerPerCell, 1));
-  check('openingRule', preset.openingRule, preset.openingRule === 'outside-edge-no-constraint');
-  check('lockOwnTurnsMissed', preset.lockOwnTurnsMissed, isInteger(preset.lockOwnTurnsMissed, 1));
-  check('trapCheckerRule', preset.trapCheckerRule, preset.trapCheckerRule === 'single-adjacent-cell');
-  check('repetitionThreshold', preset.repetitionThreshold, isInteger(preset.repetitionThreshold, 2));
-  // Not switches: false would let the legal-action list reveal hidden traps (spec §9), and the
-  // step order of spec §11 fixes the precedence, so the engine reads neither value.
-  check('trapCheckerLegalWithNothingFound', preset.trapCheckerLegalWithNothingFound, preset.trapCheckerLegalWithNothingFound === true);
-  check(
-    'terminalPrecedence',
-    preset.terminalPrecedence,
-    preset.terminalPrecedence.length === SPEC_TERMINAL_PRECEDENCE.length &&
-      preset.terminalPrecedence.every((check, index) => check === SPEC_TERMINAL_PRECEDENCE[index]),
-  );
-  check(
-    'objectivePool',
-    preset.objectivePool,
-    preset.objectivePool.length > 0 && preset.objectivePool.every((id) => OBJECTIVES.some((objective) => objective.id === id)),
-  );
-  const { variants } = preset;
-  check(
-    'variants.anchorProtection',
-    variants.anchorProtection,
-    variants.anchorProtection === 'through-opponent-next-turn' || variants.anchorProtection === 'through-owner-following-turn',
-  );
-  check(
-    'variants.displacerLimit',
-    variants.displacerLimit,
-    variants.displacerLimit === null || isInteger(variants.displacerLimit, 0, preset.rosterSize),
-  );
+  const given = preset as unknown as Record<string, unknown>;
+  for (const field of Object.keys(SPEC_V0_2) as (keyof Preset)[]) {
+    const value = given[field];
+    if (field !== 'variants') {
+      if (engineRefuses({ ...SPEC_V0_2, [field]: value }, field)) issues.push({ code: 'invalid-preset-value', field, value });
+      continue;
+    }
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      issues.push({ code: 'invalid-preset-value', field, value });
+      continue;
+    }
+    const variants = value as Record<string, unknown>;
+    for (const key of Object.keys(SPEC_V0_2.variants)) {
+      const path = `variants.${key}`;
+      const values = { ...SPEC_V0_2, variants: { ...SPEC_V0_2.variants, [key]: variants[key] } };
+      if (engineRefuses(values, path)) issues.push({ code: 'invalid-preset-value', field: path, value: variants[key] });
+    }
+  }
   return issues;
 }
 
