@@ -1,4 +1,4 @@
-# Okiya (working title): product requirements v0.2
+# Constraint (formerly the working title Okiya): product requirements v0.3
 
 Status: draft of 2026-10-02, revised after paper test 01. Companion documents, all in this directory: `game-spec.md` v0.2 (the rules), `paper-simulation.md` (the playtest protocol) and `paper-test-01.md` (the first playtest's ledger, edge-case walkthroughs and findings).
 
@@ -7,7 +7,7 @@ Status: draft of 2026-10-02, revised after paper test 01. Companion documents, a
 - `game-spec.md` is the authority for gameplay rules. This document never restates a rule differently; where it cites one, the spec section (§) governs.
 - This document is the authority for the product: what is built, how it is presented, and how it is delivered.
 - Every value the spec marks **Provisional**, or lists in its §13 "Prototype defaults requiring validation", is data in a rules preset (section 6), never a constant in engine code. So are the rule variants that paper test 01 left open. Playtest findings change presets or the spec, not this document's structure.
-- The working name gives no rights to the existing Okiya name or branding. Product copy says "working title" until a name is chosen.
+- The working name gave no rights to the existing Okiya name or branding. The published game is called **Constraint** (operator decision of 2026-10-02); internal package names keep `okiya`.
 
 ## 2. Product summary
 
@@ -19,7 +19,7 @@ Goals:
 - Rule values that change without code, so findings from playtests are cheap to apply.
 - Reproducible matches, so every bug and every interesting game can be replayed exactly.
 
-Non-goals for v1: online play, local hotseat, a headless self-play simulator, accounts, matchmaking, objectives other than Square, final art and sound.
+Non-goals for v1: online play, local hotseat, a headless self-play simulator, accounts, matchmaking, objectives other than Square, artist-made images and recorded audio (visuals are drawn in code and sound is synthesized, §5.8).
 
 ## 3. Decisions from the requirements interview
 
@@ -96,6 +96,19 @@ The experience the spec targets (§1) should come through: reading the bot's int
 - **U6. Action feedback.** Every action, the bot's reply included, is shown on the board: the cells it involved are highlighted and trap triggers are called out, with short animations that never block input and are off under reduced motion.
 - **U7. Onboarding.** A short first-match guide explains matching, the fighters and the objective in context. It can be dismissed, stays dismissed, and reopens from a help button.
 
+### 5.8 Release (feature `release-polish`)
+
+The playtest build becomes the published game **Constraint**. Where this section differs from §5.1–§5.7, it governs.
+
+- **E1. Helpers removed.** The interface offers no seed, preset, scenario or preset-values panel and reads no URL parameters; the game always plays `spec-v0.2`. This replaces S1's preset and seed choice and S4's scenario choice in the interface; presets and scenarios remain as data for tests.
+- **E2. Title screen.** New game (difficulty, then setup), Continue when a match is saved, How to play, results by difficulty and the settings.
+- **E3. How to Play.** A polished dialog, opened from the title and match screens, explaining matching, every fighter and the objective. It replaces U7's first-visit guide and I3's rules panel.
+- **E4. Highlight setting.** Legal-move highlights (R3) can be turned off; refusal reasons (R4) remain either way.
+- **E5. Sound.** Short effects synthesized with the Web Audio API, starting only after a user gesture, with a remembered mute setting; never the only signal of an event.
+- **E6. Resume.** An unfinished match is saved in the browser after every action and restored on Continue; a corrupt or old save is discarded safely.
+- **E7. Results.** Wins, losses and draws per difficulty, kept only in the browser, with a reset.
+- **E8. Publishing.** The build is a static site with relative asset paths that runs on any static host or as an itch.io HTML5 upload, described in `docs/publishing.md`. No service worker, accounts, network calls or analytics.
+
 ## 6. Rules preset `spec-v0.2`
 
 These are the spec's provisional defaults as of v0.2, after paper test 01. Change them here and in the preset data together. Rows marked *variant* are switches paper test 01 left open; the default is the spec as written.
@@ -148,6 +161,7 @@ Features run with the workflow controller (see `CLAUDE.md` and `features/README.
    - `bot`, owning `packages/bot`: the heuristic bot against the legal-action list and player view.
    - `web`, owning `apps/web` and `tests/e2e`: setup screens, legal-move highlighting, refusal reasons, the action log, the rules panel and the end screen, driven by the legal-action list so new abilities appear without UI changes.
 3. **`playtest-ready`**, two lanes: `engine` (two playtest presets, replay determinism with abilities, the bot's open review findings) and `ux` (visual design, turn clarity, action feedback and onboarding, U4–U7; presets, scenarios, seeds and bot depth at match start; phone layout and keyboard access; a full-match browser test). Log export, loading and step-through (L2, L3) were dropped from v1 by the operator on 2026-10-02.
+4. **`release-polish`**, two lanes: `engine` (safe replay of stored logs, a reliable bot timing proof) and `web` (§5.8: helpers removed, title screen, How to Play, highlight and sound settings, synthesized sound, resume, results, a static build and `docs/publishing.md`), plus the open playtest-ready review findings.
 
 ## 10. Risks and open questions
 

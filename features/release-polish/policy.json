@@ -1,0 +1,175 @@
+{
+  "version": "1.2.0",
+  "feature": "Constraint release polish",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "engine",
+      "role": "engine",
+      "required_check_kinds": [
+        "typecheck",
+        "unit"
+      ],
+      "owned_paths": [
+        "packages/rules/src/core",
+        "packages/rules/src/abilities",
+        "packages/content/src",
+        "packages/bot/src",
+        "tests/unit/bot.test.ts"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        }
+      ]
+    },
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "apps/web/vite.config.ts",
+        "tests/e2e",
+        "docs/publishing.md"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 900,
+          "scenarios": [
+            {
+              "id": "title-screen",
+              "description": "The title screen shows the game's title, New game, How to play, the results by difficulty and the sound and highlight settings; no seed, preset, scenario or rules-values panel appears anywhere in the game."
+            },
+            {
+              "id": "setup-flow",
+              "description": "From New game the player picks a difficulty and four distinct fighters (a fifth or a duplicate is refused with its reason), places the setup traps on distinct cells or uses the default setup, and starts."
+            },
+            {
+              "id": "legal-turn",
+              "description": "With highlights on, a deploy on a highlighted edge cell updates the constraint and the bot replies; a non-matching cell shows its refusal reason."
+            },
+            {
+              "id": "highlight-toggle",
+              "description": "With highlights turned off, no cell is marked as playable, a legal move still works and an illegal one is still refused with its reason; the setting survives a reload."
+            },
+            {
+              "id": "how-to-play",
+              "description": "The How to Play dialog opens from the title screen and from the match screen, explains matching, every fighter and the Square objective, closes with Escape or its close button, and returns focus to the button that opened it."
+            },
+            {
+              "id": "turn-feedback",
+              "description": "After a player action and the bot's reply, the log, the status line and the board show both actions, and the turn returns to the player."
+            },
+            {
+              "id": "action-feedback",
+              "description": "With the page's randomness fixed by the test, the bot's reply enters one of the player's traps; the cells it involved are highlighted and the trap trigger is called out on the board."
+            },
+            {
+              "id": "resume-match",
+              "description": "After a few turns the page is reloaded; the title screen offers Continue, and continuing restores the same board, fighters, charges, constraint and turn."
+            },
+            {
+              "id": "full-match",
+              "description": "The test plays highlighted legal actions until the match ends; the end screen shows the result, both objectives, both rosters and every trap, and the title screen's results for that difficulty count one more game."
+            },
+            {
+              "id": "sound-toggle",
+              "description": "Sound starts only after a user action, the mute setting survives a reload, and while muted no audio is played."
+            },
+            {
+              "id": "dark-theme",
+              "description": "With the dark colour scheme emulated, the board, terrain, symbols and tokens stay distinguishable and all text meets a 4.5:1 contrast ratio."
+            },
+            {
+              "id": "phone-layout",
+              "description": "At a 390 px wide viewport the title screen, board, constraint and controls fit without horizontal scrolling, and every cell and button is at least 44 px in both dimensions."
+            },
+            {
+              "id": "keyboard-play",
+              "description": "Using the keyboard only, the player starts a game, opens and closes How to Play, and deploys a reserve fighter on a legal cell."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
