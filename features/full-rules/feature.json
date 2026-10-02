@@ -1,0 +1,31 @@
+{
+  "version": "2.3.0",
+  "name": "Full rules of Okiya in three parallel lanes: the complete rules engine, the heuristic bot and the playable web interface",
+  "branch_prefix": "feature/full-rules",
+  "prd": "docs/prd.md",
+  "policy": "policy.json",
+  "workers": [
+    {
+      "node_id": "rules",
+      "task": "rules-task.md"
+    },
+    {
+      "node_id": "bot",
+      "task": "bot-task.md"
+    },
+    {
+      "node_id": "web",
+      "task": "web-task.md"
+    }
+  ],
+  "reviewers": [
+    {
+      "reviewer_id": "general",
+      "prompt": "builtin:general"
+    },
+    {
+      "reviewer_id": "coverage",
+      "prompt": "builtin:coverage"
+    }
+  ]
+}

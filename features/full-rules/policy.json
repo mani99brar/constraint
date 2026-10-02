@@ -1,0 +1,171 @@
+{
+  "version": "1.2.0",
+  "feature": "Okiya full rules",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "rules",
+      "role": "rules-engine",
+      "required_check_kinds": [
+        "typecheck",
+        "unit"
+      ],
+      "owned_paths": [
+        "packages/rules/src/core",
+        "packages/rules/src/abilities",
+        "packages/content/src"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        }
+      ]
+    },
+    {
+      "node_id": "bot",
+      "role": "bot",
+      "required_check_kinds": [
+        "typecheck",
+        "unit"
+      ],
+      "owned_paths": [
+        "packages/bot/src",
+        "tests/unit/bot.test.ts"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        }
+      ]
+    },
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "tests/e2e"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": [
+            {
+              "id": "start-match",
+              "description": "Skeleton scenario, kept: the landing page starts a match against the bot and shows the board, the opening rule and whose turn it is."
+            },
+            {
+              "id": "legal-turn",
+              "description": "Skeleton scenario, kept: a deploy on a highlighted edge cell updates the constraint, the bot replies, and a non-matching cell shows its refusal reason."
+            },
+            {
+              "id": "setup-flow",
+              "description": "The player picks four distinct fighters (a fifth or a duplicate is refused with its reason), places the preset's setup traps on distinct cells of the revealed board, and starts; the match shows the chosen roster in reserve and the player's own traps marked, and never the bot's."
+            },
+            {
+              "id": "turn-feedback",
+              "description": "After a player action and the bot's reply, the public log lists both in A1-D4 notation, the status panel shows charges, recharge budgets, deployed counts and the constraint, and the rules panel shows the active preset's values."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
