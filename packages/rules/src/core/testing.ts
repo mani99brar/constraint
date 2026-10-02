@@ -5,7 +5,10 @@ import { ALL_CELLS, SYMBOLS, TERRAINS, type Board, type CellId, type Constraint,
 import type { FighterId, FighterType, PlayerId } from '../api/fighters';
 import type { Preset } from '../api/preset';
 import type { Setup } from '../api/setup';
-import type { FighterState, MatchState } from '../api/state';
+import type { FighterState, MatchState, TrapRecord } from '../api/state';
+import type { Action } from '../api/actions';
+import type { ResolutionEvent } from '../api/events';
+import { applyAction } from './apply';
 import { prepareMatch, startMatch } from './setup';
 
 export const TEST_TILES: readonly Tile[] = TERRAINS.flatMap((terrain) => SYMBOLS.map((symbol) => ({ terrain, symbol })));
@@ -51,15 +54,59 @@ export function seededMatch(seed: number): MatchState {
   return startMatch(prepareMatch({ tiles: TEST_TILES, preset: TEST_PRESET, seed }), TEST_SETUPS);
 }
 
-/** A match on `GRID_BOARD` with A to move, for constructed positions. */
-export function gridMatch(): MatchState {
+/**
+ * A match on `GRID_BOARD` with A to move, for constructed positions. Rosters default to
+ * `TEST_SETUPS`; the preset defaults to `TEST_PRESET`.
+ */
+export function gridMatch(
+  rosters: Partial<Record<PlayerId, readonly FighterType[]>> = {},
+  preset: Preset = TEST_PRESET,
+): MatchState {
   const prepared = prepareMatch({
     tiles: TEST_TILES,
-    preset: TEST_PRESET,
+    preset,
     seed: 1,
     scenario: { id: 'grid', name: 'Grid', board: GRID_BOARD, startingPlayer: 'A' },
   });
-  return startMatch(prepared, TEST_SETUPS);
+  return startMatch(prepared, {
+    A: { ...TEST_SETUPS.A, roster: rosters.A ?? TEST_SETUPS.A.roster },
+    B: { ...TEST_SETUPS.B, roster: rosters.B ?? TEST_SETUPS.B.roster },
+  });
+}
+
+/** `TEST_PRESET` with some variant switches flipped (PRD §6). */
+export function presetWith(variants: Partial<Preset['variants']>, values: Partial<Preset> = {}): Preset {
+  return { ...TEST_PRESET, ...values, variants: { ...TEST_PRESET.variants, ...variants } };
+}
+
+/** Replaces every trap with the given live setup traps, written `owner@cell`. */
+export function withTraps(state: MatchState, traps: readonly string[]): MatchState {
+  const trapHistory: TrapRecord[] = traps.map((text, index) => {
+    const [owner, cell] = text.split('@') as [PlayerId, CellId];
+    return { id: `${owner}-setup-${index + 1}`, owner, cell, source: 'setup', placedOnTurn: 0, placedBy: null, fate: { kind: 'live' } };
+  });
+  return { ...state, traps: trapHistory.map(({ id, owner, cell }) => ({ id, owner, cell })), trapHistory };
+}
+
+export const liveTraps = (state: MatchState): string[] => state.traps.map((trap) => `${trap.owner}@${trap.cell}`);
+
+export function fighterOf(state: MatchState, id: FighterId): FighterState {
+  const found = state.fighters.find((fighter) => fighter.id === id);
+  if (!found) throw new Error(`No fighter ${id}`);
+  return found;
+}
+
+/** The next state of a legal action; throws with the refusal otherwise. */
+export function applied(state: MatchState, action: Action): { state: MatchState; events: readonly ResolutionEvent[] } {
+  const result = applyAction(state, action);
+  if (!result.ok) throw new Error(`Refused: ${JSON.stringify(result.refusal)}`);
+  return result;
+}
+
+/** Applies legal actions in order. */
+export function play(state: MatchState, ...actions: Action[]): MatchState {
+  for (const action of actions) state = applied(state, action).state;
+  return state;
 }
 
 export const tile = (terrain: Tile['terrain'], symbol: Tile['symbol']): Constraint => ({ terrain, symbol });

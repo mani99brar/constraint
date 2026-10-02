@@ -1,14 +1,14 @@
 import type { Board, CellId, Constraint } from '../api/board';
 import type { Action, ApplyResult } from '../api/actions';
 import type { ConstraintRule, Effect } from '../api/abilities';
-import { opponentOf, type FighterId } from '../api/fighters';
+import { opponentOf, type FighterId, type PlayerId } from '../api/fighters';
 import type { ResolutionEvent } from '../api/events';
-import type { FighterState, InspectionRecord, LiveTrap, MatchState, TrapRecord } from '../api/state';
+import type { FighterState, InspectionRecord, LiveTrap, MatchState, TrapId, TrapRecord } from '../api/state';
 import { ABILITY_MODULES } from '../abilities/registry';
 import { abilityContext, validateAction } from './legality';
 import { findFighter } from './queries';
 import { canonicalSignature } from './signature';
-import { blockadeResult, objectiveResult } from './terminal';
+import { blockadeResult, objectiveResult, repetitionResult } from './terminal';
 
 /** A fighter that entered a cell during one action, in order; traps resolve against these. */
 interface Entry {
@@ -73,7 +73,7 @@ function applyEffects(resolution: Resolution, effects: readonly Effect[], actor:
         break;
       }
       case 'place-trap': {
-        const trap: LiveTrap = { id: `${effect.owner}-trap-${state.trapHistory.length + 1}`, owner: effect.owner, cell: effect.cell };
+        const trap: LiveTrap = { id: newTrapId(state, effect.owner), owner: effect.owner, cell: effect.cell };
         const record: TrapRecord = {
           ...trap,
           source: 'trapper',
@@ -126,11 +126,59 @@ function applyEffects(resolution: Resolution, effects: readonly Effect[], actor:
 }
 
 /**
- * Resolves enemy traps for every fighter that entered a cell (spec §8, §11 step 5).
- * Skeleton: traps are stored but never triggered; the full-rules feature fills this in.
+ * A trap id no live or recorded trap uses. It is named after the placing turn, which is public,
+ * and stays unique in a hypothetical state that holds only one side's traps.
  */
-function resolveTraps(resolution: Resolution): Resolution {
-  return resolution;
+function newTrapId(state: MatchState, owner: PlayerId): TrapId {
+  const taken = new Set([...state.traps, ...state.trapHistory].map((trap) => trap.id));
+  let id = `${owner}-trap-${state.turn}`;
+  for (let suffix = 2; taken.has(id); suffix += 1) id = `${owner}-trap-${state.turn}-${suffix}`;
+  return id;
+}
+
+/**
+ * The turn a new lock expires after (spec §8.2): the fighter misses `lockOwnTurnsMissed` of its
+ * owner's turns. Triggered on the owner's turn T, the first missed turn is T + 2; triggered on
+ * the opponent's turn T, it is T + 1. Turns alternate, so each further missed turn adds two.
+ */
+function lockExpiry(state: MatchState, owner: PlayerId): number {
+  const firstMissed = owner === state.activePlayer ? state.turn + 2 : state.turn + 1;
+  return firstMissed + 2 * (state.preset.lockOwnTurnsMissed - 1);
+}
+
+/**
+ * Resolves enemy traps for every fighter that entered a cell, after all positions are applied
+ * (spec §8, §11 step 5). Own traps stay dormant and hidden. Each triggered trap is revealed and
+ * removed, then takes the entrant's charge, or locks it when it has none; a second lock extends
+ * to the later expiry rather than stacking.
+ */
+function resolveTraps(resolution: Resolution, opening: boolean): Resolution {
+  if (opening && !resolution.state.preset.trapsTriggerOnOpening) return resolution;
+  let { state } = resolution;
+  const events = [...resolution.events];
+  for (const entry of resolution.entries) {
+    const owner = findFighter(state, entry.fighter)!.owner;
+    for (const trap of state.traps.filter((live) => live.cell === entry.cell && live.owner !== owner)) {
+      state = {
+        ...state,
+        traps: state.traps.filter((live) => live.id !== trap.id),
+        trapHistory: state.trapHistory.map((record) =>
+          record.id === trap.id ? { ...record, fate: { kind: 'triggered', turn: state.turn, fighter: entry.fighter } } : record,
+        ),
+      };
+      events.push({ kind: 'trap-triggered', trapId: trap.id, owner: trap.owner, cell: trap.cell, fighter: entry.fighter });
+      const fighter = findFighter(state, entry.fighter)!;
+      if (fighter.charge === 1) {
+        state = updateFighter(state, fighter.id, { charge: 0 });
+        events.push({ kind: 'charge-lost', fighter: fighter.id });
+      } else {
+        const expiresAfterTurn = Math.max(lockExpiry(state, fighter.owner), fighter.lock?.expiresAfterTurn ?? 0);
+        state = updateFighter(state, fighter.id, { lock: { expiresAfterTurn } });
+        events.push({ kind: 'lock-applied', fighter: fighter.id, expiresAfterTurn });
+      }
+    }
+  }
+  return { ...resolution, state, events };
 }
 
 function nextConstraint(state: MatchState, rule: ConstraintRule): Constraint | null {
@@ -180,7 +228,7 @@ export function applyAction(state: MatchState, action: Action): ApplyResult {
   }
 
   resolution = applyEffects(resolution, effectsOf(state, action, actor), actor);
-  resolution = resolveTraps(resolution);
+  resolution = resolveTraps(resolution, state.constraint === null);
 
   let next = resolution.state;
   const events = resolution.events;
@@ -188,11 +236,17 @@ export function applyAction(state: MatchState, action: Action): ApplyResult {
   next = { ...next, constraint };
   if (constraint && resolution.constraintRule.kind !== 'unchanged') events.push({ kind: 'constraint-set', constraint });
 
+  // Terminal checks in spec §11 order: objectives (step 7), then, once the turn has passed,
+  // the next player's blockade (step 10), then the repetition draw (step 11, spec §12).
   let result = objectiveResult(next);
   if (!result) {
     next = expireStatuses(next);
     next = { ...next, turn: next.turn + 1, activePlayer: opponentOf(player) };
     result = blockadeResult(next);
+  }
+  if (!result) {
+    next = { ...next, repetition: [...next.repetition, canonicalSignature(next)] };
+    result = repetitionResult(next);
   }
   if (result) events.push({ kind: 'match-ended', result });
 
@@ -201,6 +255,5 @@ export function applyAction(state: MatchState, action: Action): ApplyResult {
     result,
     history: [...next.history, { turn: state.turn, player, action, events }],
   };
-  if (!result) next = { ...next, repetition: [...next.repetition, canonicalSignature(next)] };
   return { ok: true, state: next, events };
 }

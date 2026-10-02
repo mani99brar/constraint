@@ -74,17 +74,39 @@ export class InvalidSetupError extends Error {
 }
 
 /**
+ * The scenario a match runs under when both setup calls may carry one. The later scenario wins
+ * field by field and per player; the board is the one `prepareMatch` used, since the board is
+ * revealed before setup (spec §5), so the recorded scenario replays to the same board.
+ */
+function mergeScenarios(prepared: Scenario | null, started: Scenario | undefined): Scenario | null {
+  if (!started) return prepared;
+  if (!prepared) {
+    const { board: _ignored, ...rest } = started;
+    return rest;
+  }
+  const merged: { -readonly [K in keyof Scenario]: Scenario[K] } = { id: started.id, name: started.name };
+  if (prepared.board) merged.board = prepared.board;
+  const rosters = { ...prepared.rosters, ...started.rosters };
+  if (Object.keys(rosters).length > 0) merged.rosters = rosters;
+  const traps = { ...prepared.traps, ...started.traps };
+  if (Object.keys(traps).length > 0) merged.traps = traps;
+  const startingPlayer = started.startingPlayer ?? prepared.startingPlayer;
+  if (startingPlayer) merged.startingPlayer = startingPlayer;
+  return merged;
+}
+
+/**
  * Setup phase two (spec §5 steps 2–6): apply both sides' secret setups and pick the starting
- * player with the seeded generator. A scenario here, or else the one given to `prepareMatch`,
- * overrides rosters, traps or the starting player (PRD S4). Throws `InvalidSetupError` when a
- * resulting setup fails `validateSetup`.
+ * player with the seeded generator. A scenario here and the one given to `prepareMatch` merge,
+ * this one winning field by field; together they override rosters, traps or the starting player
+ * (PRD S4). Throws `InvalidSetupError` when a resulting setup fails `validateSetup`.
  */
 export function startMatch(
   prepared: PreparedMatch,
   setups: Readonly<Record<PlayerId, Setup>>,
   scenario?: Scenario,
 ): MatchState {
-  const effectiveScenario = scenario ?? prepared.scenario;
+  const effectiveScenario = mergeScenarios(prepared.scenario, scenario);
   const { preset } = prepared;
   const finalSetups = {} as Record<PlayerId, Setup>;
   for (const player of PLAYERS) {
@@ -94,6 +116,12 @@ export function startMatch(
     };
   }
   const refusals = { A: validateSetup(finalSetups.A, preset), B: validateSetup(finalSetups.B, preset) };
+  if (!preset.sameTypesAcrossRosters) {
+    // Rosters are chosen secretly and simultaneously (spec §4), so only the referee sees a clash.
+    for (const fighter of finalSetups.B.roster) {
+      if (finalSetups.A.roster.includes(fighter)) refusals.B.push({ code: 'fighters-not-distinct', fighter });
+    }
+  }
   if (refusals.A.length > 0 || refusals.B.length > 0) throw new InvalidSetupError(refusals);
 
   let rng = prepared.rng;

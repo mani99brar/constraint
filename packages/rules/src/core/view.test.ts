@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, playerView, projectEvents, type MatchState, type ResolutionEvent } from '../api';
-import { A, B, construct, gridMatch, seededMatch, tile } from './testing';
+import { applyAction, playerView, projectEvents, type MatchState, type ObjectiveId, type ResolutionEvent } from '../api';
+import { A, B, construct, gridMatch, play, seededMatch, tile, withTraps } from './testing';
 
 const B_TYPES = ['Swapper', 'Upgrader', 'Puller', 'Trapper'];
 
@@ -43,6 +43,56 @@ describe('per-player view (spec §4)', () => {
     expect(view.fighters.filter((fighter) => fighter.owner === 'B').map((fighter) => fighter.type)).toEqual(['Puller']);
     expect(view.reserveCounts.B).toBe(3);
     expect(JSON.stringify(view)).not.toContain('Swapper');
+  });
+});
+
+describe('hidden traps and objectives during play (spec §4)', () => {
+  // Mid-play: both sides hold setup traps, B's Trapper has placed one and A's Trap Checker has
+  // removed a B trap, so every kind of trap record exists.
+  const midPlay = (): MatchState =>
+    play(
+      withTraps(
+        construct(
+          gridMatch(),
+          { [B('Trapper')]: 'C2', [A('TrapChecker')]: 'C4', [A('Pusher')]: 'A1' },
+          { constraint: tile('Mountain', 'Wave'), activePlayer: 'B', turn: 6, objectives: { A: 'Square', B: 'Line' as ObjectiveId } },
+        ),
+        ['A@D4', 'A@A2', 'B@B4', 'B@D1'],
+      ),
+      { kind: 'ability', fighter: B('Trapper'), target: 'C1' },
+      { kind: 'ability', fighter: A('TrapChecker'), target: 'B4' },
+    );
+
+  it("never contains the opponent's live trap cells, trap ids or trap history", () => {
+    const state = midPlay();
+    expect(state.result).toBeNull();
+    const view = playerView(state, 'A');
+    expect(view).not.toHaveProperty('trapHistory');
+    expect(view.reveal).toBeUndefined();
+    const json = JSON.stringify(view);
+    expect(json).not.toContain('trapHistory');
+    for (const trap of state.traps.filter((live) => live.owner === 'B')) expect(json).not.toContain(trap.id);
+    expect(view.ownTraps.every((trap) => trap.owner === 'A')).toBe(true);
+    const moved = { ...state, traps: state.traps.map((trap) => (trap.owner === 'B' ? { ...trap, cell: 'A4' as const } : trap)) };
+    expect(playerView(moved, 'A')).toEqual(view);
+  });
+
+  it("never contains the opponent's objective when the two objectives differ", () => {
+    const state = midPlay();
+    expect(playerView(state, 'A').objective).toBe('Square');
+    expect(JSON.stringify(playerView(state, 'A'))).not.toContain('Line');
+    expect(playerView(state, 'B').objective).toBe('Line');
+    expect(playerView(state, 'B')).not.toHaveProperty('objectives');
+    // The preset's objective pool is public; only A's own assignment is hidden from B.
+    expect(JSON.stringify(playerView(state, 'B'))).not.toContain('"objective":"Square"');
+  });
+
+  it("keeps listing a trap the opponent removed by inspection, since the result is the inspector's alone", () => {
+    const state = midPlay();
+    expect(state.traps.some((trap) => trap.owner === 'B' && trap.cell === 'B4')).toBe(false);
+    expect(playerView(state, 'B').ownTraps.map((trap) => trap.cell)).toEqual(['B4', 'D1', 'C1']);
+    expect(playerView(state, 'B').inspections).toEqual([]);
+    expect(playerView(state, 'A').inspections.map((inspection) => inspection.cell)).toEqual(['B4']);
   });
 });
 

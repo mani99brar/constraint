@@ -1,6 +1,6 @@
 import type { PlayerId } from '../api/fighters';
 import type { PlayerEvent, ResolutionEvent } from '../api/events';
-import type { HistoryEntry, MatchState } from '../api/state';
+import type { HistoryEntry, LiveTrap, MatchState } from '../api/state';
 import type { PlayerView, PublicAction, PublicLogEntry } from '../api/view';
 import { fighterTypeOf } from './queries';
 
@@ -42,6 +42,16 @@ function countBy(state: MatchState, deployed: boolean): Record<PlayerId, number>
   return counts;
 }
 
+/**
+ * The viewer's traps as the viewer knows them: a trigger is public, but an enemy Trap Checker's
+ * removal is private to the inspector (spec §4, §9), so a trap removed that way still shows.
+ */
+function ownTrapsAsKnown(state: MatchState, viewer: PlayerId): LiveTrap[] {
+  return state.trapHistory
+    .filter((record) => record.owner === viewer && record.fate.kind !== 'triggered')
+    .map((record) => ({ id: record.id, owner: record.owner, cell: record.cell }));
+}
+
 /** What one player may know of the match (spec §4); the only state the client renders. */
 export function playerView(state: MatchState, viewer: PlayerId): PlayerView {
   const view: PlayerView = {
@@ -58,7 +68,7 @@ export function playerView(state: MatchState, viewer: PlayerId): PlayerView {
     deployedCounts: countBy(state, true),
     recharges: state.recharges,
     objective: state.objectives[viewer],
-    ownTraps: state.traps.filter((trap) => trap.owner === viewer),
+    ownTraps: ownTrapsAsKnown(state, viewer),
     log: state.history.map((entry) => projectLogEntry(entry, viewer)),
     inspections: state.inspections.filter((inspection) => inspection.inspector === viewer),
     result: state.result,

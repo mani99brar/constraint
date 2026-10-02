@@ -76,6 +76,22 @@ describe('preset spec-v0.2 (PRD §6, P1)', () => {
       { code: 'invalid-preset-value', field: 'variants.displacerLimit', value: 5 },
     ]);
   });
+
+  it('rejects a Trap Checker that is illegal with nothing found, since legality would reveal hidden traps (spec §9)', () => {
+    expect(validatePreset({ ...SPEC_V0_2, trapCheckerLegalWithNothingFound: false })).toEqual([
+      { code: 'invalid-preset-value', field: 'trapCheckerLegalWithNothingFound', value: false },
+    ]);
+  });
+
+  it('rejects any terminal precedence other than the spec §11 order', () => {
+    const reordered = ['blockade', 'objective', 'repetition'] as const;
+    expect(validatePreset({ ...SPEC_V0_2, terminalPrecedence: reordered })).toEqual([
+      { code: 'invalid-preset-value', field: 'terminalPrecedence', value: reordered },
+    ]);
+    expect(validatePreset({ ...SPEC_V0_2, terminalPrecedence: ['objective', 'blockade'] })).toEqual([
+      { code: 'invalid-preset-value', field: 'terminalPrecedence', value: ['objective', 'blockade'] },
+    ]);
+  });
 });
 
 describe('paper test 01 scenario (docs/paper-test-01.md, Fixture)', () => {

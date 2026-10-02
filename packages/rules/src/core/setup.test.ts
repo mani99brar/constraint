@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CELLS, isEdgeCell, prepareMatch, startMatch, validateSetup, InvalidSetupError } from '../api';
-import { seededMatch, TEST_PRESET, TEST_SETUPS, TEST_TILES } from './testing';
+import { ALL_CELLS, isEdgeCell, matchLogOf, prepareMatch, replayMatchLog, startMatch, validateSetup, InvalidSetupError } from '../api';
+import { GRID_BOARD, seededMatch, TEST_PRESET, TEST_SETUPS, TEST_TILES } from './testing';
 
 describe('board shuffle (spec §3, §5 step 1)', () => {
   it('is a 4×4 grid holding every terrain/symbol pair exactly once', () => {
@@ -85,5 +85,46 @@ describe('match start', () => {
     expect(state.setups.B.roster).toEqual(['Anchor', 'Pusher', 'Puller', 'Trapper']);
     expect(state.traps.filter((trap) => trap.owner === 'A').map((trap) => trap.cell)).toEqual(['A1', 'D4']);
     expect(isEdgeCell('A1')).toBe(true);
+  });
+
+  it('merges the scenarios of both setup calls, so the board override survives and the log replays to it', () => {
+    const prepared = prepareMatch({
+      tiles: TEST_TILES,
+      preset: TEST_PRESET,
+      seed: 8,
+      scenario: { id: 'board', name: 'Board', board: GRID_BOARD, startingPlayer: 'B', traps: { A: ['A1', 'A2'] } },
+    });
+    const state = startMatch(prepared, TEST_SETUPS, {
+      id: 'late',
+      name: 'Late',
+      rosters: { B: ['Anchor', 'Pusher', 'Puller', 'Trapper'] },
+      traps: { B: ['D1', 'D4'] },
+    });
+    expect(state.board).toEqual(GRID_BOARD);
+    expect(state.scenario).toEqual({
+      id: 'late',
+      name: 'Late',
+      board: GRID_BOARD,
+      rosters: { B: ['Anchor', 'Pusher', 'Puller', 'Trapper'] },
+      traps: { A: ['A1', 'A2'], B: ['D1', 'D4'] },
+      startingPlayer: 'B',
+    });
+    expect(state.activePlayer).toBe('B');
+    expect(state.traps.map((trap) => `${trap.owner}@${trap.cell}`)).toEqual(['A@A1', 'A@A2', 'B@D1', 'B@D4']);
+    expect(replayMatchLog(JSON.parse(JSON.stringify(matchLogOf(state))), TEST_TILES)).toEqual(state);
+  });
+
+  it('records only the board prepareMatch used, never a later board it could not apply', () => {
+    const prepared = prepareMatch({ tiles: TEST_TILES, preset: TEST_PRESET, seed: 8 });
+    const state = startMatch(prepared, TEST_SETUPS, { id: 'late', name: 'Late', board: GRID_BOARD, startingPlayer: 'A' });
+    expect(state.board).toEqual(prepared.board);
+    expect(state.scenario).toEqual({ id: 'late', name: 'Late', startingPlayer: 'A' });
+    expect(replayMatchLog(matchLogOf(state), TEST_TILES).board).toEqual(prepared.board);
+  });
+
+  it('keeps the random draws of the board and starting player of the skeleton for a seed', () => {
+    // Values the skeleton engine gave; browser tests rely on a seed keeping its board and starter.
+    expect(prepareMatch({ tiles: TEST_TILES, preset: TEST_PRESET, seed: 2024 }).board.A1).toEqual({ terrain: 'Forest', symbol: 'Moon' });
+    expect([0, 1, 2, 3, 4, 5].map((seed) => seededMatch(seed).startingPlayer).join('')).toBe('AABBBB');
   });
 });

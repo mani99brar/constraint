@@ -68,6 +68,12 @@ export function validateAction(state: MatchState, action: Action): ActionRefusal
       if (!targets.includes(action.target)) return { code: 'invalid-target', fighter: fighter.id, target: action.target };
       return null;
     }
+    default: {
+      // Every action kind is handled above; this fails to compile when a kind is added. An
+      // unknown kind from untrusted input is a programming error until a refusal code exists.
+      const unknown: never = action;
+      throw new Error(`Unknown action kind: ${JSON.stringify(unknown)}`);
+    }
   }
 }
 

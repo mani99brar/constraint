@@ -11,6 +11,7 @@ import {
   type Preset,
   type Scenario,
   type SetupRefusal,
+  type TerminalCheck,
   type Tile,
 } from '@okiya/rules';
 import { DEFAULT_ROSTERS } from './defaults';
@@ -68,6 +69,9 @@ export function validateFighters(definitions: readonly FighterDefinition[]): Con
   return issues;
 }
 
+/** Objective, then blockade, then repetition: the order of the checks in spec §11. */
+const SPEC_TERMINAL_PRECEDENCE: readonly TerminalCheck[] = ['objective', 'blockade', 'repetition'];
+
 const isInteger = (value: number, min: number, max = Number.MAX_SAFE_INTEGER) =>
   Number.isInteger(value) && value >= min && value <= max;
 
@@ -87,10 +91,14 @@ export function validatePreset(preset: Preset): ContentIssue[] {
   check('lockOwnTurnsMissed', preset.lockOwnTurnsMissed, isInteger(preset.lockOwnTurnsMissed, 1));
   check('trapCheckerRule', preset.trapCheckerRule, preset.trapCheckerRule === 'single-adjacent-cell');
   check('repetitionThreshold', preset.repetitionThreshold, isInteger(preset.repetitionThreshold, 2));
+  // Not switches: false would let the legal-action list reveal hidden traps (spec §9), and the
+  // step order of spec §11 fixes the precedence, so the engine reads neither value.
+  check('trapCheckerLegalWithNothingFound', preset.trapCheckerLegalWithNothingFound, preset.trapCheckerLegalWithNothingFound === true);
   check(
     'terminalPrecedence',
     preset.terminalPrecedence,
-    preset.terminalPrecedence.length === 3 && new Set(preset.terminalPrecedence).size === 3,
+    preset.terminalPrecedence.length === SPEC_TERMINAL_PRECEDENCE.length &&
+      preset.terminalPrecedence.every((check, index) => check === SPEC_TERMINAL_PRECEDENCE[index]),
   );
   check(
     'objectivePool',
