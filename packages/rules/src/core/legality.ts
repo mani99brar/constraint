@@ -26,9 +26,8 @@ function destinationRefusal(state: MatchState, cell: CellId): ActionRefusal | nu
 export function validateAction(state: MatchState, action: Action): ActionRefusal | null {
   if (state.result) return { code: 'match-over' };
   const fighter = findFighter(state, action.fighter);
-  if (!fighter) return { code: 'unknown-fighter', fighter: action.fighter };
-  if (fighter.owner !== state.activePlayer) {
-    return { code: 'not-your-fighter', fighter: fighter.id, activePlayer: state.activePlayer };
+  if (!fighter || fighter.owner !== state.activePlayer) {
+    return { code: 'not-your-fighter', fighter: action.fighter, activePlayer: state.activePlayer };
   }
   const target = action.kind === 'recharge' ? null : action.kind === 'ability' ? action.target : action.cell;
   if (target !== null && !isCellId(target)) return { code: 'unknown-cell', cell: target };

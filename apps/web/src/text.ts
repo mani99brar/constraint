@@ -33,10 +33,8 @@ export function describeRefusal(refusal: ActionRefusal): string {
   switch (refusal.code) {
     case 'match-over':
       return 'The match is over.';
-    case 'unknown-fighter':
-      return 'That fighter is not in this match.';
     case 'not-your-fighter':
-      return `${fighterIdName(refusal.fighter)} is not your fighter.`;
+      return 'That is not one of your fighters.';
     case 'unknown-cell':
       return `${refusal.cell} is not a cell of the board.`;
     case 'not-in-reserve':

@@ -39,8 +39,9 @@ export type Action = DeployAction | MoveAction | RechargeAction | AbilityAction;
 /** Structured refusal of an action: a reason code and its data, never English text. */
 export type ActionRefusal =
   | { readonly code: 'match-over' }
-  | { readonly code: 'unknown-fighter'; readonly fighter: string }
-  | { readonly code: 'not-your-fighter'; readonly fighter: FighterId; readonly activePlayer: PlayerId }
+  // One code for a fighter that does not exist and one the opponent owns, so a refusal never
+  // reveals which types sit in the opponent's hidden reserve (spec §4).
+  | { readonly code: 'not-your-fighter'; readonly fighter: string; readonly activePlayer: PlayerId }
   | { readonly code: 'unknown-cell'; readonly cell: string }
   | { readonly code: 'not-in-reserve'; readonly fighter: FighterId }
   | { readonly code: 'not-deployed'; readonly fighter: FighterId }

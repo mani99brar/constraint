@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, isEdgeCell, listLegalActions, validateAction, type Action } from '../api';
+import { applyAction, FIGHTER_TYPES, isEdgeCell, listLegalActions, validateAction, type Action, type FighterId } from '../api';
 import { A, B, construct, gridMatch, tile } from './testing';
 
 // GRID_BOARD: rows are terrains (A Forest, B Water, C Mountain, D Desert), columns symbols (1 Sun, 2 Moon, 3 Star, 4 Wave).
@@ -77,5 +77,13 @@ describe('normal movement (spec §7.2)', () => {
       fighter: B('Swapper'),
       activePlayer: 'A',
     });
+  });
+
+  it("gives the same refusal for an opponent fighter in reserve and one the opponent does not field", () => {
+    const fielded = state.fighters.find((fighter) => fighter.owner === 'B' && fighter.cell === null)!;
+    const absent = B(FIGHTER_TYPES.find((type) => !state.fighters.some((fighter) => fighter.owner === 'B' && fighter.type === type))!);
+    const refusalFor = (fighter: FighterId) => validateAction(state, { kind: 'move', fighter, cell: 'A3' });
+    expect(refusalFor(fielded.id)).toEqual({ code: 'not-your-fighter', fighter: fielded.id, activePlayer: 'A' });
+    expect(refusalFor(absent)).toEqual({ code: 'not-your-fighter', fighter: absent, activePlayer: 'A' });
   });
 });

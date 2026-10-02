@@ -6,8 +6,6 @@ import { ALL_CELLS, DISPLACER_TYPES, FIGHTER_TYPES, type Action, type CellId, ty
 /** The bot's preferred roster, the B roster of paper test 01. */
 export const BOT_ROSTER: readonly FighterType[] = ['Swapper', 'Upgrader', 'Puller', 'Trapper'];
 
-// Salts keep the setup and per-turn streams of one match seed apart.
-const SETUP_SALT = 0x5e7a9;
 const TURN_SALT = 0x9e3779b1;
 
 /** The bot's generator for one turn, seeded by the match seed and the turn number only. */
@@ -20,11 +18,11 @@ function pick<T>(generator: RandomGenerator, items: readonly T[]): T {
 }
 
 /**
- * Chooses the bot's secret setup from the revealed board, the preset and the seed: its preferred
+ * Chooses the bot's secret setup from the revealed board, the preset and its private seed: its preferred
  * roster within the preset's displacer limit, and setup traps on distinct random cells.
  */
 export function chooseSetup(input: SetupInput): Setup {
-  const generator = xoroshiro128plus((input.seed ^ SETUP_SALT) | 0);
+  const generator = xoroshiro128plus(input.privateSeed | 0);
   const limit = input.preset.variants.displacerLimit ?? Number.POSITIVE_INFINITY;
   const roster: FighterType[] = [];
   let displacers = 0;

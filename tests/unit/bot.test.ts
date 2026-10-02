@@ -5,15 +5,15 @@ import { applyAction, listLegalActions, playerView, prepareMatch, startMatch, va
 
 function botMatch(seed: number): MatchState {
   const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed });
-  const input = { board: prepared.board, preset: SPEC_V0_2, seed };
-  return startMatch(prepared, { A: chooseSetup({ ...input, seed: seed + 1 }), B: chooseSetup(input) });
+  const input = { board: prepared.board, preset: SPEC_V0_2, privateSeed: seed };
+  return startMatch(prepared, { A: chooseSetup({ ...input, privateSeed: seed + 1 }), B: chooseSetup(input) });
 }
 
 describe('bot setup choice', () => {
   it('returns a setup the validator accepts', () => {
     for (const seed of [0, 1, 17, 123456]) {
       const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed });
-      const setup = chooseSetup({ board: prepared.board, preset: SPEC_V0_2, seed });
+      const setup = chooseSetup({ board: prepared.board, preset: SPEC_V0_2, privateSeed: seed });
       expect(validateSetup(setup, SPEC_V0_2)).toEqual([]);
     }
   });
@@ -21,7 +21,7 @@ describe('bot setup choice', () => {
   it("respects the preset's displacer limit", () => {
     const preset = { ...SPEC_V0_2, variants: { ...SPEC_V0_2.variants, displacerLimit: 0 } };
     const prepared = prepareMatch({ tiles: TILES, preset, seed: 3 });
-    expect(validateSetup(chooseSetup({ board: prepared.board, preset, seed: 3 }), preset)).toEqual([]);
+    expect(validateSetup(chooseSetup({ board: prepared.board, preset, privateSeed: 3 }), preset)).toEqual([]);
   });
 });
 

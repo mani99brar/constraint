@@ -31,11 +31,15 @@ export interface PreparedMatch {
   readonly scenario: Scenario | null;
 }
 
-/** What a side sees when choosing its setup: the revealed board, the preset and the seed. */
+/**
+ * What a side has when choosing its setup: the revealed board, the preset and a seed private to
+ * that side. The private seed must be independent of the match seed, which is public, so nobody
+ * can recompute a secret setup from it; the match log records the resulting setups instead.
+ */
 export interface SetupInput {
   readonly board: Board;
   readonly preset: Preset;
-  readonly seed: number;
+  readonly privateSeed: number;
 }
 
 /** Structured setup refusals; the client turns codes into readable text. */

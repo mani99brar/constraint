@@ -11,11 +11,12 @@ Each directory with a `feature.json` is a workflow feature (see the operator not
 
 | Feature | Lane | Owns | Builds against |
 | --- | --- | --- | --- |
-| `full-rules` | `core` | `packages/rules/src/core` | the state shape from the skeleton; non-ability edge cases from `docs/paper-test-01.md` Phase B, and the replay of its 28-action match |
-| `full-rules` | `abilities` | `packages/rules/src/abilities` | the ability interface from the skeleton; the eight fighters, their edge cases and the preset variant switches |
-| `full-rules` | `bot` | `packages/bot` | the legal-action list and the player view |
-| `full-rules` | `web` | `apps/web`, `tests/e2e` | the legal-action list, so new abilities appear without UI changes |
+| `full-rules` | `rules` | `packages/rules/src/core`, `packages/rules/src/abilities` | `packages/rules/src/api`; the 45 edge cases and the 28-action replay from `docs/paper-test-01.md`, and the preset variant switches |
+| `full-rules` | `bot` | `packages/bot` | the player view, the hypothetical state and the legal-action list |
+| `full-rules` | `web` | `apps/web`, `tests/e2e` | the player view, the event projection and the legal-action list, so new abilities appear without UI changes |
 | `playtest-ready` | to plan | | log export and replay, scenarios, presets at match start, phone and keyboard |
+
+Core and abilities share one lane because trap, lock and ability resolution are entangled (skeleton design challenge, attempt 1). `packages/rules/src/api` and `package-lock.json` belong to no parallel lane: change them in a small feature on `main` first.
 
 When a lane needs a new shared type or function, add it to `main` in a small feature first, then fan out. Do not give two lanes the same owned path.
 

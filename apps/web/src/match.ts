@@ -21,9 +21,13 @@ export function generateSeed(): number {
   return crypto.getRandomValues(new Uint32Array(1))[0]! >>> 1;
 }
 
-/** Prepares the board from the seed, then starts the match from both sides' setups (spec §5). */
+/**
+ * Prepares the board from the seed, then starts the match from both sides' setups (spec §5).
+ * The bot's setup uses its own private seed, never shown, so the displayed match seed cannot
+ * reveal the bot's traps.
+ */
 export function createMatch(seed: number): MatchState {
   const prepared = prepareMatch({ tiles: TILES, preset: SPEC_V0_2, seed });
-  const botSetup = chooseSetup({ board: prepared.board, preset: SPEC_V0_2, seed });
+  const botSetup = chooseSetup({ board: prepared.board, preset: SPEC_V0_2, privateSeed: generateSeed() });
   return startMatch(prepared, { [HUMAN]: defaultSetup(HUMAN), [BOT]: botSetup });
 }
