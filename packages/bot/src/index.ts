@@ -12,4 +12,14 @@ export {
 } from './search';
 
 // Constraint v1.0 (docs/game-spec.md).
-export { chooseTake, DIFFICULTIES, type Difficulty, type TakeOptions } from './take';
+export {
+  analyzeTake,
+  chooseTake,
+  DIFFICULTIES,
+  NORMAL_DEPTH,
+  NORMAL_MAX_POSITIONS,
+  POSITION_BUDGET,
+  type Difficulty,
+  type TakeAnalysis,
+  type TakeOptions,
+} from './take';
