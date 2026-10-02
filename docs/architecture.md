@@ -31,6 +31,8 @@ Public functions:
 | `hypotheticalState(view)` | A full state from a view, with placeholders for hidden data, for bot lookahead. |
 | `objectiveResult(state)`, `blockadeResult(state)` | Terminal checks. |
 | `canonicalSignature(state)` | Start-of-turn signature for repetition. |
-| `matchLogOf(state)`, `replayMatchLog(log, tiles)` | Match log export and deterministic replay. |
+| `matchLogOf(state)`, `replayMatchLog(log, tiles)` | Match log export and deterministic replay (throws on a refused log). |
+| `parseMatchLog(input)` | Reads an untrusted value as a `MatchLog`, or a structured `MatchLogRefusal` naming the bad field. |
+| `replayMatchSteps(log, tiles)` | Every intermediate state of a replay, for step-through and continuing from any point, or the first refused setup or action. |
 
 The skeleton implements deploy, move, the opening rule, Square and blockade. Abilities are stubs offering no targets, traps are stored but never triggered, and the repetition draw is not enforced; core already validates recharge and applies every effect kind, but nothing can spend a charge yet. The `full-rules` feature fills these in.

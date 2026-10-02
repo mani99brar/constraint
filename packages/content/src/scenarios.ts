@@ -23,4 +23,17 @@ export const PAPER_TEST_01: Scenario = {
   startingPlayer: 'A',
 };
 
-export const SCENARIOS: readonly Scenario[] = [PAPER_TEST_01];
+/**
+ * The report's next test (`docs/paper-test-01.md`, Next test): the same fixture with B starting
+ * and the rosters swapped. Each side's setup traps move with its roster.
+ */
+export const PAPER_TEST_01_SWAPPED: Scenario = {
+  id: 'paper-test-01-swapped',
+  name: 'Paper test 01, B starts, rosters swapped',
+  board: PAPER_TEST_01_BOARD,
+  rosters: { A: PAPER_TEST_01.rosters!.B!, B: PAPER_TEST_01.rosters!.A! },
+  traps: { A: PAPER_TEST_01.traps!.B!, B: PAPER_TEST_01.traps!.A! },
+  startingPlayer: 'B',
+};
+
+export const SCENARIOS: readonly Scenario[] = [PAPER_TEST_01, PAPER_TEST_01_SWAPPED];

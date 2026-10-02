@@ -3,6 +3,6 @@
 export { TILES } from './tiles';
 export { FIGHTERS, OBJECTIVES } from './fighters';
 export { DEFAULT_ROSTERS, DEFAULT_TRAPS, defaultSetup } from './defaults';
-export { SPEC_V0_2, PRESETS } from './presets';
-export { PAPER_TEST_01, SCENARIOS } from './scenarios';
+export { SPEC_V0_2, SPEC_V0_2_TWO_DISPLACERS, PRESETS } from './presets';
+export { PAPER_TEST_01, PAPER_TEST_01_SWAPPED, SCENARIOS } from './scenarios';
 export { validateTiles, validateFighters, validatePreset, validateScenario, type ContentIssue } from './validate';

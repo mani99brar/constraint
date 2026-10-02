@@ -9,6 +9,7 @@ const constraint = { terrain: 'Forest', symbol: 'Star' } as const;
 // One sample per code; the Record type makes the compiler fail when a code is missing.
 const ACTION_REFUSALS: Record<ActionRefusal['code'], ActionRefusal> = {
   'match-over': { code: 'match-over' },
+  'unknown-action': { code: 'unknown-action', kind: 'pass' },
   'not-your-fighter': { code: 'not-your-fighter', fighter: 'B:Pusher', activePlayer: 'A' },
   'unknown-cell': { code: 'unknown-cell', cell: 'E9' },
   'not-in-reserve': { code: 'not-in-reserve', fighter: 'A:Pusher' },

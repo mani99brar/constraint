@@ -191,11 +191,11 @@ describe('resolution and terminal ordering (spec §11)', () => {
     expect(play(repeated, deploy(A('TerrainWeaver'), 'B2')).result).toEqual({ kind: 'win', winner: 'A', reason: 'objective' });
   });
 
-  it('refuses an unknown action kind loudly instead of treating it as legal', () => {
+  it('refuses an unknown action kind with a structured reason instead of treating it as legal', () => {
     const state = construct(gridMatch(), { [A('Pusher')]: 'B2' }, { constraint: tile('Water', 'Wave'), turn: 5 });
     const unknown = { kind: 'pass', fighter: A('Pusher'), cell: 'B3' } as unknown as Action;
-    expect(() => validateAction(state, unknown)).toThrow('Unknown action kind');
-    expect(() => applyAction(state, unknown)).toThrow('Unknown action kind');
+    expect(validateAction(state, unknown)).toEqual({ code: 'unknown-action', kind: 'pass' });
+    expect(applyAction(state, unknown)).toEqual({ ok: false, refusal: { code: 'unknown-action', kind: 'pass' } });
   });
 });
 

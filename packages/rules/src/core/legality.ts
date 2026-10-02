@@ -23,8 +23,12 @@ function destinationRefusal(state: MatchState, cell: CellId): ActionRefusal | nu
  * Validates one action against the pre-action state (spec §11). Returns a structured refusal,
  * or null when the action is legal.
  */
+const ACTION_KINDS: ReadonlySet<string> = new Set<Action['kind']>(['deploy', 'move', 'recharge', 'ability']);
+
 export function validateAction(state: MatchState, action: Action): ActionRefusal | null {
   if (state.result) return { code: 'match-over' };
+  // An untrusted log can hold any kind; refuse it before reading fields that kind may lack.
+  if (!ACTION_KINDS.has(action.kind)) return { code: 'unknown-action', kind: String(action.kind) };
   const fighter = findFighter(state, action.fighter);
   if (!fighter || fighter.owner !== state.activePlayer) {
     return { code: 'not-your-fighter', fighter: action.fighter, activePlayer: state.activePlayer };
@@ -72,7 +76,7 @@ export function validateAction(state: MatchState, action: Action): ActionRefusal
       // Every action kind is handled above; this fails to compile when a kind is added. An
       // unknown kind from untrusted input is a programming error until a refusal code exists.
       const unknown: never = action;
-      throw new Error(`Unknown action kind: ${JSON.stringify(unknown)}`);
+      return { code: 'unknown-action', kind: String((unknown as { kind?: unknown }).kind) };
     }
   }
 }

@@ -29,4 +29,15 @@ export const SPEC_V0_2: Preset = {
   },
 };
 
-export const PRESETS: readonly Preset[] = [SPEC_V0_2];
+/**
+ * Spec v0.2 with at most two displacers (Pusher, Puller, Swapper) per roster: paper test 01
+ * found displacer count decided the game (B1), so this preset tests balanced rosters.
+ */
+export const SPEC_V0_2_TWO_DISPLACERS: Preset = {
+  ...SPEC_V0_2,
+  id: 'spec-v0.2-two-displacers',
+  name: 'Spec v0.2, at most two displacers',
+  variants: { ...SPEC_V0_2.variants, displacerLimit: 2 },
+};
+
+export const PRESETS: readonly Preset[] = [SPEC_V0_2, SPEC_V0_2_TWO_DISPLACERS];

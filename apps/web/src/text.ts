@@ -90,6 +90,8 @@ export function describeRefusal(refusal: ActionRefusal): string {
   switch (refusal.code) {
     case 'match-over':
       return 'The match is over.';
+    case 'unknown-action':
+      return `The action "${refusal.kind}" is not part of this game.`;
     case 'not-your-fighter':
       return 'That is not one of your fighters.';
     case 'unknown-cell':

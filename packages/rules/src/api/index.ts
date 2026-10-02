@@ -18,5 +18,5 @@ export { playerView, projectEvents, projectLogEntry } from '../core/view';
 export { hypotheticalState } from '../core/hypothetical';
 export { canonicalSignature } from '../core/signature';
 export { objectiveResult, blockadeResult } from '../core/terminal';
-export { matchLogOf, replayMatchLog } from '../core/log';
+export { matchLogOf, parseMatchLog, replayMatchLog, replayMatchSteps } from '../core/log';
 export { ABILITY_MODULES } from '../abilities/registry';
