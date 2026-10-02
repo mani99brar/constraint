@@ -5,6 +5,7 @@ import { DifficultyScreen } from './DifficultyScreen';
 import { HowToPlay } from './HowToPlay';
 import { howToOpensFirst, rememberHowToSeen } from './howto';
 import { HUMAN, nextStarter, startGame } from './match';
+import { rememberStarter, starterForNewGame } from './starter';
 import { MatchScreen } from './MatchScreen';
 import { loadResults, outcomeOf, recordResult, resetResults, type Results } from './results';
 import { clearSavedGame, loadSavedGame, saveGame, type SavedGame } from './save';
@@ -68,6 +69,7 @@ export function App({ storage: given }: AppProps) {
   }
 
   function play(state: GameState, difficulty: Difficulty) {
+    rememberStarter(storage, state.starter);
     matchKey.current += 1;
     setScreen({ kind: 'match', state, difficulty, key: matchKey.current });
   }
@@ -90,7 +92,7 @@ export function App({ storage: given }: AppProps) {
           onBack={showTitle}
           onChoose={(difficulty) => {
             sound.play('select');
-            play(startGame(), difficulty);
+            play(startGame(undefined, starterForNewGame(storage)), difficulty);
           }}
         />
       );
