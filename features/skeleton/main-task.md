@@ -20,11 +20,13 @@ Turn the repository into the walking skeleton of the game in `docs/prd.md`: a Ty
   - `apps/web`: the React client, rendering only the human's player view.
 - Matches are one human against the bot, entirely in the browser. There is no server.
 - The shared APIs in `packages/rules/src/api/` are complete even where behaviour is not, so the later `rules`, `bot` and `web` lanes never need a new export or field:
-  - state: charges, traps, locks, protection and repetition history; the action type covers deploy, move, recharge and ability activation;
+  - state: charges, traps, locks, protection and repetition history, plus a trap history recording every trap placed at setup or by the Trapper with its fate (live, triggered, removed by the Trap Checker); the action type covers deploy, move, recharge and ability activation;
   - the ability contract: each fighter module provides `targets` (its legal targets from the state, the actor and the preset) and `resolve` (a list of effects), and `src/core/` applies the effects and resolves traps, locks and the win check. Effect kinds cover relocating a fighter with how it entered, exchanging terrain, placing a trap, removing enemy traps with a private inspection result, protecting, restoring a charge, and the constraint rule. The context passed to modules includes the preset with its variant switches;
-  - setup in two phases, as spec §5 and PRD S2 order it: one call prepares the match from the preset and seed and reveals the board; a second starts it from both sides' setups (roster and traps); a setup validator returns structured refusals (fighters not distinct, trap cells not distinct, the displacer limit);
+  - setup in two phases, as spec §5 and PRD S2 order it: one call prepares the match from the preset and seed and reveals the board; a second starts it from both sides' setups (roster and traps). Both calls take an optional scenario that overrides the board, the rosters, the traps or the starting player (PRD S4); a setup validator returns structured refusals (fighters not distinct, trap cells not distinct, the displacer limit);
   - applying an action returns the next state and the ordered resolution events (trap triggered, charge lost, lock applied, constraint set, match ended), which PRD R5 and I2 show;
-  - the player view includes a public log of entries, with a Trapper placement's cell redacted, plus the viewer's own private inspection results;
+  - the player view includes a public log of entries, with a Trapper placement's cell redacted, plus the viewer's own private inspection results, and an optional `reveal` (both objectives, both rosters and the full trap history) that is present only once the match has ended (PRD R6);
+  - resolution events reach the client only through a per-player projection that redacts the other side's trap cells and inspection results, so `apps/web` never sees raw referee events;
+  - a function that builds a hypothetical full state from a player view, filling hidden data with placeholders, which the legal-action listing and action application accept, so the bot can look ahead without reading the real state;
   - `packages/bot` exports both a setup choice (board, preset and seed to a setup) and an action choice (player view and legal-action list to an action);
   - the preset, scenario and match-log types.
   Implementations stay thin: fixed default rosters, traps stored but never triggered, ability modules that offer no targets, and only the events deploy and move produce.
@@ -32,7 +34,10 @@ Turn the repository into the walking skeleton of the game in `docs/prd.md`: a Ty
 - Root files only at the paths the policy owns. Never change anything under `docs/` except creating `docs/architecture.md`, and never change `features/`. In `CLAUDE.md`, change only the commands line and keep the "Workflow (operator notes)" section as it is.
 - Pin exact dependency versions. Use maintained libraries and framework features instead of hand-rolled replacements.
 - Fixed local port for the web client: 5493, with Vite's `strictPort` on. The Playwright config starts it with `reuseExistingServer: false`.
-- The verifier runs `typecheck` and `test:unit` before `build` in a fresh checkout, so workspace `exports` and `types` point at `src/` (or typecheck uses `tsc -b` with project references); nothing may depend on a leftover `dist/`. Before completing, run all four checks once after `git clean -xfd && npm ci`.
+- No per-package builds: every workspace's `exports` and `types` point at `src/`, `npm run typecheck` runs `tsc --noEmit` on each workspace, and `npm run build` type-checks the packages and runs `vite build` for `apps/web`, which bundles the packages from source. Nothing reads a package `dist/`. Before completing, run all four checks once after `git clean -xfd && npm ci`.
+- The root `vitest.config.ts` never collects `tests/e2e/`.
+- The bot's move in `apps/web` is scheduled from an effect whose cleanup clears its timer, and it applies only if the view's turn number still equals the one it was scheduled for, so React StrictMode's double mount never plays two bot moves.
+- Browser tests read the constraint and the cells from the page: they pick a highlighted edge cell, and for the refusal an empty cell matching neither attribute. They hardcode only the seed, and only to fix who starts, so later rules and bot changes do not break them.
 - Placeholder art only: shapes and text. Do not add image or audio files.
 - Out of scope, as behaviour: recharge, abilities, traps, locks, protection, repetition draws, roster selection and trap placement screens, the heuristic bot, log export and replay. Use a fixed default roster for both sides.
 
@@ -54,9 +59,13 @@ Turn the repository into the walking skeleton of the game in `docs/prd.md`: a Ty
   - the setup validator refuses two identical fighters in a roster and two traps on one cell, with structured reasons, and accepts the default setups;
   - the bot's setup choice returns a setup the validator accepts, and the same view and seed give the same bot action;
   - applying a deploy returns a constraint-set event, and a player view's log redacts the cell of a Trapper placement entry (built by hand for the test);
+  - the view's `reveal` is absent during play and holds both objectives, both rosters and the trap history once the match has ended;
+  - the per-player event projection hides the other side's trap cell and inspection result in hand-built events;
+  - a hypothetical state built from a player view is accepted by the legal-action listing and by action application;
+  - starting a match with the paper test 01 scenario gives the fixture board and A as the starting player;
   - `packages/content` validates the paper test 01 fixture as a scenario: 16 distinct tiles, two distinct four-fighter rosters, two traps per side on distinct cells;
   - `packages/content` exports the preset `spec-v0.2` with `docs/prd.md` §6's values and variant switches at their defaults, and its validator rejects an impossible preset (for example a negative recharge budget).
-- Build (`npm run build`): builds every package and the web client with Vite.
+- Build (`npm run build`): type-checks the packages and builds the web client with Vite.
 - Browser, under `tests/e2e/` with `tests/e2e/playwright.config.ts`. Scenarios, with ids exactly as the policy spells them:
   - `start-match`: the landing page starts a match against the bot; the page shows 16 cells with their terrain and symbol, the opening rule in place of a constraint, and whose turn it is.
   - `legal-turn`: the player deploys onto a highlighted edge cell; the constraint shows that tile's pair; the bot replies with a legal action and the turn returns to the player. Clicking a non-matching cell shows the refusal reason and leaves the turn unchanged.
