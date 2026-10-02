@@ -1,50 +1,89 @@
 import { useState } from 'react';
-import { ALL_CELLS, isEdgeCell, type CellId, type FighterId, type FighterState, type PlayerView } from '@okiya/rules';
-import type { MatchState } from '@okiya/rules';
-import { HUMAN } from './match';
-import { constraintText, describeLogEntry, describeRefusal, describeResult, fighterName, sideName, symbolIcon, tileName } from './text';
+import type { Action, CellId, FighterId, MatchState, PlayerId, PlayerView } from '@okiya/rules';
+import { Board } from './Board';
+import { EndScreen } from './EndScreen';
+import { describeEvents } from './events';
+import { BOT, HUMAN } from './match';
+import { RulesPanel } from './RulesPanel';
+import { highlightedCells, optionsFor, resolveCellClick, type CellChoice } from './selection';
+import {
+  constraintText,
+  describeLogEntry,
+  describeOption,
+  describeRefusal,
+  describeResult,
+  fighterAccessibleName,
+  fighterIdName,
+  fighterName,
+  fighterStatus,
+  sideName,
+  symbolIcon,
+  tileName,
+} from './text';
 import { useMatch } from './useMatch';
 
-function cellLabel(view: PlayerView, cell: CellId, fighter: FighterState | undefined, trapped: boolean): string {
-  const parts = [cell, tileName(view.board[cell])];
-  if (fighter) parts.push(`${fighter.owner === HUMAN ? 'your' : "bot's"} ${fighterName(fighter.type)}, ${fighter.charge ? 'charged' : 'spent'}`);
-  if (trapped) parts.push('your trap');
-  return parts.join(', ');
+function StatusPanel({ view }: { view: PlayerView }) {
+  const turnText = view.result ? describeResult(view.result, HUMAN) : view.activePlayer === HUMAN ? 'Your turn' : "Bot's turn";
+  const side = (player: PlayerId) => (player === HUMAN ? 'you' : 'bot');
+  return (
+    <section className="status" aria-label="Match status" data-testid="status">
+      <p data-testid="turn" data-active={view.activePlayer} data-turn={view.turn} className="turn">
+        {turnText}
+      </p>
+      <p>
+        Turn {view.turn} · Objective: {view.objective}
+      </p>
+      {view.constraint ? (
+        <p data-testid="constraint" data-terrain={view.constraint.terrain} data-symbol={view.constraint.symbol} className="constraint">
+          Constraint: {constraintText(view.constraint)} ({tileName(view.constraint)} {symbolIcon(view.constraint.symbol)})
+        </p>
+      ) : (
+        <p data-testid="constraint" data-opening="true" className="constraint">
+          Opening: deploy on any outside-edge cell (no constraint yet)
+        </p>
+      )}
+      <p data-testid="recharges" data-a={view.recharges.A} data-b={view.recharges.B}>
+        Recharges left: {side('A')} {view.recharges.A}, {side('B')} {view.recharges.B}
+      </p>
+      <p data-testid="deployed" data-a={view.deployedCounts.A} data-b={view.deployedCounts.B}>
+        Deployed: {side('A')} {view.deployedCounts.A}, {side('B')} {view.deployedCounts.B} · Bot reserve: {view.reserveCounts[BOT]} hidden
+      </p>
+      <ul data-testid="charges" aria-label="Charges">
+        {view.fighters
+          .filter((fighter) => fighter.cell !== null)
+          .map((fighter) => (
+            <li key={fighter.id} data-fighter={fighter.id} data-charge={fighter.charge} aria-label={fighterAccessibleName(fighter, HUMAN)}>
+              {sideName(fighter.owner, HUMAN)}: {fighterName(fighter.type)} at {fighter.cell}, {fighterStatus(fighter)}
+            </li>
+          ))}
+      </ul>
+    </section>
+  );
 }
 
 export function MatchScreen({ initialState, onLeave }: { initialState: MatchState; onLeave: () => void }) {
   const { view, legalActions, attempt } = useMatch(initialState);
   const [selected, setSelected] = useState<FighterId | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
+  const [choices, setChoices] = useState<{ cell: CellId; choices: readonly CellChoice[] } | null>(null);
 
   const humanTurn = view.activePlayer === HUMAN && !view.result;
   const ownFighters = view.fighters.filter((fighter) => fighter.owner === HUMAN);
   const reserve = ownFighters.filter((fighter) => fighter.cell === null);
   // Without an explicit choice, the first reserve fighter is selected.
-  const selection =
-    ownFighters.find((fighter) => fighter.id === selected) ?? (humanTurn ? reserve[0] : undefined);
-  const highlighted = new Set<CellId>(
-    legalActions.flatMap((action) =>
-      (action.kind === 'deploy' || action.kind === 'move') && action.fighter === selection?.id ? [action.cell] : [],
-    ),
-  );
-  const fighterAt = (cell: CellId) => view.fighters.find((fighter) => fighter.cell === cell);
-  const ownTrapCells = new Set(view.ownTraps.map((trap) => trap.cell));
+  const selection = ownFighters.find((fighter) => fighter.id === selected) ?? (humanTurn ? reserve[0] : undefined);
+  const options = humanTurn ? optionsFor(legalActions, selection?.id) : [];
+  const highlighted = highlightedCells(options);
 
-  function clickCell(cell: CellId) {
-    if (!humanTurn) return;
-    const occupant = fighterAt(cell);
-    if (occupant?.owner === HUMAN && occupant.id !== selection?.id) {
-      setSelected(occupant.id);
-      setRefusal(null);
-      return;
-    }
-    if (!selection) {
-      setRefusal('Select one of your fighters first.');
-      return;
-    }
-    const kind = selection.cell === null ? 'deploy' : 'move';
-    const refused = attempt({ kind, fighter: selection.id, cell });
+  function select(fighter: FighterId) {
+    setSelected(fighter);
+    setRefusal(null);
+    setChoices(null);
+  }
+
+  function run(action: Action) {
+    const refused = attempt(action);
+    setChoices(null);
     if (refused) {
       setRefusal(describeRefusal(refused));
     } else {
@@ -53,11 +92,30 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
     }
   }
 
-  const turnText = view.result
-    ? describeResult(view.result, HUMAN)
-    : view.activePlayer === HUMAN
-      ? 'Your turn'
-      : "Bot's turn";
+  function clickCell(cell: CellId) {
+    if (!humanTurn) return;
+    const click = resolveCellClick({
+      cell,
+      human: HUMAN,
+      selection,
+      options,
+      occupant: view.fighters.find((fighter) => fighter.cell === cell),
+    });
+    switch (click.kind) {
+      case 'apply':
+      case 'attempt':
+        return run(click.action);
+      case 'select':
+        return select(click.fighter);
+      case 'choose':
+        setRefusal(null);
+        return setChoices({ cell: click.cell, choices: click.choices });
+      case 'hint':
+        return setRefusal(click.message);
+    }
+  }
+
+  const recent = view.log.slice(-2);
 
   return (
     <main className="match">
@@ -70,91 +128,88 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
         </button>
       </header>
 
-      <section className="status" aria-label="Match status">
-        <p data-testid="turn" data-active={view.activePlayer} data-turn={view.turn} className="turn">
-          {turnText}
-        </p>
-        <p>Turn {view.turn}</p>
-        {view.constraint ? (
-          <p data-testid="constraint" data-terrain={view.constraint.terrain} data-symbol={view.constraint.symbol} className="constraint">
-            Constraint: {constraintText(view.constraint)} ({tileName(view.constraint)} {symbolIcon(view.constraint.symbol)})
-          </p>
-        ) : (
-          <p data-testid="constraint" data-opening="true" className="constraint">
-            Opening: deploy on any outside-edge cell (no constraint yet)
-          </p>
-        )}
-        <p>
-          Recharges: you {view.recharges.A}, bot {view.recharges.B} · Deployed: you {view.deployedCounts.A}, bot {view.deployedCounts.B} ·
-          Objective: {view.objective}
-        </p>
-      </section>
+      <StatusPanel view={view} />
+      <EndScreen view={view} human={HUMAN} />
 
       <div className="layout">
-        <div role="grid" aria-label="Board" className="board" data-testid="board">
-          {ALL_CELLS.map((cell) => {
-            const tile = view.board[cell];
-            const fighter = fighterAt(cell);
-            const isHighlighted = humanTurn && highlighted.has(cell);
-            return (
-              <button
-                type="button"
-                key={cell}
-                role="gridcell"
-                className={`cell terrain-${tile.terrain.toLowerCase()}${isHighlighted ? ' highlighted' : ''}${
-                  fighter && fighter.id === selection?.id ? ' selected' : ''
-                }`}
-                data-cell={cell}
-                data-terrain={tile.terrain}
-                data-symbol={tile.symbol}
-                data-edge={isEdgeCell(cell)}
-                data-highlighted={isHighlighted}
-                data-occupied={fighter !== undefined}
-                data-owner={fighter?.owner}
-                aria-label={cellLabel(view, cell, fighter, ownTrapCells.has(cell))}
-                onClick={() => clickCell(cell)}
-              >
-                <span className="cell-id">{cell}</span>
-                <span className="tile">
-                  {tile.terrain} {symbolIcon(tile.symbol)} {tile.symbol}
-                </span>
-                {fighter && (
-                  <span className={`token ${fighter.owner === HUMAN ? 'own' : 'enemy'}`}>
-                    {sideName(fighter.owner, HUMAN)}: {fighterName(fighter.type)} ({fighter.charge})
-                  </span>
-                )}
-                {ownTrapCells.has(cell) && <span className="trap">trap</span>}
-              </button>
-            );
-          })}
-        </div>
+        <Board
+          testId="board"
+          board={view.board}
+          human={HUMAN}
+          fighters={view.fighters}
+          ownTraps={new Set(view.ownTraps.map((trap) => trap.cell))}
+          highlighted={new Set(highlighted.keys())}
+          selected={selection?.id}
+          onCellClick={clickCell}
+        />
 
         <aside className="side">
-          <section aria-label="Your reserve" data-testid="reserve">
+          <section aria-label="Your fighters" data-testid="reserve">
             <h2>Your reserve</h2>
             {reserve.length === 0 && <p>All deployed.</p>}
             {reserve.map((fighter) => (
               <button
                 type="button"
                 key={fighter.id}
+                data-fighter={fighter.id}
                 className={fighter.id === selection?.id ? 'selected' : ''}
                 aria-pressed={fighter.id === selection?.id}
-                onClick={() => {
-                  setSelected(fighter.id);
-                  setRefusal(null);
-                }}
+                aria-label={fighterAccessibleName(fighter, HUMAN)}
+                onClick={() => select(fighter.id)}
               >
                 {fighterName(fighter.type)}
               </button>
             ))}
-            <p>Bot reserve: {view.reserveCounts.B} hidden</p>
           </section>
+
+          {humanTurn && selection && (
+            <section aria-label="Actions" data-testid="actions">
+              <h2>{fighterName(selection.type)}: legal actions</h2>
+              {options.length === 0 && <p>No legal action for this fighter.</p>}
+              {options.map((option, index) => (
+                <button type="button" key={index} data-kind={option.action.kind} onClick={() => run(option.action)}>
+                  {describeOption(option.action)}
+                </button>
+              ))}
+            </section>
+          )}
+
+          {choices && (
+            <section aria-label={`Choose on ${choices.cell}`} data-testid="chooser">
+              <h2>Choose on {choices.cell}</h2>
+              {choices.choices.map((choice, index) =>
+                choice.kind === 'action' ? (
+                  <button type="button" key={index} onClick={() => run(choice.action)}>
+                    {fighterIdName(choice.action.fighter)}: {describeOption(choice.action)}
+                  </button>
+                ) : (
+                  <button type="button" key={index} onClick={() => select(choice.fighter)}>
+                    Select {fighterIdName(choice.fighter)}
+                  </button>
+                ),
+              )}
+            </section>
+          )}
 
           {refusal && (
             <p role="alert" data-testid="refusal" className="refusal">
               {refusal}
             </p>
           )}
+
+          <section aria-label="Resolution" data-testid="resolution">
+            <h2>Last actions</h2>
+            {recent.map((entry) => (
+              <div key={entry.turn} data-turn={entry.turn} data-player={entry.player}>
+                <p>{describeLogEntry(entry, HUMAN)}</p>
+                <ol>
+                  {describeEvents(entry.events, HUMAN).map((line, index) => (
+                    <li key={index}>{line}</li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </section>
 
           <section aria-label="Action log">
             <h2>Log</h2>
@@ -167,21 +222,7 @@ export function MatchScreen({ initialState, onLeave }: { initialState: MatchStat
             </ol>
           </section>
 
-          {view.reveal && (
-            <section aria-label="Reveal" data-testid="reveal">
-              <h2>Reveal</h2>
-              <p>Objectives: you {view.reveal.objectives.A}, bot {view.reveal.objectives.B}</p>
-              <p>Your roster: {view.reveal.rosters.A.map(fighterName).join(', ')}</p>
-              <p>Bot roster: {view.reveal.rosters.B.map(fighterName).join(', ')}</p>
-              <ul>
-                {view.reveal.trapHistory.map((trap) => (
-                  <li key={trap.id}>
-                    {sideName(trap.owner, HUMAN)} trap at {trap.cell}: {trap.fate.kind}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          <RulesPanel preset={view.preset} />
         </aside>
       </div>
     </main>

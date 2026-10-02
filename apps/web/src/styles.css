@@ -56,6 +56,7 @@ input {
 }
 
 .board {
+  align-self: flex-start;
   display: grid;
   grid-template-columns: repeat(4, minmax(72px, 110px));
   gap: 4px;
@@ -149,4 +150,28 @@ input {
 
 .log {
   padding-left: 20px;
+}
+
+.preset-values div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid #ddd6c8;
+}
+
+.preset-values dt {
+  font-weight: 600;
+}
+
+.preset-values dd {
+  margin: 0;
+}
+
+.end-screen {
+  border: 3px solid #1d1d1f;
+  border-radius: 6px;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  background: #fffdf7;
 }

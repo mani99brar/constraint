@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { chooseAction } from '@okiya/bot';
 import { applyAction, listLegalActions, playerView, type Action, type ActionRefusal, type MatchState } from '@okiya/rules';
-import { BOT, BOT_DELAY_MS, HUMAN } from './match';
+import { BOT_DELAY_MS, botStep, botToMove, HUMAN } from './match';
 
 /**
  * Holds the referee state and exposes only the human's player view, the human's legal actions and
@@ -11,17 +10,10 @@ export function useMatch(initialState: MatchState) {
   const [state, setState] = useState(initialState);
 
   useEffect(() => {
-    if (state.result || state.activePlayer !== BOT) return;
+    if (!botToMove(state)) return;
     const scheduledTurn = state.turn;
-    const timer = setTimeout(() => {
-      setState((current) => {
-        // StrictMode mounts effects twice; only the move for the scheduled turn applies.
-        const view = playerView(current, BOT);
-        if (view.turn !== scheduledTurn || view.activePlayer !== BOT || view.result) return current;
-        const applied = applyAction(current, chooseAction(view, listLegalActions(current)));
-        return applied.ok ? applied.state : current;
-      });
-    }, BOT_DELAY_MS);
+    // StrictMode mounts effects twice; `botStep` only applies the move for the scheduled turn.
+    const timer = setTimeout(() => setState((current) => botStep(current, scheduledTurn)), BOT_DELAY_MS);
     return () => clearTimeout(timer);
   }, [state]);
 

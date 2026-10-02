@@ -1,26 +1,47 @@
 import { useState, type FormEvent } from 'react';
-import type { MatchState } from '@okiya/rules';
-import { createMatch, generateSeed, parseSeed } from './match';
+import type { MatchState, PreparedMatch } from '@okiya/rules';
+import { chooseSeed, createMatch, prepare, seedTextFromSearch } from './match';
 import { MatchScreen } from './MatchScreen';
+import { SetupScreen } from './SetupScreen';
 
-/** Landing page: start a match against the bot, with an optional seed from the field or `?seed=`. */
+type Screen =
+  | { readonly kind: 'landing' }
+  | { readonly kind: 'setup'; readonly prepared: PreparedMatch }
+  | { readonly kind: 'match'; readonly state: MatchState };
+
+/**
+ * Landing page: start a match against the bot, with an optional seed from the field or `?seed=`.
+ * Every match then goes through the setup screen.
+ */
 export function App() {
-  const [seedText, setSeedText] = useState(() => new URLSearchParams(window.location.search).get('seed') ?? '');
+  const [seedText, setSeedText] = useState(() => seedTextFromSearch(window.location.search));
   const [error, setError] = useState<string | null>(null);
-  const [match, setMatch] = useState<MatchState | null>(null);
+  const [screen, setScreen] = useState<Screen>({ kind: 'landing' });
 
   function start(event: FormEvent) {
     event.preventDefault();
-    const seed = seedText.trim() === '' ? generateSeed() : parseSeed(seedText);
-    if (seed === null) {
-      setError('The seed must be a whole number from 0 to 4294967295.');
+    const choice = chooseSeed(seedText);
+    if (!choice.ok) {
+      setError(choice.error);
       return;
     }
     setError(null);
-    setMatch(createMatch(seed));
+    setScreen({ kind: 'setup', prepared: prepare(choice.seed) });
   }
 
-  if (match) return <MatchScreen initialState={match} onLeave={() => setMatch(null)} />;
+  const leave = () => setScreen({ kind: 'landing' });
+
+  if (screen.kind === 'setup') {
+    const { prepared } = screen;
+    return (
+      <SetupScreen
+        prepared={prepared}
+        onLeave={leave}
+        onStart={(setup) => setScreen({ kind: 'match', state: createMatch(prepared, setup) })}
+      />
+    );
+  }
+  if (screen.kind === 'match') return <MatchScreen initialState={screen.state} onLeave={leave} />;
 
   return (
     <main className="landing">
