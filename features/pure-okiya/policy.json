@@ -1,0 +1,185 @@
+{
+  "version": "1.2.0",
+  "feature": "Constraint pure Okiya",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "bot",
+      "role": "bot",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build"
+      ],
+      "owned_paths": [
+        "packages/bot/src"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        }
+      ]
+    },
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "tests/e2e"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 900,
+          "scenarios": [
+            {
+              "id": "title-screen",
+              "description": "The title screen shows the game's title, New game, Continue when a game is saved, How to play, results by difficulty and a menu for settings."
+            },
+            {
+              "id": "new-game",
+              "description": "From New game the player picks Easy, Normal or Hard and the board appears at once with all 16 tiles; no fighter, trap, roster or setup screen exists, and the top bar says who starts."
+            },
+            {
+              "id": "match-screen",
+              "description": "During a game the screen shows only the board, both players' remaining token counts, the slim top bar (whose turn, the last tile as two emblems) and a menu button; no log, last-actions, status, legend, tray of fighters or settings panel is present."
+            },
+            {
+              "id": "opening-take",
+              "description": "With the page's randomness fixed so the player starts, only the 12 edge tiles glow; tapping an inner tile is refused with its reason, tapping an edge tile places the player's token there and shows that tile as the last tile."
+            },
+            {
+              "id": "legal-turn",
+              "description": "After the bot's take, its cell is marked as the last move, exactly the tiles matching the last tile glow, a non-matching tile is refused with a reason naming both tiles, and a matching take hands the turn back to the bot."
+            },
+            {
+              "id": "highlight-toggle",
+              "description": "With highlights turned off in the menu, no tile glows, a legal take still works and an illegal one is still refused with its reason; the setting survives a reload."
+            },
+            {
+              "id": "how-to-play",
+              "description": "The How to Play dialog opens from the title screen and from the match menu, explains taking a matching tile, the edge opening, the line and square shapes, blockade and the full-board draw with small board diagrams, closes with Escape or its close button, and returns focus to the button that opened it."
+            },
+            {
+              "id": "resume-match",
+              "description": "After a few takes the page is reloaded; Continue restores the same board, tokens, last tile and turn."
+            },
+            {
+              "id": "full-match",
+              "description": "The test plays glowing takes until the game ends; the end screen names the result (line, square, blockade or draw), the winning shape's cells are marked on the board, and the results for that difficulty count one more game."
+            },
+            {
+              "id": "starter-alternates",
+              "description": "Play again after a finished game starts a new game whose starting player is the other player."
+            },
+            {
+              "id": "sound-toggle",
+              "description": "Sound starts only after a user action, the mute setting in the menu survives a reload, and while muted no audio is played."
+            },
+            {
+              "id": "dark-theme",
+              "description": "With the dark colour scheme emulated, the board, tiles, emblems and both players' tokens stay distinguishable and all text meets a 4.5:1 contrast ratio."
+            },
+            {
+              "id": "phone-layout",
+              "description": "At a 390 px wide viewport the board, the token counts and the top bar fit without scrolling in either direction, and every tile and button is at least 44 px in both dimensions."
+            },
+            {
+              "id": "keyboard-play",
+              "description": "Using the keyboard only, the player starts a game, opens and closes the menu and How to Play, and takes a legal tile."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

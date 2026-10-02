@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "workspaces": [
+    "packages/game",
     "packages/rules",
     "packages/content",
     "packages/bot",

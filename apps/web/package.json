@@ -12,6 +12,7 @@
   "dependencies": {
     "@okiya/bot": "0.0.0",
     "@okiya/content": "0.0.0",
+    "@okiya/game": "0.0.0",
     "@okiya/rules": "0.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"

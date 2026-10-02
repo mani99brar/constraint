@@ -1,5 +1,5 @@
 {
-  "name": "@okiya/bot",
+  "name": "@okiya/game",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@okiya/game": "0.0.0",
-    "@okiya/rules": "0.0.0",
     "pure-rand": "8.4.2"
   }
 }

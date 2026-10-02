@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// `packages/rules`, `packages/content` and `packages/bot` are pure (CLAUDE.md, PRD §7): no DOM, rendering or
+// `packages/game`, `packages/rules`, `packages/content` and `packages/bot` are pure (CLAUDE.md, PRD §7): no DOM, rendering or
 // network libraries, no timers, no wall-clock time and no Math.random.
 
 const root = join(import.meta.dirname, '..', '..');
@@ -17,9 +17,10 @@ const FORBIDDEN: readonly { readonly name: string; readonly pattern: RegExp }[] 
 ];
 
 const ALLOWED_DEPENDENCIES: Record<string, readonly string[]> = {
+  game: ['pure-rand'],
   rules: ['pure-rand'],
   content: ['@okiya/rules'],
-  bot: ['@okiya/rules', 'pure-rand'],
+  bot: ['@okiya/game', '@okiya/rules', 'pure-rand'],
 };
 
 function sourceFiles(dir: string): string[] {
@@ -46,7 +47,7 @@ describe('purity of the authoritative packages', () => {
     expect(violations('// Math.random is mentioned in a comment only')).toEqual([]);
   });
 
-  for (const pkg of ['rules', 'content', 'bot']) {
+  for (const pkg of ['game', 'rules', 'content', 'bot']) {
     it(`holds for packages/${pkg}`, () => {
       const dir = join(root, 'packages', pkg);
       const files = sourceFiles(join(dir, 'src'));

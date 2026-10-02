@@ -10,3 +10,6 @@ export {
   type SearchOptions,
   type SearchStats,
 } from './search';
+
+// Constraint v1.0 (docs/game-spec.md).
+export { chooseTake, DIFFICULTIES, type Difficulty, type TakeOptions } from './take';
