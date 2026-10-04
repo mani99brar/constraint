@@ -40,6 +40,16 @@ The operator calls it "a last and final run".
 - **Fixes:** the phone empty band at the bottom (at most 48 px at 390 × 844 mid-game with no toast), and the status inside a nameplate ("Player 2's move") stays on one line.
 - One feature, `final-polish`, with one lane, `web`, which owns `apps/web/src`, `apps/web/index.html` and `tests/e2e`. The rules, `@okiya/game` and `@okiya/bot` are unchanged. The PRD is v1.4.
 
+- After design challenge attempt 1, the operator applied all its rulings, choosing the pale inlay. Consequence:
+  - **Phone:** toasts show one at a time in a one-toast slot, the spare height is spread evenly, and the band is measured honestly (an empty slot counts as empty; no empty strip over 56 px; bottom gap at most 48 px).
+  - **Pale inlay:** in the light variants, the board well between the tiles is a pale tone of the theme's ground, and wood stays on the outer frame. One colour per player serves as token, score text and ring, with no pastel or second ring colour.
+  - **The pop** restarts every turn (keyframe names alternating by parity), with static per-order delays, and is checked in two-player games too.
+  - **No-flash script:** a precise release-test allowance for the `okiya.settings` literal in `index.html`, walnut tokens on a bare `:root`, and a unit test of the script.
+  - **Pixel checks** sample at 2×, at the ring's mid-width and on bare inlay, and compare L* per terrain.
+  - **Desktop:** the Match card is a compact strip at most 64 px tall, and the board frame stays at least 500 px tall at 1280 × 720.
+  - **Theme checks** switch the palette on one seeded position, with explicit test timeouts.
+  - **Nameplate status** is checked for clipping at 761 px and 1280 px.
+
 ## Assumptions
 
 - Everything `features/game-feel/decisions.md` and `features/calm-table/decisions.md` decided that this file does not change stays, including:
