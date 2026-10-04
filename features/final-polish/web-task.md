@@ -65,7 +65,7 @@ The rules, the engine and the bot do not change.
     - Unit-test the script by evaluating it against a fake storage holding each theme, a missing value and a malformed one, and check that the palette ids and the key match `settings.ts`.
 - **Scoreboard row** (U2, I1, P3):
   - above the board: `[Player 1's score] [Match card] [Player 2's score]`, each score (that seat's wins in the sitting) on its player's side in its player's colour with its token mark, and the draws small under the Match card ("1 draw", hidden at zero);
-  - on desktop the Match card is at the top centre, no longer under Player 1's nameplate. It is a compact horizontal strip at most 64 px tall, draws line included, and the layout's height budget accounts for it, so at 1280 × 720 the board frame stays at least 500 px tall without page scrolling;
+  - on desktop the Match card is at the top centre, no longer under Player 1's nameplate. The scoreboard row spans all three grid columns (or is capped to the board's width with wrapping), so it never widens the board column and pushes the nameplates out. At 761 px, `expectInside` and a no-horizontal-overflow check prove that nothing spills. It is a compact horizontal strip at most 64 px tall, draws line included, and the layout's height budget accounts for it, so at 1280 × 720 the board frame stays at least 500 px tall without page scrolling;
   - on a phone the scoreboard row is the top row, with the menu button at its end;
   - remove the floating score line;
   - the scoreboard has an accessible name that reads the score ("You 2, Bot 1, 1 draw");
@@ -76,10 +76,23 @@ The rules, the engine and the bot do not change.
     - **Short forms:** each refusal kind and the take toast has a phone short form chosen by kind, never by measuring text. For example, "Not a match" style forms naming the tiles briefly, "Edge tiles only at the start", "D3 is already taken" and "Bot took D3". The accessible announcement keeps the full text.
     - **Checked at 390 px:** a test shows every refusal kind and the take toast and checks that each stays one line and overlaps no cell or nameplate.
     - **Hidden at the end:** phone toasts are hidden once the game has ended, as `.match.ended .toasts` does today.
-  - **The end glide** (operator decision after design challenge attempt 3): at 390 × 844 the end card needs room that mid-game is spread as gaps. At the final take, the rows ease into their ended places over about 250 ms (at most 300 ms, U8), while the end sequence plays.
-    - The board moves up about 30 px, and the card settles in below Player 1's nameplate. It is a smooth glide, never a jump, and instant under reduced motion. Both nameplates and faces stay visible, and nothing covers the board.
-    - Prefer pure CSS: explicit row gaps computed from the column's known heights (for example `row-gap: calc((100dvh - var(--phone-content)) / N)`, with the end card's height added when `.match.ended`) and a `transition` on `row-gap`. If measuring is needed, measure in a layout effect and hand the offset to a CSS transition through a custom property. Never animate from script (`.animate()`, `requestAnimationFrame`).
-    - A browser check at 390 × 844 with motion on sees the glide as one CSSTransition of at most 300 ms on the column, with the board frame's final position stable and nothing overlapping. With reduced motion, no transition runs. The ended layout fits without vertical scrolling.
+  - **The end shrink** (operator decision after design challenge attempt 4, replacing the earlier glide; the operator's words: "Decrease the width of the board maybe, but make sure that visual symmetry remains"):
+    - **Mid-game:** the phone board stays as it is (full width, about 370 px).
+    - **At the final take:** the board shrinks smoothly to about 300 px over about 250 ms (at most 300 ms, U8), while the end sequence plays. The board stays centred on the column with equal margins on both sides, and its top edge stays exactly where it was.
+    - **The full end card** (result line and detail line) fits below Player 1's nameplate in the room the shrink frees, with small fixed gaps between the board, the nameplate and the card.
+    - **Nothing slides:** the scoreboard row, Player 2's nameplate and the board's top edge keep their positions, and only the board's size changes. Player 1's nameplate moves up with the board's bottom edge as the board shrinks. Nothing covers the board.
+    - **Exact size:** the ended board size is whatever makes the ended column fit 100dvh exactly with the top unchanged. That is about 300 px at 390 × 844; derive it in CSS from the same quantities that place the mid-game rows (the board, the spacers, the nameplate, the fixed card height and the small gaps), not from a magic number.
+    - **Fixed card height:** the phone end card has a fixed height sized for a two-line detail, so Play again and Home sit in the same places in every ending.
+    - **Transition scope:** declare the transition only on `.match.ended` inside the phone query, under `prefers-reduced-motion: no-preference`, so Play again (back to full size), rotation and resizing change instantly. Under reduced motion the shrink is instant.
+    - **Mechanism:** pure CSS. For example, a registered custom property (`@property --board-size { syntax: '<length>'; inherits: true; initial-value: 0px }`) transitioned on `.match.ended`, with the board frame and its track sized from it; or the board frame's `width` and `height` transitioned. The win stroke's coordinates are percentages of the board, so they stay on the token centres as it shrinks. Never animate from script (`.animate()`, `requestAnimationFrame`).
+    - **Shrink check:** at 390 × 844 with motion on, pause the board's transition at `currentTime` 0 and check that its size and top equal the mid-game values (no first-frame snap). Then let it finish and check:
+      - one size transition of at most 300 ms;
+      - the board's top within 1 px of its mid-game top;
+      - its horizontal centre within 1 px of the column's centre;
+      - its final width about 300 px (between 280 and 320);
+      - the full end card visible, nothing overlapping, and no vertical scroll.
+
+      With reduced motion, no transition runs and the ended layout is the same.
   - **Give the height to elements, not gaps:** phone avatars grow to about 80 px, so nameplates are about 94 px, within the existing 96 px cap, and the Match tile in the scoreboard row is 64 px. The remaining spare spreads evenly between the rows (`align-content: space-evenly`, about 39 px per gap).
   - **Measured honestly:** at 390 × 844 mid-game with no toast, no empty vertical strip across the column (between consecutive visible elements, the top and the bottom included) is taller than 56 px, and the bottom gap is at most 48 px. Replace the `bottomBand` helper's rule that counted the toast slot as visible, and count only boxes that paint something (a transparent wrapper is not content).
   - The game fits without vertical scrolling mid-game and with the end card shown. The board frame does not move when a toast appears or leaves.
@@ -92,6 +105,7 @@ The rules, the engine and the bot do not change.
   - every layout rule is checked at the default wide viewport and at 390 × 844;
   - motion checks are deterministic: `getAnimations()`, MutationObserver records, and seeded saves with Continue;
   - pixel checks take `locator.screenshot()` and decode it in the page with `createImageBitmap` and a canvas, with no new package;
+  - **End-sequence harness:** `watchTheEnd` in `calm.spec.ts` must not freeze the phone end shrink. Skip the board's size transition when pausing, or finish it before `resultCard`. Phone result-card positions are compared after the shrink, with no page scroll.
   - **Theme checks without replaying games:** check each theme and variant by switching `data-palette` and `emulateMedia({ colorScheme })` on one seeded position (a saved game with Continue), not by replaying games per theme. Give long tests explicit `test.setTimeout`.
 
 ## Acceptance

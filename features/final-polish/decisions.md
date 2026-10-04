@@ -65,7 +65,11 @@ The operator calls it "a last and final run".
   - **Phone toasts:** one-line short forms per refusal kind, hidden once the game ends.
   - **Narrow nameplates:** the avatar shrinks to about 40 px at narrow wide widths.
   - **Ring sampler:** accepts only pixels matching `--well`.
-- **Phone end screen: the layout glides** (operator's choice A). Consequence: at the final take, the phone column's rows ease into their ended places over about 250 ms, the board moving up about 30 px, while the end sequence plays. It is instant under reduced motion, both faces stay visible, and nothing covers the board.
+- **Phone end screen: the board shrinks** (the operator replaced the glide after design challenge attempt 4, "Decrease the width of the board maybe, but make sure that visual symmetry remains", confirmed as "Yes shrink the dashboard"). Consequence: mid-game the phone board stays full width (about 370 px). At the final take it shrinks smoothly to about 300 px over about 250 ms, centred with its top edge fixed, so the full end card (detail line included) fits below Player 1's nameplate and nothing slides. It is instant under reduced motion.
+- After design challenge attempt 4, the non-visual rulings were applied under the standing permission. Consequence:
+  - the phone end transition (now the board shrink) has no first-frame snap, checked at `currentTime` 0, and is declared only on `.match.ended` in the phone query with motion allowed;
+  - the end-sequence harness no longer freezes the phone end transition;
+  - the wide scoreboard row spans all columns, with overflow checks at 761 px.
 - Standing permission for the rest of this run: challenge rulings that do not change what the player sees are applied and the run is resumed without asking. Anything visible (layout, colours, motion, cues) is asked first.
 
 ## Assumptions
