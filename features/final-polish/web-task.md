@@ -34,7 +34,8 @@ The rules, the engine and the bot do not change.
   - **The pop:** when the turn starts, the legal tiles pop up one after another: CSS keyframes with `animation-delay` for the stagger, under 400 ms in all, played once per turn (keyed on the turn, never replayed by a re-render, never remounting the board).
     - **Restart every turn:** the pop must restart for every legal tile, including one that stays legal across a turn change in a two-player game. Alternate two identical keyframe names by the take count's parity, keyed on a `data-pop-turn` attribute, because changing `data-pop-order` alone does not restart a CSS animation.
     - **Static delays:** write the stagger as one static rule per `data-pop-order` value (up to 12 at the opening, so about 15–20 ms apart), never `calc(var(...) * N)`, so the stylesheet test can bound it.
-  - **The resting look:** they stay raised with a soft halo, a 2–3 px ring in the mover's colour, a tint of about 30% of it (an overlay inside the tile art, below any name plate), and a corner badge with the mover's token mark (the existing ring or diamond shape).
+    - **Cascade trap:** a parity rule such as `.board[data-pop-turn='odd'] .cell[data-glow='true'] { animation: pop-odd … }` resets `animation-delay` through the shorthand and outranks a plain `.cell[data-pop-order='3']` rule. Make the order rules at least as specific and put them later, or set only `animation-name` in the parity rules. A unit or browser check proves the delays differ by order.
+  - **The resting look:** they stay raised with a soft halo (spread at most a third of the gap between tiles, so bare well stays visible), a 2–3 px ring in the mover's colour, a tint of about 30% of it (an overlay inside the tile art, below any name plate), and a corner badge with the mover's token mark (the existing ring or diamond shape).
   - **The faded tiles:** the other free tiles fade back by veiling the art, never by `opacity` on the cell.
   - **Bot's turn and highlights off:** on the bot's turn, and with highlights off, nothing pops, fades, glows or carries a tint or badge.
   - **Reduced motion:** under reduced motion the tiles show raised at once.
@@ -53,8 +54,9 @@ The rules, the engine and the bot do not change.
     - **Clear** (`clear`): high contrast, a near-white or near-black ground, stronger rings and text.
   - **Variants:** each theme has a light and a dark variant following `prefers-color-scheme`.
   - **One family:** within a theme, the ground (the soft glow, vignette and grain stay), the wooden board frame, the tiles (re-tuned to the theme's saturation, keeping each terrain's identity), the nameplates, the buttons and switches, the Match card, the end card and both players come from one family. Remove the old teal `--primary`, brick-red Player 2 and mustard `--legal` from every theme.
-  - **Pale inlay (light variants):** the board well, meaning the `.board` inlay between and around the tiles (today `--frame-edge` dark wood), is a pale tone of the theme's ground (about `#E8DCC7` for Walnut, `#EEF0EC` for Sea glass, near-white for Clear). Wood stays on the outer board frame only. One colour per player then serves as the token fill, the score text (4.5:1 on its card) and the move ring (3:1 against the pale well). The dark variants keep a dark well, where the light player colours pass. Do not add pastel ring colours or a second ring colour.
-  - **Tokens:** `theme.ts` holds each theme's light and dark tokens. Its stylesheet maps them to `:root[data-palette="walnut|seaglass|clear"]`, with the dark variant under `prefers-color-scheme: dark`.
+  - **Pale inlay (light variants):** the board well (its own theme token, `--well`), meaning the `.board` inlay between and around the tiles (today `--frame-edge` dark wood), is a pale tone of the theme's ground (about `#E8DCC7` for Walnut, `#EEF0EC` for Sea glass, near-white for Clear). Wood stays on the outer board frame only. One colour per player then serves as the token fill, the score text (4.5:1 on its card) and the move ring (3:1 against the pale well). The dark variants keep a dark well, where the light player colours pass. Do not add pastel ring colours or a second ring colour.
+  - **Whose-turn stripe:** it moves from the wooden board frame to the edge of the well on the mover's side (left or right on wide screens, bottom or top on a phone), where the player colour reaches 3:1. Update the `frameStripe` probe to read it there.
+  - **Tokens:** `theme.ts` holds each theme's light and dark tokens. Its stylesheet maps them to `:root[data-palette="walnut|seaglass|clear"]`, with the dark variant under `prefers-color-scheme: dark`. Use the same selectors in the dark block as in the light one (for example `:root, :root[data-palette='walnut']` in both), or the light tokens win by specificity in dark mode.
   - **Choosing a theme:** a Theme choice (a radio group reachable by keyboard) in the menu dialog, also opened as Settings from the home screen, stored as a new field in the settings under `okiya.settings` (older settings load as `walnut`). There is no pop-up or first-run picker.
   - **No flash:** a small inline script in `apps/web/index.html` sets `data-palette` from the stored settings before the first paint, so the default theme never flashes first.
     - `release.test.ts` forbids `/okiya/i` in `index.html`. Allow exactly the storage-key literal `okiya.settings` there (a precise exception, not a looser rule), and never disguise the key.
@@ -66,14 +68,15 @@ The rules, the engine and the bot do not change.
   - on a phone the scoreboard row is the top row, with the menu button at its end;
   - remove the floating score line;
   - the scoreboard has an accessible name that reads the score ("You 2, Bot 1, 1 draw");
-  - the nameplates keep avatar, name, token mark, tokens left and a one-line status that never wraps and is never clipped: `scrollWidth <= clientWidth` on the status at the narrowest wide layout (761 px viewport) and at 1280 px.
-- **Phone fit** (this overrides the two-toast slot of `game-feel` on phones only):
-  - At 390 × 844 the toasts show one at a time: the newest replaces an older one, and a refusal outranks a take. The reserved slot is sized for one toast (about 44 px). Wide screens keep the two-toast slot.
-  - The spare height is spread evenly between the rows of the phone column (for example `align-content: space-evenly`), not left at the bottom.
-  - **Measured honestly:** with no toast showing, the empty slot counts as empty. At 390 × 844 mid-game, no empty vertical strip across the column (between consecutive visible elements, or between the last one and the bottom) is taller than 56 px, and the bottom gap is at most 48 px.
-  - Replace the `bottomBand` helper's rule that the toast slot counts as visible.
+  - the nameplates keep avatar, name, token mark, tokens left and a one-line status that never wraps and is never clipped: `scrollWidth <= clientWidth` on the status at the narrowest wide layout (761 px viewport) and at 1280 px. On wide layouts the plate has two rows (name and tokens on top, the status under them beside the avatar) so the status has the plate's full text width.
+- **Phone fit** (this overrides the two-toast slot of `game-feel` on phones only; design challenge attempt 2):
+  - **No reserved toast row:** at 390 × 844 there is no reserved toast row. Toasts show one at a time (the newest replaces an older one, and a refusal outranks a take), anchored absolutely in the gap directly under the board.
+  - **The toast fits the gap:** it covers no cell and no nameplate, and nothing moves when it appears or leaves. Phone toasts are one line (about 32 px). A message that would wrap uses a short form (for example "D3 is already taken" for the cell-taken refusal; keep the full text in the accessible announcement).
+  - **Give the height to elements, not gaps:** phone avatars grow to about 80 px, so nameplates are about 94 px, within the existing 96 px cap, and the Match tile in the scoreboard row is 64 px. The remaining spare spreads evenly between the rows (`align-content: space-evenly`, about 39 px per gap).
+  - **Measured honestly:** at 390 × 844 mid-game with no toast, no empty vertical strip across the column (between consecutive visible elements, the top and the bottom included) is taller than 56 px, and the bottom gap is at most 48 px. Replace the `bottomBand` helper's rule that counted the toast slot as visible, and count only boxes that paint something (a transparent wrapper is not content).
   - The game fits without vertical scrolling mid-game and with the end card shown. The board frame does not move when a toast appears or leaves.
-- **Keep:** the avatar faces and reactions, CSS-only materials, solid base colours under shading, 4.5:1 against the worst gradient stop, the reserved toast slot, the end sequence (U10) with skip by tap or key, tile names on demand, the one-panel home, the stylesheet tests (shorthands and longhands, at most 700 ms only for the end sequence) and the scoped filter ban, every storage key, the StrictMode-safe bot scheduling and port 5493.
+  - Wide screens keep the reserved two-toast slot.
+- **Keep:** the avatar faces and reactions, CSS-only materials, solid base colours under shading, 4.5:1 against the worst gradient stop, the reserved toast slot on wide screens, the end sequence (U10) with skip by tap or key, tile names on demand, the one-panel home, the stylesheet tests (shorthands and longhands, at most 700 ms only for the end sequence) and the scoped filter ban, every storage key, the StrictMode-safe bot scheduling and port 5493.
 - Logic lives in plain TypeScript modules with unit tests, and React components stay thin.
 - **Browser tests:**
   - they fix the page's randomness through `addInitScript`, and turn motion on only where a scenario says so;
@@ -89,8 +92,8 @@ The rules, the engine and the bot do not change.
   - the board model marks legal, faded and last-take cells, the pop order, the mover's colour and badge mark, for hand-built states in both modes. Nothing pops, fades or glows on the bot's turn, with highlights off, or at the end;
   - for every theme (`walnut`, `seaglass`, `clear`) and variant (light, dark), the theme tests check:
     - every text pair in `TEXT_PAIRS` and every material stop in `MATERIALS` at 4.5:1;
-    - each player's ring colour at 3:1 against the board frame's surface tokens;
-    - that each player colour and the ground stay distinguishable;
+    - each player's ring colour at 3:1 against the `--well` token (not the frame's wood tokens), and the whose-turn stripe likewise;
+    - that each player colour and the ground stay distinguishable, and that the two player colours differ in hue as well as lightness, by a CIELAB colour difference (ΔE*ab, CIE76) of at least 25;
   - no theme uses the old `#2c5a60`, `#a63b2b` or `#d97706`;
   - the settings round-trip the colour theme, older settings load as `walnut`, and every storage key stays as `persistence.test.ts` pins it;
   - the scoreboard model gives each seat's score, the draws text (hidden at zero) and the accessible name, in both modes;
@@ -99,7 +102,7 @@ The rules, the engine and the bot do not change.
 - Browser, with scenario ids exactly as `policy.json` spells them:
   - `home-screen`, `start-from-home`, `match-screen`, `scoreboard`, `seats-turn`, `opening-take`, `legal-turn`, `legal-tiles`, `move-highlight`, `colour-themes`, `tile-names`, `highlight-toggle`, `how-to-play`, `resume-match`, `full-match`, `end-sequence`, `two-player-match`, `sitting-score`, `starter-alternates`, `sound-toggle`, `dark-theme`, `light-theme`, `phone-layout`, `keyboard-play`, `avatar-reactions`, `table-materials` and `toasts-clear-board`;
   - `move-highlight` measures, for each theme in light and dark, at the wide viewport and at 390 × 844, with the rendered pixels at `deviceScaleFactor: 2`:
-    - each playable tile's ring has at least 3:1 contrast against the board surface around it. Ring pixels are sampled at the ring's mid-width, and well pixels from the bare inlay padding away from any halo or shadow;
+    - each playable tile's ring has at least 3:1 contrast against the board surface around it. Ring pixels are sampled at the ring's mid-width, and well pixels from the bare inlay padding away from any halo or shadow. Use a seeded position where faded or taken tiles sit next to the sampled rings, so bare well exists right beside them;
     - playable and faded tiles differ in mean lightness by at least 12 L*, comparing the playable-set mean with the faded-set mean for each terrain present in both sets;
     - with motion on, the pop plays once in `data-pop-order` order, within 400 ms, when a person's turn starts, and not on the bot's turn;
     - in a two-player game, the pop replays on the next turn for every legal tile, including one that was legal on the previous turn;

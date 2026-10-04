@@ -49,6 +49,15 @@ The operator calls it "a last and final run".
   - **Desktop:** the Match card is a compact strip at most 64 px tall, and the board frame stays at least 500 px tall at 1280 × 720.
   - **Theme checks** switch the palette on one seeded position, with explicit test timeouts.
   - **Nameplate status** is checked for clipping at 761 px and 1280 px.
+- After design challenge attempt 2, the operator applied its phone layout fix and P2 rulings. Consequence:
+  - **Phone toasts:** no reserved toast row. Toasts show one line at a time, anchored in the gap under the board without covering anything.
+  - **Phone height:** the spare height goes to bigger phone avatars (about 80 px, nameplates about 94 px) and a 64 px Match tile, and the rest spreads evenly, so no empty strip exceeds 56 px.
+  - **Ring reference:** the ring is checked at 3:1 against the `--well` token.
+  - **Whose-turn stripe:** it moves from the wood to the well's edge on the mover's side.
+  - **Player colours:** they also differ by ΔE*ab of at least 25.
+  - **Nameplates:** two rows on wide layouts.
+  - **CSS cascade traps:** spelled out for the pop delays and the dark tokens.
+  - **Halo spread:** at most a third of the gap.
 
 ## Assumptions
 
