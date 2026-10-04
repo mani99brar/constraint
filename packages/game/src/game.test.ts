@@ -9,6 +9,7 @@ import {
   gameLogOf,
   legalTakes,
   newGame,
+  outOfTime,
   parseGameLog,
   replayGame,
   take,
@@ -161,6 +162,24 @@ describe('end of the game (spec §4)', () => {
       expect(state.result, `seed ${seed}`).not.toBeNull();
       expect(state.takes.length).toBeLessThanOrEqual(16);
     }
+  });
+});
+
+describe('running out of time (a timed game, outside spec §4)', () => {
+  it('ends the game with a win for the other player, at the opening or mid-game, and changes nothing else', () => {
+    for (const state of [newGame({ seed: 3, starter: 'B' }), played(8, 5)]) {
+      expect(state.result).toBeNull();
+      const timed = outOfTime(state);
+      expect(timed.result).toEqual({ kind: 'win', winner: state.toMove === 'A' ? 'B' : 'A', by: 'time' });
+      expect({ ...timed, result: null }).toEqual(state);
+      // A finished game takes no further take.
+      expect(take(timed, legalTakes(state)[0]!)).toEqual({ ok: false, refusal: { code: 'game-over' } });
+    }
+  });
+
+  it('leaves a finished game unchanged', () => {
+    const finished = outOfTime(played(2, 4));
+    expect(outOfTime(finished)).toBe(finished);
   });
 });
 

@@ -3,7 +3,8 @@ import { TILES, type Player } from '@okiya/game';
 import { TileArt, TokenMark } from './art';
 import { Avatar } from './Avatar';
 import { DIFFICULTY_OPTIONS, type Difficulty } from './difficulty';
-import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
+import { CLOCK_OPTIONS, type ClockChoice } from './clock';
+import { clockAfterKey, difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
 import { MenuDialog } from './MenuDialog';
 import { RadioSwitch } from './RadioSwitch';
 import { OPPONENTS, type Opponent, type Settings } from './settings';
@@ -17,6 +18,8 @@ export interface HomeScreenProps {
   readonly onPlay: () => void;
   readonly onOpponent: (opponent: Opponent) => void;
   readonly onDifficulty: (difficulty: Difficulty) => void;
+  /** A player's clock for a two-player game: off, or one to five minutes. */
+  readonly onClock: (player: Player, choice: ClockChoice) => void;
   readonly onHowTo: (opener: HTMLElement) => void;
   readonly onResetResults: () => void;
   readonly onSettings: (settings: Settings) => void;
@@ -51,10 +54,10 @@ function HeroBoard() {
 /**
  * The home screen (PRD S1, E1, E5): a hero with the drawn wordmark over a board in its frame and both
  * avatars, Continue for a saved game, one play panel (the opponent, the bot's difficulty while the bot is
- * chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
+ * chosen, each player's clock while a friend is chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
  * Settings, which holds the results' reset. One tap on Play starts a game.
  */
-export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onHowTo, onResetResults, onSettings }: HomeScreenProps) {
+export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings }: HomeScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
   return (
     <main className="home" data-testid="home-screen">
@@ -89,6 +92,22 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
             <RadioSwitch label="Bot difficulty" testId="difficulty-switch" options={DIFFICULTY_OPTIONS} value={model.difficulty} afterKey={difficultyAfterKey} onChange={onDifficulty} />
           </div>
         )}
+        {model.showClocks &&
+          (['A', 'B'] as const).map((player) => (
+            <div className="panel-row clock-row" key={player}>
+              <span className="panel-label" aria-hidden="true">
+                Player {player === 'A' ? 1 : 2} clock
+              </span>
+              <RadioSwitch
+                label={`Player ${player === 'A' ? 1 : 2} clock`}
+                testId={`clock-switch-${player}`}
+                options={CLOCK_OPTIONS}
+                value={player === 'A' ? model.clockA : model.clockB}
+                afterKey={clockAfterKey}
+                onChange={(choice) => onClock(player, choice)}
+              />
+            </div>
+          ))}
         {model.replacesSaved && (
           <p className="replaces" id="play-replaces" data-testid="replaces">
             {REPLACES_NOTE}

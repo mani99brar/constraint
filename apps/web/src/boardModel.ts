@@ -77,7 +77,7 @@ export interface BoardOptions {
 
 function winningShapeOf(state: GameState): WinningShape | null {
   const { result } = state;
-  return result?.kind === 'win' && result.by !== 'blockade' ? { by: result.by, cells: result.cells } : null;
+  return result?.kind === 'win' && (result.by === 'line' || result.by === 'square') ? { by: result.by, cells: result.cells } : null;
 }
 
 /**

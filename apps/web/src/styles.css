@@ -720,6 +720,73 @@ button:disabled {
   color: var(--on-p2);
 }
 
+/* A timed two-player game: each player's clock sits with the name, beside it on a phone and under it on
+   wide screens. The running clock is filled with
+   its player's colour; a stopped one is quiet; under ten seconds it turns to the alert colours with a
+   heavier outline. The clock's face is tabular so its digits never jump. */
+.seat[data-timed] {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    'avatar name   clock  tokens'
+    'avatar status status status';
+}
+
+.seat-clock {
+  grid-area: clock;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 1px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.clock-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.seat-p1 .seat-clock.running {
+  border-color: var(--p1);
+  background-color: var(--p1);
+  color: var(--on-p1);
+}
+
+.seat-p2 .seat-clock.running {
+  border-color: var(--p2);
+  background-color: var(--p2);
+  color: var(--on-p2);
+}
+
+.seat .seat-clock.low {
+  border: 3px solid var(--on-toast-alert);
+  background-color: var(--toast-alert);
+  color: var(--on-toast-alert);
+}
+
+/* Beside the board on wide screens the nameplate is too narrow for the name, the clock and the tokens on
+   one row: the clock takes its own row directly under the name, so the name is never cut short. */
+@media (min-width: 761px) {
+  .seat[data-timed] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'avatar name   tokens'
+      'avatar clock  clock'
+      'avatar status status';
+  }
+
+  .seat[data-timed] .seat-clock {
+    justify-self: start;
+  }
+}
+
 .seat-tokens {
   grid-area: tokens;
   display: inline-flex;

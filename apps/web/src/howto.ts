@@ -101,7 +101,7 @@ export function diagramCells(diagram: Diagram): DiagramCell[] {
   const state = diagramState(diagram);
   const legal = new Set(legalTakes(state));
   const { result } = state;
-  const shape = new Set(result?.kind === 'win' && result.by !== 'blockade' ? result.cells : []);
+  const shape = new Set(result?.kind === 'win' && (result.by === 'line' || result.by === 'square') ? result.cells : []);
   const blockade = result?.kind === 'win' && result.by === 'blockade';
   const last = state.takes[state.takes.length - 1];
   return ALL_CELLS.map((cell, index) => {

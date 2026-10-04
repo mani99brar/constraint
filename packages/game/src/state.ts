@@ -12,6 +12,8 @@ export const TOKENS_PER_PLAYER = 8;
 export type GameResult =
   | { readonly kind: 'win'; readonly winner: Player; readonly by: 'line' | 'square'; readonly cells: readonly CellId[] }
   | { readonly kind: 'win'; readonly winner: Player; readonly by: 'blockade' }
+  /** A product rule outside the spec's §4 checks: in a timed game the player to move ran out of time. */
+  | { readonly kind: 'win'; readonly winner: Player; readonly by: 'time' }
   | { readonly kind: 'draw'; readonly by: 'full-board' };
 
 /**

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { take, type CellId, type GameState, type TakeRefusal } from '@okiya/game';
+import { outOfTime, take, type CellId, type GameState, type Player, type TakeRefusal } from '@okiya/game';
 import { botToMove, scheduleBotTake } from './match';
 import { personToMove, type GameMode } from './mode';
 
@@ -38,5 +38,10 @@ export function useGame(initialState: GameState, mode: GameMode, onChange?: (sta
     return null;
   }
 
-  return { state, attempt };
+  /** In a timed game, `player`'s clock ran out: if they are still to move, they lose on time. */
+  function timeOut(player: Player) {
+    setState((current) => (current.result || current.toMove !== player ? current : outOfTime(current)));
+  }
+
+  return { state, attempt, timeOut };
 }

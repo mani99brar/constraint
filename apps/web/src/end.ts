@@ -16,7 +16,8 @@ export interface EndCell {
 }
 
 export interface EndModel {
-  readonly kind: 'shape' | 'blockade' | 'draw';
+  /** A shape, a blockade, a full-board draw, or a timed game's clock running out. */
+  readonly kind: 'shape' | 'blockade' | 'draw' | 'time';
   /** Every cell in board order with its mark. */
   readonly cells: readonly EndCell[];
   /** The winning tokens in the order they lift: a line from end to end, a square round its loop. */
@@ -46,6 +47,10 @@ export function endModel(state: GameState): EndModel | null {
     mark = () => 'settle';
   } else if (result.by === 'blockade') {
     kind = 'blockade';
+    mark = (cell) => (tokenAt(state, cell) === null ? 'grey' : null);
+  } else if (result.by === 'time') {
+    // The clock ran out: like a blockade, the tiles left can no longer be taken, so they grey out.
+    kind = 'time';
     mark = (cell) => (tokenAt(state, cell) === null ? 'grey' : null);
   } else {
     kind = 'shape';

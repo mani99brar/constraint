@@ -104,7 +104,7 @@ describe('board model (PRD U1, R2, I2, R4, U7)', () => {
   it.each(['line', 'square'] as const)('marks the four cells of a winning %s at the end, and only them, for the stroke', (by) => {
     const state = ended[by];
     expect(state.result).toMatchObject({ kind: 'win', by });
-    const cells = state.result!.kind === 'win' && state.result!.by !== 'blockade' ? state.result!.cells : [];
+    const cells = state.result!.kind === 'win' && (state.result!.by === 'line' || state.result!.by === 'square') ? state.result!.cells : [];
     expect((by === 'line' ? LINES : SQUARES).some((shape) => shape.join() === cells.join())).toBe(true);
     for (const options of [on, pair]) {
       const model = boardModel(state, options);

@@ -86,6 +86,16 @@ export function take(state: GameState, cell: string): TakeResult {
   return { ok: true, state: placed };
 }
 
+/**
+ * The player to move ran out of time on their clock and loses; the other player wins (a timed game's
+ * product rule, not one of the spec's §4 checks). The engine never measures time: the client decides
+ * when a clock has run out. A finished game is returned unchanged.
+ */
+export function outOfTime(state: GameState): GameState {
+  if (state.result) return state;
+  return { ...state, result: { kind: 'win', winner: otherPlayer(state.toMove), by: 'time' } };
+}
+
 /** The token on `cell`, or null while its tile is on the board. */
 export function tokenAt(state: GameState, cell: CellId): Player | null {
   return state.tokens[cellIndex(cell)] ?? null;

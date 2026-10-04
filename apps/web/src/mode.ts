@@ -1,14 +1,26 @@
 import type { GameState, Player } from '@okiya/game';
+import type { ClockTimes } from './clock';
 import { difficultyLabel, type Difficulty } from './difficulty';
 import { HUMAN } from './match';
 
 /**
  * How a game is played (PRD S1, §5.8): against the bot at a difficulty, or by two players on one
  * device. Player 1 is the engine's player A and Player 2 is B; in a bot game the human is Player 1.
+ * A two-player game may be timed: `clock` holds each player's starting time (null for no clock).
  */
-export type GameMode = { readonly kind: 'bot'; readonly difficulty: Difficulty } | { readonly kind: 'two-player' };
+export type GameMode = { readonly kind: 'bot'; readonly difficulty: Difficulty } | { readonly kind: 'two-player'; readonly clock?: ClockTimes };
 
 export const TWO_PLAYERS: GameMode = { kind: 'two-player' };
+
+/** A two-player game, timed when `clock` is given. */
+export function twoPlayers(clock: ClockTimes | null): GameMode {
+  return clock ? { kind: 'two-player', clock } : TWO_PLAYERS;
+}
+
+/** A timed game's starting times, or null. */
+export function clockOf(mode: GameMode): ClockTimes | null {
+  return mode.kind === 'two-player' && mode.clock ? mode.clock : null;
+}
 
 export function versusBot(difficulty: Difficulty): GameMode {
   return { kind: 'bot', difficulty };
@@ -53,5 +65,6 @@ export function possessive(mode: GameMode, player: Player): string {
 
 /** The mode in a few words, for Continue: "Normal bot" or "Two players". */
 export function modeLabel(mode: GameMode): string {
-  return mode.kind === 'two-player' ? 'Two players' : `${difficultyLabel(mode.difficulty)} bot`;
+  if (mode.kind === 'two-player') return clockOf(mode) ? 'Two players, timed' : 'Two players';
+  return `${difficultyLabel(mode.difficulty)} bot`;
 }

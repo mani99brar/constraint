@@ -56,14 +56,14 @@ describe('saved game (PRD L2)', () => {
     expect(saveGame(storage, state, TWO_PLAYERS, { A: 0, B: 3, draws: 0 })).toBe(true);
     expect(JSON.parse(storage.data.get(SAVE_KEY)!)).toEqual({ version: SAVE_VERSION, mode: 'two-player', score: { A: 0, B: 3, draws: 0 }, log: gameLogOf(state) });
     const saved = loadSavedGame(storage);
-    expect(saved).toEqual({ state, mode: TWO_PLAYERS, score: { A: 0, B: 3, draws: 0 } });
+    expect(saved).toEqual({ state, mode: TWO_PLAYERS, score: { A: 0, B: 3, draws: 0 }, clockLeft: null });
   });
 
   it('loads a save of the previous build (a game log and a difficulty) as a bot game with a 0–0 score', () => {
     const storage = memoryStorage();
     // Written under the literal key the previous build used, not this build's constant.
     storage.data.set('okiya.saved-match', JSON.stringify({ version: 2, difficulty: 'normal', log: gameLogOf(state) }));
-    expect(loadSavedGame(storage)).toEqual({ state, mode: versusBot('normal'), score: NO_SCORE });
+    expect(loadSavedGame(storage)).toEqual({ state, mode: versusBot('normal'), score: NO_SCORE, clockLeft: null });
   });
 
   it('round-trips a game before its first take, whoever starts', () => {
@@ -212,17 +212,17 @@ describe('results by difficulty (PRD E5)', () => {
 });
 
 describe('settings (PRD E3, E4, S1)', () => {
-  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard', palette: 'seaglass' } as const;
+  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard', palette: 'seaglass', clockA: '5', clockB: '1' } as const;
 
   it('defaults to highlights and sound on, tile names off, the Normal bot and the Walnut theme, and remembers changes', () => {
     const storage = memoryStorage();
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut' });
-    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut', clockA: 'off', clockB: 'off' });
+    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut', clockA: 'off', clockB: 'off' });
     saveSettings(storage, all);
     expect(JSON.parse(storage.data.get('okiya.settings')!)).toEqual(all);
     expect(loadSettings(storage)).toEqual(all);
-    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear' });
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear' });
+    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3' });
   });
 
   it('round-trips the opponent, the difficulty, the Tile names setting and the colour theme one by one', () => {
@@ -250,14 +250,14 @@ describe('settings (PRD E3, E4, S1)', () => {
     const storage = memoryStorage();
     // Written under the literal key the previous builds used: before the difficulty switch, and with it.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: false, sound: true }));
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut' });
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut', clockA: 'off', clockB: 'off' });
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: false, difficulty: 'hard' }));
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard', palette: 'walnut' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard', palette: 'walnut', clockA: 'off', clockB: 'off' });
     // The calm-table build's settings, with the opponent and tile names but no theme.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy' }));
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy', palette: 'walnut' });
-    storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme', opponent: 'cat', tileNames: 'yes', palette: 'teal' }));
-    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false, palette: 'walnut' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy', palette: 'walnut', clockA: 'off', clockB: 'off' });
+    storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme', opponent: 'cat', tileNames: 'yes', palette: 'teal', clockA: '6', clockB: 3 }));
+    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false, palette: 'walnut', clockA: 'off', clockB: 'off' });
   });
 
   it('falls back to the defaults for corrupt values and storage that throws', () => {

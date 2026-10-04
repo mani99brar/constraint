@@ -1,5 +1,6 @@
+import { CLOCK_CHOICES, clockSetup, clockText, type ClockChoice } from './clock';
 import { DIFFICULTY_OPTIONS, difficultyLabel, type Difficulty } from './difficulty';
-import { modeLabel, TWO_PLAYERS, versusBot, type GameMode } from './mode';
+import { modeLabel, twoPlayers, versusBot, type GameMode } from './mode';
 import type { Results } from './results';
 import { OPPONENTS, type Opponent, type Settings } from './settings';
 import { PALETTE_IDS, type PaletteId } from './theme';
@@ -23,6 +24,11 @@ export interface HomeModel {
   readonly difficulty: Difficulty;
   /** Whether the difficulty switch is on the page: only while the bot is chosen. */
   readonly showDifficulty: boolean;
+  /** Whether each player's clock switch is on the page: only while a friend is chosen. */
+  readonly showClocks: boolean;
+  /** Each player's clock choice: off, or one to five minutes. */
+  readonly clockA: ClockChoice;
+  readonly clockB: ClockChoice;
   /** The game Play starts. */
   readonly mode: GameMode;
   /** The one Play button's label: "Play · Normal bot" or "Play · with a friend". */
@@ -40,9 +46,13 @@ export interface HomeModel {
 
 export const REPLACES_NOTE = 'Play replaces your saved game.';
 
-/** The label of the one Play button for a choice (PRD S1). */
-export function playLabel(opponent: Opponent, difficulty: Difficulty): string {
-  return opponent === 'friend' ? 'Play · with a friend' : `Play · ${difficultyLabel(difficulty)} bot`;
+/** The label of the one Play button for a choice (PRD S1), with a timed game's clocks: "Play · with a friend · 5:00 / 1:00". */
+export function playLabel(opponent: Opponent, difficulty: Difficulty, clockA: ClockChoice = 'off', clockB: ClockChoice = 'off'): string {
+  if (opponent === 'bot') return `Play · ${difficultyLabel(difficulty)} bot`;
+  const times = clockSetup(clockA, clockB);
+  if (!times) return 'Play · with a friend';
+  const face = (ms: number | null) => (ms === null ? 'no clock' : clockText(ms));
+  return `Play · with a friend · ${face(times.A)} / ${face(times.B)}`;
 }
 
 /** The results by difficulty in one line, and in words. */
@@ -61,8 +71,11 @@ export function homeModel(saved: { readonly mode: GameMode; readonly takes: numb
     opponent: settings.opponent,
     difficulty: settings.difficulty,
     showDifficulty: settings.opponent === 'bot',
-    mode: settings.opponent === 'bot' ? versusBot(settings.difficulty) : TWO_PLAYERS,
-    playLabel: playLabel(settings.opponent, settings.difficulty),
+    showClocks: settings.opponent === 'friend',
+    clockA: settings.clockA,
+    clockB: settings.clockB,
+    mode: settings.opponent === 'bot' ? versusBot(settings.difficulty) : twoPlayers(clockSetup(settings.clockA, settings.clockB)),
+    playLabel: playLabel(settings.opponent, settings.difficulty, settings.clockA, settings.clockB),
     replacesSaved: saved !== null,
     results: rows,
     resultsLine: line,
@@ -109,6 +122,11 @@ export function opponentAfterKey(current: Opponent, key: string): Opponent | nul
     current,
     key,
   );
+}
+
+/** The clock choice an arrow key moves a player's clock switch to. */
+export function clockAfterKey(current: ClockChoice, key: string): ClockChoice | null {
+  return optionAfterKey(CLOCK_CHOICES, current, key);
 }
 
 /** The colour theme an arrow key moves the menu's Theme switch to. */

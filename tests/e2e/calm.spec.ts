@@ -314,7 +314,7 @@ test('[scenario:tile-names] tile names are not drawn by default, show on hover, 
 /** The order a line or square lifts in: a line from end to end, a square round its loop. */
 function expectedLifts(state: GameState, cell: CellId): CellId[] {
   const next = take(state, cell);
-  if (!next.ok || next.state.result?.kind !== 'win' || next.state.result.by === 'blockade') throw new Error('not a winning take');
+  if (!next.ok || next.state.result?.kind !== 'win' || (next.state.result.by !== 'line' && next.state.result.by !== 'square')) throw new Error('not a winning take');
   const { by, cells } = next.state.result;
   const sorted = [...cells].sort((a, b) => cellRow(a) - cellRow(b) || cellColumn(a) - cellColumn(b));
   return by === 'square' ? [sorted[0]!, sorted[1]!, sorted[3]!, sorted[2]!] : sorted;

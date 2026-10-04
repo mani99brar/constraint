@@ -21,7 +21,7 @@ export function endings(): Record<Ending, GameState> {
   for (let seed = 0; seed < 2000 && Object.keys(found).length < 4; seed += 1) {
     for (const pick of [(n: number, turn: number) => (seed + turn * 7) % n, (n: number) => n - 1]) {
       const state = playout(seed, pick);
-      const by = state.result!.by;
+      const by = state.result!.by as Ending;
       found[by] ??= state;
     }
   }

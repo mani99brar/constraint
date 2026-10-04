@@ -9,7 +9,8 @@ import { takeFeedback } from './feedback';
 import { MatchCard } from './MatchCard';
 import { matchCardModel } from './matchCard';
 import { MenuDialog } from './MenuDialog';
-import type { GameMode } from './mode';
+import { clockOf, type GameMode } from './mode';
+import type { ClockTimes } from './clock';
 import { lastEvent, type RefusalMark } from './reactions';
 import { scoreboardModel, type Score } from './score';
 import { Scoreboard } from './Scoreboard';
@@ -21,6 +22,7 @@ import { describeRefusal, shortRefusal } from './text';
 import { refusalToast } from './toasts';
 import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
+import { useClock } from './useClock';
 import { useGame } from './useGame';
 import { useToasts } from './useToasts';
 
@@ -40,6 +42,10 @@ export interface MatchScreenProps {
   /** Play again: a new game in the same mode, the other player starting, the score kept. */
   readonly onPlayAgain?: (finished: GameState) => void;
   readonly onLeave: () => void;
+  /** A timed game's time left when it was resumed; its starting times when not given. */
+  readonly clockLeft?: ClockTimes | null;
+  /** Hands over a reader of the clocks' time left, so the game can be saved with it. */
+  readonly onClockReader?: (read: () => ClockTimes | null) => void;
 }
 
 /**
@@ -50,9 +56,15 @@ export interface MatchScreenProps {
  * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
-  const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave } = props;
-  const { state, attempt } = useGame(initialState, mode, onChange);
+  const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader } = props;
+  const { state, attempt, timeOut } = useGame(initialState, mode, onChange);
   const [menu, setMenu] = useState<{ opener: HTMLElement | null } | null>(null);
+  // A timed game's clocks: the mover's runs, none while the menu is open; running out of time loses.
+  const [clockStart] = useState(() => clockLeft ?? clockOf(mode));
+  const clock = useClock(clockStart, state, menu !== null, timeOut);
+  const readClock = useRef(clock.read);
+  readClock.current = clock.read;
+  useEffect(() => onClockReader?.(() => readClock.current()), [onClockReader]);
   const { toasts, push, afterTake } = useToasts();
   const heard = useRef(state.takes.length);
   // The takes on screen when the game was shown: a new or resumed game starts with no event (PRD U9).
@@ -81,7 +93,7 @@ export function MatchScreen(props: MatchScreenProps) {
   const board = boardModel(state, { mode, highlights: settings.highlights, tileNames: settings.tileNames });
   // The avatars react to the last event, derived here from the takes and the refusals, never the board.
   const { event, key } = lastEvent(state, shownAtTakes, refusal);
-  const [one, two] = seatModels(state, mode, score, event, key);
+  const [one, two] = seatModels(state, mode, score, event, key, clock.times ? { times: clock.times, running: clock.running } : null);
 
   function tapCell(cell: CellId) {
     const refused = attempt(cell);
@@ -103,6 +115,7 @@ export function MatchScreen(props: MatchScreenProps) {
       data-accepts-takes={board.acceptsTakes}
       data-ended={ended}
       data-end-shrinking={shrinking || undefined}
+      data-timed={clockStart !== null || undefined}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === '--board-size') setShrinkDone(true);
       }}

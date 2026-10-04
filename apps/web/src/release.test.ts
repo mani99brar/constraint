@@ -41,6 +41,7 @@ const screens: Record<string, string> = {
       onPlay: noop,
       onOpponent: noop,
       onDifficulty: noop,
+      onClock: noop,
       onHowTo: noop,
       onResetResults: noop,
       onSettings: noop,

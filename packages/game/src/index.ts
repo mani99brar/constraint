@@ -2,5 +2,5 @@
 
 export * from './board';
 export * from './state';
-export { newGame, validateTake, legalTakes, take, tokenAt, tileAt, isValidSeed, InvalidSeedError, type NewGameInput } from './game';
+export { newGame, validateTake, legalTakes, take, outOfTime, tokenAt, tileAt, isValidSeed, InvalidSeedError, type NewGameInput } from './game';
 export { gameLogOf, parseGameLog, replayGame, GAME_LOG_FORMAT_VERSION, type GameLog, type GameLogRefusal } from './log';

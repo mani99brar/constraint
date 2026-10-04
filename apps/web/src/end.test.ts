@@ -93,7 +93,7 @@ describe('end sequence model (PRD U10)', () => {
     for (const [by, state] of Object.entries(endings())) {
       const end = endModel(state)!;
       const result = state.result!;
-      if (result.kind === 'win' && result.by !== 'blockade') {
+      if (result.kind === 'win' && (result.by === 'line' || result.by === 'square')) {
         expect([...end.lifts].sort()).toEqual([...result.cells].sort());
         expect(end.dims).toHaveLength(12);
       } else if (by === 'blockade') {

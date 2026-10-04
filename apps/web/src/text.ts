@@ -65,10 +65,11 @@ function winnerPhrase(winner: Player, mode: GameMode): string {
 
 /**
  * The result in a few words, for the end screen's heading (PRD R4), naming the seat in a two-player
- * game: "Player 2 wins by a square", "You win by blockade" or "Draw: the board is full".
+ * game: "Player 2 wins by a square", "You win by blockade", "Player 1 wins on time" or "Draw: the board is full".
  */
 export function resultSummary(result: GameResult, mode: GameMode): string {
   if (result.kind === 'draw') return 'Draw: the board is full';
+  if (result.by === 'time') return `${winnerPhrase(result.winner, mode)} on time`;
   return `${winnerPhrase(result.winner, mode)} by ${SHAPE_WORDS[result.by]}`;
 }
 
@@ -77,6 +78,11 @@ export function resultDetail(state: Pick<GameState, 'result' | 'lastTile'>, mode
   const { result } = state;
   if (!result) return '';
   if (result.kind === 'draw') return 'All 16 cells hold tokens and nobody made a line or a square.';
+  if (result.by === 'time') {
+    const loser = possessive(mode, otherPlayer(result.winner));
+    const whose = loser === 'your' ? 'Your' : loser === "bot's" ? "The bot's" : loser;
+    return `${whose} clock ran out.`;
+  }
   if (result.by === 'blockade') {
     const loser = otherPlayer(result.winner);
     const stuck =
