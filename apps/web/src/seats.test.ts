@@ -39,17 +39,29 @@ describe('seat model (PRD U2, I3, §5.8)', () => {
   });
 
   it.each([
-    ['a bot game, your move', easy, 'A', ['Your move', null], [true, false]],
-    ['a bot game, the bot’s move', easy, 'B', [null, 'Bot is thinking'], [false, true]],
-    ['a two-player game, Player 1 to move', TWO_PLAYERS, 'A', ["Player 1's move", null], [true, false]],
-    ['a two-player game, Player 2 to move', TWO_PLAYERS, 'B', [null, "Player 2's move"], [false, true]],
-  ] as const)('lights and labels the seat to move and dims the other: %s', (_name, mode, toMove, statuses, lit) => {
+    ['a bot game, your move', easy, 'A', ['Your move', null], [true, false], ['to-move', 'idle']],
+    ['a bot game, the bot’s move', easy, 'B', [null, 'Bot is thinking'], [false, true], ['idle', 'thinking']],
+    ['a two-player game, Player 1 to move', TWO_PLAYERS, 'A', ["Player 1's move", null], [true, false], ['to-move', 'idle']],
+    ['a two-player game, Player 2 to move', TWO_PLAYERS, 'B', [null, "Player 2's move"], [false, true], ['idle', 'to-move']],
+  ] as const)('lights and labels the seat to move and dims the other: %s', (_name, mode, toMove, statuses, lit, faces) => {
     for (const lastTile of [null, forestStar]) {
       const seats = seatModels(handBuilt(lastTile ? ['A'] : [], toMove, lastTile), mode, NO_SCORE);
       expect(seats.map((seat) => seat.status)).toEqual(statuses);
       expect(seats.map((seat) => seat.lit)).toEqual(lit);
-      expect(seats.map((seat) => seat.expression)).toEqual(lit.map((on) => (on ? 'to-move' : 'idle')));
+      expect(seats.map((seat) => seat.expression)).toEqual(faces);
+      expect(seats.map((seat) => [seat.reaction, seat.reactionKey])).toEqual([
+        [null, 0],
+        [null, 0],
+      ]);
     }
+  });
+
+  it('carries the avatars’ reactions to the last event and its key', () => {
+    const seats = seatModels(handBuilt(['A'], 'B', forestStar), easy, NO_SCORE, { kind: 'take', by: 'A' }, 5);
+    expect(seats.map((seat) => [seat.expression, seat.reaction, seat.reactionKey])).toEqual([
+      ['idle', 'nod', 5],
+      ['thinking', 'glance', 5],
+    ]);
   });
 
   it('gives the turn label on its own, and none once the game has ended', () => {

@@ -3,9 +3,9 @@ import { TokenMark } from './art';
 import type { SeatView } from './seats';
 
 /**
- * One seat beside the board (PRD U2, I3): the avatar, the name, the token mark, the tokens left out
- * of 8 and the score of the sitting. The seat to move is lit in its player's colour and labelled; the
- * other is dimmed. Not interactive.
+ * One seat's nameplate beside the board (PRD U2, I3, U9): the avatar with its face and reaction, the
+ * name, the token mark, the tokens left out of 8 and the score of the sitting. The seat to move is lit
+ * in its player's colour and labelled; the other is dimmed. Compact on a phone. Not interactive.
  */
 export function Seat({ view }: { view: SeatView }) {
   const { player, number } = view;
@@ -17,10 +17,12 @@ export function Seat({ view }: { view: SeatView }) {
       data-player={player}
       data-lit={view.lit}
       data-expression={view.expression}
+      data-reaction={view.reaction ?? undefined}
+      data-reaction-key={view.reactionKey}
       data-tokens-left={view.tokensLeft}
       data-score={view.score}
     >
-      <Avatar player={player} expression={view.expression} />
+      <Avatar player={player} expression={view.expression} reaction={view.reaction} reactionKey={view.reactionKey} />
       <div className="seat-info">
         <h2 className="seat-name" id={`seat-${player}-name`} data-testid={`seat-${player}-name`}>
           {view.name}

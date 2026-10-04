@@ -7,19 +7,18 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import viteConfig from '../vite.config';
 import { App } from './App';
-import { DifficultyScreen } from './DifficultyScreen';
+import { homeModel } from './home';
+import { HomeScreen } from './HomeScreen';
 import { HowToPlay } from './HowToPlay';
 import { MatchScreen } from './MatchScreen';
 import { MenuDialog } from './MenuDialog';
 import { TWO_PLAYERS, versusBot } from './mode';
-import { ModeScreen } from './ModeScreen';
 import { afterTakes, endings } from './playouts.test-helper';
 import { emptyResults } from './results';
 import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS } from './settings';
 import type { KeyValueStorage } from './storage';
 import { TITLE, TITLE_PLACEHOLDER, withTitle } from './title';
-import { TitleScreen } from './TitleScreen';
 
 const noop = () => {};
 const running = afterTakes(31_337, 3);
@@ -34,20 +33,19 @@ const render = (element: Parameters<typeof renderToStaticMarkup>[0]) => renderTo
 /** Every screen and dialog of the client, rendered. */
 const screens: Record<string, string> = {
   app: render(createElement(App, { storage: memory() })),
-  title: render(
-    createElement(TitleScreen, {
-      saved: { mode: versusBot('hard'), takes: 7 },
-      results: emptyResults(),
+  home: render(
+    createElement(HomeScreen, {
+      model: homeModel({ mode: versusBot('hard'), takes: 7 }, DEFAULT_SETTINGS, emptyResults()),
       settings: DEFAULT_SETTINGS,
       onContinue: noop,
-      onNewGame: noop,
+      onPlayBot: noop,
+      onPlayTwo: noop,
+      onDifficulty: noop,
       onHowTo: noop,
       onResetResults: noop,
       onSettings: noop,
     }),
   ),
-  mode: render(createElement(ModeScreen, { onVersusBot: noop, onTwoPlayers: noop, onBack: noop })),
-  difficulty: render(createElement(DifficultyScreen, { onChoose: noop, onBack: noop })),
   match: render(createElement(MatchScreen, { initialState: running, mode: versusBot('normal'), score: NO_SCORE, settings: DEFAULT_SETTINGS, onLeave: noop })),
   'two-player match': render(createElement(MatchScreen, { initialState: running, mode: TWO_PLAYERS, score: NO_SCORE, settings: DEFAULT_SETTINGS, onLeave: noop })),
   ...Object.fromEntries(
@@ -68,6 +66,14 @@ const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/g
 
 /** Words of the retired fighter game (spec v0.2). */
 const FIGHTER_WORDS = /\b(fighters?|traps?|trapped|trapper|recharges?|recharged|rosters?|objectives?|abilit(y|ies)|setup screen|displacers?)\b/i;
+
+describe('the home screen replaces the title, mode and difficulty screens (PRD S1, E1)', () => {
+  it('keeps no mode or difficulty screen in the client', () => {
+    const names = files.map(([file]) => file);
+    for (const gone of ['TitleScreen.tsx', 'ModeScreen.tsx', 'DifficultyScreen.tsx']) expect(names).not.toContain(gone);
+    for (const html of Object.values(screens)) expect(html).not.toMatch(/data-testid="(title-screen|mode-screen|difficulty-screen)"/);
+  });
+});
 
 describe('the fighter game is gone (rules v1.0)', () => {
   it('imports neither @okiya/rules nor @okiya/content anywhere under apps/web/src', () => {
@@ -116,7 +122,8 @@ describe('the published title (PRD §1, E6)', () => {
     expect(withTitle(html)).toContain(`<title>${TITLE}</title>`);
     expect(withTitle(html)).not.toContain(TITLE_PLACEHOLDER);
     expect(html).not.toMatch(/okiya/i);
-    expect(screens.app).toContain(`<h1 data-testid="title">${TITLE}</h1>`);
+    // The home screen's wordmark is real text in the h1, drawn in the materials by CSS (PRD E1).
+    expect(screens.app).toContain(`<h1 class="wordmark" data-testid="title">${TITLE}</h1>`);
     for (const html of Object.values(screens)) expect(html).not.toMatch(/okiya/i);
   });
 

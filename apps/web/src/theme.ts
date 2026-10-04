@@ -8,6 +8,10 @@ export const TOKEN_NAMES = [
   'table',
   'surface',
   'surface-2',
+  'surface-3',
+  'felt',
+  'felt-light',
+  'felt-dark',
   'text',
   'muted',
   'border',
@@ -37,7 +41,11 @@ export const TOKEN_NAMES = [
   'wave',
   'frame',
   'frame-edge',
+  'frame-grain',
+  'frame-sheen',
   'on-frame',
+  'shine',
+  'shade',
   'chip',
   'legal',
   'recent',
@@ -60,6 +68,10 @@ export const LIGHT: Theme = {
   table: '#d5dcc8',
   surface: '#fbfaf5',
   'surface-2': '#eef0e6',
+  'surface-3': '#e2e6d6',
+  felt: '#8aa57c',
+  'felt-light': '#a0b993',
+  'felt-dark': '#718d66',
   text: '#1f2a1f',
   muted: '#465242',
   border: '#7d8a73',
@@ -87,9 +99,13 @@ export const LIGHT: Theme = {
   moon: '#4338ca',
   star: '#a16207',
   wave: '#0f766e',
-  frame: '#7a5a3a',
+  frame: '#74553a',
   'frame-edge': '#4f3a24',
+  'frame-grain': '#654830',
+  'frame-sheen': '#82603f',
   'on-frame': '#fff8ec',
+  shine: '#ffffff',
+  shade: '#2b2118',
   chip: '#fbfaf5',
   legal: '#d97706',
   recent: '#7c3aed',
@@ -108,6 +124,10 @@ export const DARK: Theme = {
   table: '#1a221a',
   surface: '#1f271f',
   'surface-2': '#29332a',
+  'surface-3': '#323d33',
+  felt: '#1c3324',
+  'felt-light': '#25412e',
+  'felt-dark': '#14261a',
   text: '#e9efe4',
   muted: '#b5c0ad',
   border: '#5d6b57',
@@ -137,7 +157,11 @@ export const DARK: Theme = {
   wave: '#5eead4',
   frame: '#3b2c1e',
   'frame-edge': '#21180f',
+  'frame-grain': '#30241a',
+  'frame-sheen': '#4a3827',
   'on-frame': '#f3e6d3',
+  shine: '#fff6e8',
+  shade: '#0b0805',
   chip: '#1f271f',
   legal: '#fbbf24',
   recent: '#c4b5fd',
@@ -151,6 +175,20 @@ export const DARK: Theme = {
   'on-toast-alert': '#2a0710',
 };
 
+/**
+ * The text-bearing materials (PRD U1, U5): each surface's gradient stops, all theme tokens, and every
+ * text colour drawn on it. Text must reach 4.5:1 against every stop, so every pair is in TEXT_PAIRS.
+ * The felt, the tiles and the tokens carry no text of their own; their shading is free of this list.
+ */
+export const MATERIALS: readonly { readonly name: string; readonly selectors: readonly string[]; readonly stops: readonly TokenName[]; readonly text: readonly TokenName[] }[] = [
+  // The wood of the board frame (its A–D and 1–4 labels) and of the home screen's wordmark plaque.
+  { name: 'wood', selectors: ['.board-frame', '.wordmark'], stops: ['frame', 'frame-grain', 'frame-sheen'], text: ['on-frame'] },
+  // Cards, lit nameplates, buttons, the Match card, the end card and the dialogs: a raised card.
+  { name: 'card', selectors: ['.material-card', 'button', '.seat.lit'], stops: ['surface', 'surface-2'], text: ['text', 'muted', 'primary', 'refusal'] },
+  // A dimmed nameplate, a shade darker.
+  { name: 'dim plate', selectors: ['.seat', '.seat.dimmed'], stops: ['surface-2', 'surface-3'], text: ['text', 'muted'] },
+];
+
 /** Every text colour drawn on a background colour, as [text, background]; each must reach 4.5:1. */
 export const TEXT_PAIRS: readonly (readonly [TokenName, TokenName])[] = [
   ['text', 'bg'],
@@ -162,6 +200,10 @@ export const TEXT_PAIRS: readonly (readonly [TokenName, TokenName])[] = [
   ['muted', 'table'],
   ['muted', 'surface'],
   ['muted', 'surface-2'],
+  ['text', 'surface-3'],
+  ['muted', 'surface-3'],
+  ['primary', 'surface-2'],
+  ['refusal', 'surface-2'],
   ['on-primary', 'primary'],
   ['primary', 'surface'],
   ['on-p1', 'p1'],
@@ -171,6 +213,8 @@ export const TEXT_PAIRS: readonly (readonly [TokenName, TokenName])[] = [
   ['text', 'mountain'],
   ['text', 'desert'],
   ['on-frame', 'frame'],
+  ['on-frame', 'frame-grain'],
+  ['on-frame', 'frame-sheen'],
   ['refusal', 'surface'],
   ['refusal', 'bg'],
   ['on-toast', 'toast'],

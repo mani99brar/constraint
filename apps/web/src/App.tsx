@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameState } from '@okiya/game';
-import { DifficultyScreen } from './DifficultyScreen';
+import { homeModel } from './home';
+import { HomeScreen } from './HomeScreen';
 import { HowToPlay } from './HowToPlay';
 import { howToOpensFirst, rememberHowToSeen } from './howto';
 import { HUMAN, nextStarter, startGame } from './match';
 import { MatchScreen } from './MatchScreen';
 import { TWO_PLAYERS, versusBot, type GameMode } from './mode';
-import { ModeScreen } from './ModeScreen';
 import { loadResults, recordFinishedGame, resetResults, type Results } from './results';
 import { clearSavedGame, loadSavedGame, saveGame, type SavedGame } from './save';
 import { addResult, NO_SCORE, scoreAfter, type Score } from './score';
@@ -14,12 +14,9 @@ import { loadSettings, saveSettings, type Settings } from './settings';
 import { browserAudioContext, createSoundPlayer } from './sound';
 import { rememberStarter, starterForNewGame } from './starter';
 import { browserStorage, type KeyValueStorage } from './storage';
-import { TitleScreen } from './TitleScreen';
 
 type Screen =
-  | { readonly kind: 'title' }
-  | { readonly kind: 'mode' }
-  | { readonly kind: 'difficulty' }
+  | { readonly kind: 'home' }
   | { readonly kind: 'match'; readonly state: GameState; readonly mode: GameMode; readonly key: number };
 
 export interface AppProps {
@@ -28,16 +25,16 @@ export interface AppProps {
 }
 
 /**
- * The published game (PRD §5.7, §5.8): the title screen, New game (a mode, then for a bot game a
- * difficulty, then the board), the game with the score of its sitting, How to Play, the remembered
- * settings, the saved game and the results by difficulty.
+ * The published game (PRD §5.7, §5.8): the home screen, where one tap on Play starts a bot game at the
+ * remembered difficulty or a two-player game, the game with the score of its sitting, How to Play, the
+ * remembered settings, the saved game and the results by difficulty.
  */
 export function App({ storage: given }: AppProps) {
   const storage = useMemo(() => (given === undefined ? browserStorage() : given), [given]);
   const [settings, setSettings] = useState<Settings>(() => loadSettings(storage));
   const [results, setResults] = useState<Results>(() => loadResults(storage));
   const [saved, setSaved] = useState<SavedGame | null>(() => loadSavedGame(storage));
-  const [screen, setScreen] = useState<Screen>({ kind: 'title' });
+  const [screen, setScreen] = useState<Screen>({ kind: 'home' });
   const [score, setScoreState] = useState<Score>(NO_SCORE);
   const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(() => (howToOpensFirst(storage) ? { opener: null } : null));
   const matchKey = useRef(0);
@@ -73,12 +70,12 @@ export function App({ storage: given }: AppProps) {
     setHowTo(null);
   }
 
-  /** Back to the title screen, which ends the sitting (PRD P3); the saved game stays for Continue. */
-  function showTitle() {
+  /** Back to the home screen, which ends the sitting (PRD P3); the saved game stays for Continue. */
+  function showHome() {
     setScore(scoreAfter('leave', scoreRef.current));
     setSaved(loadSavedGame(storage));
     setResults(loadResults(storage));
-    setScreen({ kind: 'title' });
+    setScreen({ kind: 'home' });
   }
 
   function play(state: GameState, mode: GameMode) {
@@ -87,7 +84,7 @@ export function App({ storage: given }: AppProps) {
     setScreen({ kind: 'match', state, mode, key: matchKey.current });
   }
 
-  /** New game: a new sitting with its score at zero. */
+  /** A game started from the home screen: a new sitting with its score at zero. */
   function newGame(mode: GameMode) {
     sound.play('select');
     setScore(scoreAfter('new-game', scoreRef.current));
@@ -110,12 +107,6 @@ export function App({ storage: given }: AppProps) {
 
   let content;
   switch (screen.kind) {
-    case 'mode':
-      content = <ModeScreen onBack={showTitle} onVersusBot={() => setScreen({ kind: 'difficulty' })} onTwoPlayers={() => newGame(TWO_PLAYERS)} />;
-      break;
-    case 'difficulty':
-      content = <DifficultyScreen onBack={() => setScreen({ kind: 'mode' })} onChoose={(difficulty) => newGame(versusBot(difficulty))} />;
-      break;
     case 'match': {
       const { mode } = screen;
       content = (
@@ -134,16 +125,15 @@ export function App({ storage: given }: AppProps) {
             setScore(scoreAfter('play-again', scoreRef.current));
             play(startGame(undefined, nextStarter(finished)), mode);
           }}
-          onLeave={showTitle}
+          onLeave={showHome}
         />
       );
       break;
     }
-    case 'title':
+    case 'home':
       content = (
-        <TitleScreen
-          saved={saved ? { mode: saved.mode, takes: saved.state.takes.length } : null}
-          results={results}
+        <HomeScreen
+          model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length } : null, settings, results)}
           settings={settings}
           onContinue={() => {
             const current = loadSavedGame(storage);
@@ -151,7 +141,9 @@ export function App({ storage: given }: AppProps) {
             setScore(current.score);
             play(current.state, current.mode);
           }}
-          onNewGame={() => setScreen({ kind: 'mode' })}
+          onPlayBot={(difficulty) => newGame(versusBot(difficulty))}
+          onPlayTwo={() => newGame(TWO_PLAYERS)}
+          onDifficulty={(difficulty) => changeSettings({ ...settingsRef.current, difficulty })}
           onHowTo={(opener) => setHowTo({ opener })}
           onResetResults={() => setResults(resetResults(storage))}
           onSettings={changeSettings}

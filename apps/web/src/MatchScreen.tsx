@@ -8,6 +8,7 @@ import { takeFeedback } from './feedback';
 import { matchCardModel } from './matchCard';
 import { MenuDialog } from './MenuDialog';
 import type { GameMode } from './mode';
+import { lastEvent, type RefusalMark } from './reactions';
 import type { Score } from './score';
 import { Seat } from './Seat';
 import { seatModels } from './seats';
@@ -39,9 +40,9 @@ export interface MatchScreenProps {
 }
 
 /**
- * The table (PRD U1–U3, §5.8): the board with a seat for each player beside it, the Match card, a top
- * bar with the menu button, toasts over the board and the end screen under it. Every change of turn is
- * announced through an `aria-live` region.
+ * The table (PRD U1–U3, U9, §5.8): the board with a nameplate for each player beside it, the Match card,
+ * a top bar with the menu button, a fixed toast slot outside the board and the end screen under it.
+ * Every change of turn is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
   const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave } = props;
@@ -49,6 +50,9 @@ export function MatchScreen(props: MatchScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement | null } | null>(null);
   const { toasts, push, afterTake } = useToasts();
   const heard = useRef(state.takes.length);
+  // The takes on screen when the game was shown: a new or resumed game starts with no event (PRD U9).
+  const [shownAtTakes] = useState(initialState.takes.length);
+  const [refusal, setRefusal] = useState<RefusalMark | null>(null);
 
   useEffect(() => {
     // One sound per new take and the bot's take toast; a resumed game starts quiet.
@@ -59,12 +63,15 @@ export function MatchScreen(props: MatchScreenProps) {
   }, [state, mode, sound, afterTake]);
 
   const board = boardModel(state, { mode, highlights: settings.highlights });
-  const [one, two] = seatModels(state, mode, score);
+  // The avatars react to the last event, derived here from the takes and the refusals, never the board.
+  const { event, key } = lastEvent(state, shownAtTakes, refusal);
+  const [one, two] = seatModels(state, mode, score, event, key);
 
   function tapCell(cell: CellId) {
-    const refusal = attempt(cell);
-    if (refusal) {
-      push([refusalToast(describeRefusal(refusal, state))]);
+    const refused = attempt(cell);
+    if (refused) {
+      setRefusal((previous) => ({ by: state.toMove, atTakes: state.takes.length, count: (previous?.count ?? 0) + 1 }));
+      push([refusalToast(describeRefusal(refused, state))]);
       sound.play('refuse');
     }
   }
@@ -87,10 +94,10 @@ export function MatchScreen(props: MatchScreenProps) {
       <TopBar card={matchCardModel(state)} onMenu={(opener) => setMenu({ opener })} />
       <Seat view={one} />
       <div className="board-area" data-testid="table">
-        <Toasts toasts={toasts} />
         <Board model={board} onCellClick={tapCell} />
       </div>
       <Seat view={two} />
+      <Toasts toasts={toasts} />
       <SittingScore score={score} mode={mode} />
       <EndScreen state={state} mode={mode}>
         {onPlayAgain && (

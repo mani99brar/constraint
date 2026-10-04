@@ -21,7 +21,8 @@ import {
   match,
   matchCard,
   matchTileFlight,
-  openTitle,
+  difficultySwitch,
+  openHome,
   playToEnd,
   readBoard,
   readLastTile,
@@ -66,7 +67,7 @@ async function readScore(page: Page) {
   return { a: a!, b: b!, draws: draws!, text: (await line.innerText()).replace(/\s+/g, ' ').trim() };
 }
 
-/** The results by difficulty from the title screen. */
+/** The results by difficulty from the home screen. */
 async function readResults(page: Page) {
   return page
     .getByTestId('results')
@@ -76,23 +77,50 @@ async function readResults(page: Page) {
 
 const tile = (cell: { terrain: string; symbol: string }) => `${cell.terrain}–${cell.symbol}`;
 
-test('[scenario:title-screen] the title screen offers New game, Continue for a saved game, How to play, results by difficulty and a settings menu', async ({ page }, testInfo) => {
+test('[scenario:home-screen] the home screen shows the drawn wordmark over a board with both avatars, Continue for a saved game, the two play cards, the results strip, How to play and Settings', async ({ page }, testInfo) => {
   // The app reads no URL parameters: playtest parameters change nothing.
   await fixRandomness(page, HUMAN_STARTS);
   await page.goto('/?seed=7&preset=spec-v0.2&scenario=paper-test-01&difficulty=hard');
   await expect(page).toHaveTitle(TITLE);
-  const title = page.getByTestId('title-screen');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(TITLE);
-  await expect(page.getByTestId('logo')).toBeVisible();
+  const home = page.getByTestId('home-screen');
 
   // How to Play opens by itself on the very first visit.
   await expect(page.getByTestId('how-to-play')).toBeVisible();
   await page.getByRole('button', { name: 'Close How to play' }).click();
   await expect(page.getByTestId('how-to-play')).toHaveCount(0);
 
-  await expect(title.getByRole('button', { name: /^New game/ })).toBeVisible();
-  await expect(title.getByRole('button', { name: 'How to play' })).toBeVisible();
+  // The hero: the wordmark as real text on its wooden plaque, over a small board of tiles in its frame,
+  // flanked by both avatars.
+  const wordmark = page.getByRole('heading', { level: 1 });
+  await expect(wordmark).toHaveText(TITLE);
+  await expect(wordmark).toHaveClass(/wordmark/);
+  expect(await wordmark.evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/repeating-linear-gradient/);
+  const hero = page.getByTestId('hero');
+  await expect(hero.getByTestId('hero-board').locator('.tile-art svg.scene')).not.toHaveCount(0);
+  await expect(hero.getByTestId('hero-avatar-A')).toHaveAttribute('data-avatar', 'cap');
+  await expect(hero.getByTestId('hero-avatar-B')).toHaveAttribute('data-avatar', 'hood');
+  const [left, board, right] = await Promise.all(['hero-avatar-A', 'hero-board', 'hero-avatar-B'].map(async (id) => (await page.getByTestId(id).boundingBox())!));
+  expect(left!.x + left!.width).toBeLessThanOrEqual(board!.x);
+  expect(right!.x).toBeGreaterThanOrEqual(board!.x + board!.width);
+  expect((await wordmark.boundingBox())!.y).toBeLessThan(board!.y);
+
+  // Continue only for a saved game.
   await expect(page.getByTestId('continue')).toHaveCount(0);
+
+  // Versus bot: an Easy / Normal / Hard switch (a radio group, Normal at first) and Play.
+  const bot = page.getByTestId('card-bot');
+  await expect(bot.getByRole('heading', { name: 'Versus bot' })).toBeVisible();
+  const radios = bot.getByRole('radiogroup', { name: 'Bot difficulty' }).getByRole('radio');
+  expect(await radios.allTextContents()).toEqual(['Easy', 'Normal', 'Hard']);
+  await expect(bot.getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'true');
+  await expect(bot.getByRole('button', { name: 'Play versus bot' })).toBeVisible();
+  // Two players: Play.
+  const two = page.getByTestId('card-two');
+  await expect(two.getByRole('heading', { name: 'Two players' })).toBeVisible();
+  await expect(two.getByRole('button', { name: 'Play two players' })).toBeVisible();
+  await expect(home.getByText(/replaces/)).toHaveCount(0);
+
+  // The compact results strip, zero for each difficulty, with its reset disabled until a bot game counts.
   const results = page.getByTestId('results');
   for (const difficulty of ['easy', 'normal', 'hard']) {
     const row = results.locator(`tr[data-difficulty="${difficulty}"]`);
@@ -101,10 +129,13 @@ test('[scenario:title-screen] the title screen offers New game, Continue for a s
     await expect(row).toHaveAttribute('data-draws', '0');
   }
   for (const label of ['Easy', 'Normal', 'Hard', 'Wins', 'Losses', 'Draws']) await expect(results).toContainText(label);
+  await expect(page.getByTestId('reset-results')).toBeDisabled();
+  expect((await results.boundingBox())!.height).toBeLessThan(200);
 
-  // The settings live in a menu, not on the page.
+  // How to play and Settings; the settings live in a dialog, not on the page.
+  await expect(home.getByRole('button', { name: 'How to play' })).toBeVisible();
   await expect(page.getByRole('switch')).toHaveCount(0);
-  const settings = title.getByRole('button', { name: 'Settings' });
+  const settings = home.getByRole('button', { name: 'Settings' });
   await settings.click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await expect(dialog).toBeVisible();
@@ -115,93 +146,77 @@ test('[scenario:title-screen] the title screen offers New game, Continue for a s
   await expect(settings).toBeFocused();
   await expectNoLeftovers(page);
 
-  // A started game is saved: quitting to the title offers Continue.
+  // No mode or difficulty screen exists.
+  await expect(page.locator('[data-testid="title-screen"], [data-testid="mode-screen"], [data-testid="difficulty-screen"]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^New game/ })).toHaveCount(0);
+
+  // A started game is saved: quitting to the home screen offers Continue with its mode and takes.
   await chooseDifficulty(page, 'Normal');
-  await expectNoLeftovers(page);
+  await takeGlowing(page);
   await openMenu(page);
   await page.getByRole('button', { name: /^Quit to title/ }).click();
   const resume = page.getByTestId('continue');
   await expect(resume).toBeVisible();
-  await expect(resume).toContainText('Normal bot, 0 tiles taken');
-  await expect(title.getByRole('button', { name: /^New game/ })).toContainText('replaces the saved game');
-  await attachScreenshot(page, testInfo, 'title-screen');
+  await expect(resume).toContainText(/Normal bot, [12] tiles? taken/);
+  await attachScreenshot(page, testInfo, 'home-screen');
 });
 
-test('[scenario:mode-choice] New game offers Versus bot and Two players; Versus bot asks for a difficulty, Two players starts at once, and Back returns', async ({ page }, testInfo) => {
-  await openTitle(page);
-  await page.getByRole('button', { name: /^New game/ }).click();
-  const modes = page.getByTestId('mode-screen').locator('button[data-mode]');
-  await expect(modes).toHaveCount(2);
-  expect(await modes.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('data-mode')))).toEqual(['bot', 'two-player']);
-  await expect(page.getByRole('button', { name: /^Versus bot/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Two players/ })).toBeVisible();
-  await expectNoLeftovers(page);
-  await attachScreenshot(page, testInfo, 'mode-choice');
+test('[scenario:start-from-home] one tap on Play starts each mode, the bot at the difficulty the switch shows; a changed difficulty survives a reload, and with a saved game the cards say starting replaces it', async ({ page, browser }, testInfo) => {
+  await openHome(page, HUMAN_STARTS);
 
-  // Back returns to the title screen.
-  await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page.getByTestId('title-screen')).toBeVisible();
-
-  // Versus bot asks for Easy, Normal or Hard; Back from there returns to the mode choice.
-  await page.getByRole('button', { name: /^New game/ }).click();
-  await page.getByRole('button', { name: /^Versus bot/ }).click();
-  const difficulties = page.getByTestId('difficulty-screen').locator('button[data-difficulty]');
-  expect(await difficulties.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('data-difficulty')))).toEqual(['easy', 'normal', 'hard']);
-  await page.getByRole('button', { name: 'Back' }).click();
-  await expect(page.getByTestId('mode-screen')).toBeVisible();
-
-  // Versus bot, then a difficulty, then the board.
-  await page.getByRole('button', { name: /^Versus bot/ }).click();
-  await page.getByRole('button', { name: /^Easy\b/ }).click();
+  // Versus bot at the switch's difficulty, Normal at first: one tap shows the board with all 16 tiles.
+  await expect(difficultySwitch(page).getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByTestId('play-bot').click();
   await expect(board(page)).toBeVisible();
   await expect(match(page)).toHaveAttribute('data-mode', 'bot');
-  await openMenu(page);
-  await page.getByRole('button', { name: /^Quit to title/ }).click();
-
-  // Two players goes straight to the board, with seats for Player 1 and Player 2 and no bot.
-  await page.getByRole('button', { name: /^New game/ }).click();
-  await page.getByRole('button', { name: /^Two players/ }).click();
-  await expect(page.getByTestId('difficulty-screen')).toHaveCount(0);
-  await expect(board(page)).toBeVisible();
-  await expect(match(page)).toHaveAttribute('data-mode', 'two-player');
-  await expect(page.getByTestId('seat-A-name')).toHaveText('Player 1');
-  await expect(page.getByTestId('seat-B-name')).toHaveText('Player 2');
-  await expect(page.locator('main')).not.toContainText(/\bbot\b/i);
-});
-
-test('[scenario:new-game] Versus bot at a difficulty shows the board at once with all 16 tiles, seats for You and the bot, and the lit seat says who starts', async ({ page, browser }, testInfo) => {
-  await openTitle(page, HUMAN_STARTS);
-  await chooseDifficulty(page, 'Normal');
-
-  // The board at once: 16 tiles, one of each terrain and symbol pair, each drawn with its scene and emblem, and no token.
   const cells = await readBoard(page);
   expect(cells).toHaveLength(16);
   expect(new Set(cells.map(tile)).size).toBe(16);
   expect(cells.every((cell) => cell.owner === null)).toBe(true);
   await expect(board(page).locator('svg.scene')).toHaveCount(16);
-  await expect(board(page).locator('.tile-symbol svg.emblem-svg')).toHaveCount(16);
-  await expect(board(page).getByTestId('token')).toHaveCount(0);
-  await expectNoLeftovers(page);
-
-  // The seats: You and the bot at that difficulty; the lit seat says the player starts.
   await expect(page.getByTestId('seat-A-name')).toHaveText('You');
   await expect(page.getByTestId('seat-B-name')).toHaveText('Bot · Normal');
   await expect(match(page)).toHaveAttribute('data-starter', 'A');
-  await expect(seat(page, 'A')).toHaveAttribute('data-lit', 'true');
   await expect(seatStatus(page, 'A')).toHaveText('Your move');
-  await expect(seat(page, 'B')).toHaveAttribute('data-lit', 'false');
   await expect(page.getByTestId('announcer')).toHaveText('You start. Your move.');
   await expect(matchCard(page)).toContainText('Any edge tile');
   for (const player of ['A', 'B'] as const) {
     await expect(seat(page, player)).toHaveAttribute('data-tokens-left', '8');
     await expect(seat(page, player)).toHaveAttribute('data-score', '0');
   }
-  await attachScreenshot(page, testInfo, 'new-game');
+  await expectNoLeftovers(page);
+
+  // With a saved game, both play cards say that starting replaces it.
+  await openMenu(page);
+  await page.getByRole('button', { name: /^Quit to title/ }).click();
+  await expect(page.getByTestId('continue')).toBeVisible();
+  for (const card of ['card-bot', 'card-two']) await expect(page.getByTestId(card)).toContainText('Starting replaces your saved game.');
+  await expect(page.getByTestId('play-bot')).toHaveAccessibleDescription('Starting replaces your saved game.');
+
+  // A changed difficulty is remembered, after a reload too, and Play starts the bot at it.
+  await difficultySwitch(page).getByRole('radio', { name: 'Easy' }).click();
+  await page.reload();
+  await expect(difficultySwitch(page).getByRole('radio', { name: 'Easy' })).toHaveAttribute('aria-checked', 'true');
+  await expect(difficultySwitch(page).getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'false');
+  await page.getByTestId('play-bot').click();
+  await expect(page.getByTestId('seat-B-name')).toHaveText('Bot · Easy');
+  await expect(page.getByTestId('continue')).toHaveCount(0);
+  await attachScreenshot(page, testInfo, 'start-from-home');
+
+  // Two players: one tap, seats for Player 1 and Player 2 and no bot.
+  await openMenu(page);
+  await page.getByRole('button', { name: /^Quit to title/ }).click();
+  await page.getByTestId('play-two').click();
+  await expect(board(page)).toBeVisible();
+  await expect(match(page)).toHaveAttribute('data-mode', 'two-player');
+  await expect(page.getByTestId('seat-A-name')).toHaveText('Player 1');
+  await expect(page.getByTestId('seat-B-name')).toHaveText('Player 2');
+  await expect(page.locator('main')).not.toContainText(/\bbot\b/i);
 
   // Under other randomness the bot starts, its seat says so, and it opens with an edge tile.
   const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'reduce' });
   const other = await context.newPage();
-  await openTitle(other, BOT_STARTS);
+  await openHome(other, BOT_STARTS);
   await chooseDifficulty(other, 'Easy');
   await expect(other.getByTestId('seat-B-name')).toHaveText('Bot · Easy');
   await expect(match(other)).toHaveAttribute('data-starter', 'B');
@@ -516,10 +531,10 @@ test('[scenario:highlight-toggle] with highlights off nothing glows, a legal tak
   await expect(page.getByRole('switch', { name: 'Highlight legal tiles' })).toHaveAttribute('aria-checked', 'false');
 });
 
-test('[scenario:how-to-play] How to Play opens from the title and the game menu, shows its pages with diagrams drawn with the tile art, closes with Escape or its button, and returns focus', async ({ page }, testInfo) => {
-  await openTitle(page);
+test('[scenario:how-to-play] How to Play opens from the home screen and the game menu, shows its pages with diagrams drawn with the tile art, closes with Escape or its button, and returns focus', async ({ page }, testInfo) => {
+  await openHome(page);
   const dialog = page.getByRole('dialog', { name: 'How to play' });
-  const opener = page.getByTestId('title-screen').getByRole('button', { name: 'How to play' });
+  const opener = page.getByTestId('home-screen').getByRole('button', { name: 'How to play' });
   await opener.click();
   await expect(dialog).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close How to play' })).toBeFocused();
@@ -639,7 +654,7 @@ test('[scenario:resume-match] after a reload, Continue restores the same board, 
 
 test('[scenario:full-match] glowing takes play a bot game to its end screen, which names the result once, marks the winning shape, shows the faces and is counted', async ({ page }, testInfo) => {
   test.setTimeout(240_000);
-  await openTitle(page);
+  await openHome(page);
   const easy = page.getByTestId('results').locator('tr[data-difficulty="easy"]');
   const total = async () =>
     (await Promise.all(['data-wins', 'data-losses', 'data-draws'].map((name) => easy.getAttribute(name)))).reduce((sum, value) => sum + Number(value), 0);
@@ -690,9 +705,9 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
   await expect(end.getByRole('button', { name: 'Play again' })).toBeVisible();
   await attachScreenshot(page, testInfo, 'full-match');
 
-  // The title screen counts one more game for Easy, of the right kind, and offers no Continue.
+  // The home screen counts one more game for Easy, of the right kind, and offers no Continue.
   await end.getByRole('button', { name: 'Title screen' }).click();
-  await expect(page.getByTestId('title-screen')).toBeVisible();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
   expect(await total()).toBe(before + 1);
   const kind = result.startsWith('You win') ? 'data-wins' : result.startsWith('Draw') ? 'data-draws' : 'data-losses';
   await expect(easy).toHaveAttribute(kind, '1');
@@ -703,7 +718,7 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
 
 test('[scenario:two-player-match] both seats play glowing takes to the end screen, which names the winning seat or the draw; the sitting counts it and the results do not', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
-  await openTitle(page);
+  await openHome(page);
   const results = await readResults(page);
   await chooseTwoPlayers(page);
 
@@ -750,7 +765,7 @@ test('[scenario:two-player-match] both seats play glowing takes to the end scree
   expect(await readResults(page)).toEqual(results);
 });
 
-test('[scenario:sitting-score] the score of a sitting counts finished games across Play again, survives a reload with Continue, and resets on leaving to the title', async ({ page }, testInfo) => {
+test('[scenario:sitting-score] the score of a sitting counts finished games across Play again, survives a reload with Continue, and resets on leaving to the home screen', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await startTwoPlayerGame(page, { seed: HUMAN_STARTS });
   expect(await readScore(page)).toMatchObject({ a: 0, b: 0, draws: 0 });
@@ -795,7 +810,7 @@ test('[scenario:sitting-score] the score of a sitting counts finished games acro
   await expect(seat(page, 'B')).toHaveAttribute('data-score', String(expected.b));
   await attachScreenshot(page, testInfo, 'sitting-score');
 
-  // Leaving to the title screen and starting a New game resets it to zero.
+  // Leaving to the home screen and starting a game from it resets it to zero.
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
   await chooseTwoPlayers(page);
@@ -866,15 +881,14 @@ test('[scenario:sound-toggle] sound starts only after a user action, the menu’
   });
   const audio = () => page.evaluate(() => (window as unknown as { __audio: { contexts: number; tones: number } }).__audio);
 
-  await openTitle(page);
+  await openHome(page);
   await page.waitForTimeout(300);
   expect(await audio()).toEqual({ contexts: 0, tones: 0 });
 
   // The first user action creates the audio; starting a game plays a short sound.
-  await page.getByRole('button', { name: /^New game/ }).click();
+  await difficultySwitch(page).getByRole('radio', { name: 'Easy' }).click();
   expect((await audio()).contexts).toBe(1);
-  await page.getByRole('button', { name: /^Versus bot/ }).click();
-  await page.getByRole('button', { name: /^Easy\b/ }).click();
+  await page.getByTestId('play-bot').click();
   await expect.poll(async () => (await audio()).tones).toBeGreaterThan(0);
 
   // Mute from the game menu; the setting survives a reload.

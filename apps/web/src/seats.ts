@@ -1,11 +1,10 @@
 import { PLAYERS, TOKENS_PER_PLAYER, type GameState, type Player } from '@okiya/game';
 import { HUMAN } from './match';
 import { playerNumber, seatName, type GameMode } from './mode';
+import { avatarLooks, NO_EVENT, type Expression, type Reaction, type ReactionEvent } from './reactions';
 import type { Score } from './score';
 
-/** An avatar's face (PRD U1): waiting, to move, after a win and after a loss. */
-export const EXPRESSIONS = ['idle', 'to-move', 'won', 'lost'] as const;
-export type Expression = (typeof EXPRESSIONS)[number];
+export { EXPRESSIONS, type Expression } from './reactions';
 
 /** Everything one seat beside the board shows (PRD U2, I3). */
 export interface SeatView {
@@ -25,7 +24,12 @@ export interface SeatView {
   readonly lit: boolean;
   /** The lit seat's label ("Your move", "Bot is thinking", "Player 1's move"), "Winner" or "Draw" at the end, else null. */
   readonly status: string | null;
+  /** The avatar's resting face (PRD U9). */
   readonly expression: Expression;
+  /** The avatar's one-shot motion for the last event, or null. */
+  readonly reaction: Reaction | null;
+  /** Counts the events, so the same motion twice in a row plays twice. */
+  readonly reactionKey: number;
 }
 
 /** Whose move it is, in words, or null once the game has ended. */
@@ -35,13 +39,6 @@ export function turnLabel(state: Pick<GameState, 'result' | 'toMove'>, mode: Gam
   return state.toMove === HUMAN ? 'Your move' : 'Bot is thinking';
 }
 
-function expressionOf(state: GameState, player: Player): Expression {
-  const { result } = state;
-  if (!result) return state.toMove === player ? 'to-move' : 'idle';
-  if (result.kind === 'draw') return 'idle';
-  return result.winner === player ? 'won' : 'lost';
-}
-
 function statusOf(state: GameState, player: Player, mode: GameMode): string | null {
   const { result } = state;
   if (!result) return state.toMove === player ? turnLabel(state, mode) : null;
@@ -49,9 +46,11 @@ function statusOf(state: GameState, player: Player, mode: GameMode): string | nu
   return result.winner === player ? 'Winner' : null;
 }
 
-/** Both seats, Player 1 first. */
-export function seatModels(state: GameState, mode: GameMode, score: Score): readonly [SeatView, SeatView] {
+/** Both seats, Player 1 first, with the avatars' reactions to the last event (none by default). */
+export function seatModels(state: GameState, mode: GameMode, score: Score, event: ReactionEvent = NO_EVENT, reactionKey = 0): readonly [SeatView, SeatView] {
+  const looks = avatarLooks(state, event, mode, reactionKey);
   const seat = (player: Player): SeatView => {
+    const look = looks[player === 'A' ? 0 : 1];
     const left = TOKENS_PER_PLAYER - state.tokens.filter((token) => token === player).length;
     return {
       player,
@@ -64,7 +63,9 @@ export function seatModels(state: GameState, mode: GameMode, score: Score): read
       score: score[player],
       lit: !state.result && state.toMove === player,
       status: statusOf(state, player, mode),
-      expression: expressionOf(state, player),
+      expression: look.expression,
+      reaction: look.reaction,
+      reactionKey: look.key,
     };
   };
   return [seat(PLAYERS[0]), seat(PLAYERS[1])];

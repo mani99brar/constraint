@@ -9,6 +9,12 @@ import { TWO_PLAYERS, versusBot, type GameMode } from './mode';
 import { afterTakes, endings } from './playouts.test-helper';
 import { NO_SCORE, type Score } from './score';
 import { DEFAULT_SETTINGS } from './settings';
+import { App } from './App';
+import { homeModel } from './home';
+import { HomeScreen } from './HomeScreen';
+import { emptyResults } from './results';
+import { saveGame } from './save';
+import type { KeyValueStorage } from './storage';
 
 function decode(html: string): string {
   return html.replaceAll('&#x27;', "'").replaceAll('&amp;', '&').replaceAll('&quot;', '"');
@@ -107,5 +113,76 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
       const faces = [...ended.matchAll(/data-testid="seat-[AB]"[^>]*data-expression="([a-z-]+)"/g)].map((match) => match[1]);
       expect(faces).toEqual(result.kind === 'draw' ? ['idle', 'idle'] : result.winner === 'A' ? ['won', 'lost'] : ['lost', 'won']);
     }
+  });
+});
+
+/** Every id attribute that appears more than once in the markup. */
+function duplicateIds(html: string): string[] {
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]!);
+  return [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
+}
+
+describe('no duplicate id attributes (PRD U1: CSS-only materials need no ids)', () => {
+  const noop = () => {};
+  const memory = (): KeyValueStorage => {
+    const data = new Map<string, string>();
+    return { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => void data.set(key, value), removeItem: (key) => void data.delete(key) };
+  };
+
+  it('renders the home screen, with and without a saved game, without duplicate ids', () => {
+    const storage = memory();
+    const fresh = renderToStaticMarkup(createElement(App, { storage }));
+    expect(fresh).toContain('data-testid="home-screen"');
+    expect(duplicateIds(fresh)).toEqual([]);
+    saveGame(storage, afterTakes(4, 3), normal, NO_SCORE);
+    const withSave = renderToStaticMarkup(createElement(App, { storage }));
+    expect(withSave).toContain('data-testid="continue"');
+    expect(withSave.match(/ id="[^"]*replaces"/g)).toHaveLength(2);
+    expect(duplicateIds(withSave)).toEqual([]);
+    const home = renderToStaticMarkup(
+      createElement(HomeScreen, {
+        model: homeModel({ mode: TWO_PLAYERS, takes: 2 }, DEFAULT_SETTINGS, emptyResults()),
+        settings: DEFAULT_SETTINGS,
+        onContinue: noop,
+        onPlayBot: noop,
+        onPlayTwo: noop,
+        onDifficulty: noop,
+        onHowTo: noop,
+        onResetResults: noop,
+        onSettings: noop,
+      }),
+    );
+    expect(duplicateIds(home)).toEqual([]);
+  });
+
+  it('renders a match in both modes and every end screen without duplicate ids', () => {
+    for (const mode of [normal, TWO_PLAYERS]) {
+      expect(duplicateIds(renderMatch(afterTakes(4, 4), { mode }))).toEqual([]);
+      for (const finished of Object.values(endings())) {
+        const html = renderMatch(finished, { mode });
+        expect(html).toContain('data-testid="end-screen"');
+        expect(duplicateIds(html)).toEqual([]);
+      }
+    }
+  });
+
+  it('draws no SVG defs, patterns or url(#…) fills anywhere', () => {
+    for (const html of [renderMatch(afterTakes(4, 4)), renderToStaticMarkup(createElement(App, { storage: memory() }))]) {
+      expect(html).not.toMatch(/<defs|<pattern|<linearGradient|<radialGradient|url\(#/);
+    }
+  });
+});
+
+describe('the avatars’ reactions on the match screen (PRD U9)', () => {
+  it('starts a new or resumed game with no reaction on either seat', () => {
+    for (const state of [newGame({ seed: 4, starter: 'A' }), afterTakes(4, 5)]) {
+      const html = renderMatch(state);
+      expect(html).not.toContain('data-reaction="');
+      expect(html.match(/data-reaction-key="0"/g)!.length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
+  it('shows the bot thinking on its turn', () => {
+    expect(renderMatch(newGame({ seed: 4, starter: 'B' }))).toMatch(/data-testid="seat-B"[^>]*data-expression="thinking"/);
   });
 });

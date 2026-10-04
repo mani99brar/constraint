@@ -135,13 +135,14 @@ describe('saved game (PRD L2)', () => {
     expect(clearSavedGame(throwing)).toBe(false);
     expect(loadSavedGame(null)).toBeNull();
     const html = renderToStaticMarkup(createElement(App, { storage: throwing }));
-    expect(html).toContain('New game');
+    expect(html).toContain('data-testid="play-bot"');
+    expect(html).toContain('data-testid="play-two"');
     expect(html).toContain('How to play');
     expect(html).not.toContain('Continue');
-    expect(renderToStaticMarkup(createElement(App, { storage: null }))).toContain('New game');
+    expect(renderToStaticMarkup(createElement(App, { storage: null }))).toContain('data-testid="play-bot"');
   });
 
-  it('offers Continue on the title screen when a save restores', () => {
+  it('offers Continue on the home screen when a save restores', () => {
     const storage = memoryStorage();
     saveGame(storage, state, versusBot('hard'), NO_SCORE);
     const html = renderToStaticMarkup(createElement(App, { storage }));
@@ -210,12 +211,24 @@ describe('results by difficulty (PRD E5)', () => {
   });
 });
 
-describe('settings (PRD E3, E4)', () => {
-  it('defaults to highlights and sound on, and remembers changes', () => {
+describe('settings (PRD E3, E4, S1)', () => {
+  it('defaults to highlights and sound on and the Normal bot, and remembers changes', () => {
     const storage = memoryStorage();
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true });
-    saveSettings(storage, { highlights: false, sound: false });
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: false });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, difficulty: 'normal' });
+    saveSettings(storage, { highlights: false, sound: false, difficulty: 'hard' });
+    expect(JSON.parse(storage.data.get('okiya.settings')!)).toEqual({ highlights: false, sound: false, difficulty: 'hard' });
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: false, difficulty: 'hard' });
+    saveSettings(storage, { highlights: true, sound: false, difficulty: 'easy' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, difficulty: 'easy' });
+  });
+
+  it('loads settings stored before the difficulty switch with Normal, and an unknown difficulty as Normal', () => {
+    const storage = memoryStorage();
+    // Written under the literal key the previous build used.
+    storage.data.set('okiya.settings', JSON.stringify({ highlights: false, sound: true }));
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, difficulty: 'normal' });
+    storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme' }));
+    expect(loadSettings(storage).difficulty).toBe('normal');
   });
 
   it('falls back to the defaults for corrupt values and storage that throws', () => {
@@ -223,7 +236,7 @@ describe('settings (PRD E3, E4)', () => {
     storage.data.set(SETTINGS_KEY, '{"highlights":"no"');
     expect(loadSettings(storage)).toEqual(DEFAULT_SETTINGS);
     storage.data.set(SETTINGS_KEY, '{"highlights":false,"sound":"loud"}');
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true });
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, difficulty: 'normal' });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(saveSettings(throwing, DEFAULT_SETTINGS)).toBe(false);
   });
