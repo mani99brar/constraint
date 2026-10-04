@@ -23,4 +23,12 @@ describe('Match card model (PRD I1)', () => {
       expect(matchCardModel(state)).toMatchObject({ terrain: tile.terrain, symbol: tile.symbol, cell: last, takes });
     }
   });
+
+  it('says no tile matches after a blockade, and only then', () => {
+    const blockade = handBuilt(['A', 'B', 'A'], 'B', { terrain: 'Desert', symbol: 'Star' }, { result: { kind: 'win', winner: 'A', by: 'blockade' } });
+    expect(matchCardModel(blockade)).toMatchObject({ terrain: 'Desert', symbol: 'Star', blocked: 'No tile matches Desert–Star', label: 'No tile matches Desert–Star' });
+    expect(matchCardModel(handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' })).blocked).toBeNull();
+    const line = handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' }, { result: { kind: 'win', winner: 'A', by: 'line', cells: ['A1', 'A2', 'A3', 'A4'] } });
+    expect(matchCardModel(line).blocked).toBeNull();
+  });
 });

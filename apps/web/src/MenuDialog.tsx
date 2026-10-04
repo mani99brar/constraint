@@ -27,10 +27,17 @@ export interface MenuDialogProps {
   readonly onHowTo?: ((opener: HTMLElement) => void) | undefined;
   /** Present during a game: back to the title screen; the saved game is kept. */
   readonly onQuit?: (() => void) | undefined;
+  /** Present on the home screen: sets the results by difficulty back to zero. */
+  readonly onResetResults?: (() => void) | undefined;
+  /** Whether the reset is enabled: once a bot game was counted. */
+  readonly canReset?: boolean;
 }
 
-/** The menu (PRD U4): resume, How to Play, the highlight and sound settings, and quit to title. */
-export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit }: MenuDialogProps) {
+/**
+ * The menu (PRD U4, E3, E5): resume, How to Play, the highlight, tile-name and sound settings, and quit
+ * to title; on the home screen, as Settings, it also holds the reset of the results.
+ */
+export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
   return (
     <Dialog titleId="menu-title" className="menu-dialog" testId="menu" onClose={onClose} returnFocusTo={returnFocusTo} initialFocus={first}>
@@ -55,6 +62,13 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
             onToggle={() => onSettings({ ...settings, highlights: !settings.highlights })}
           />
           <Switch
+            label="Tile names"
+            testId="setting-tile-names"
+            on={settings.tileNames}
+            hint="Shows every tile's name on it. Otherwise a name shows on hover, on focus or when you hold a tile."
+            onToggle={() => onSettings({ ...settings, tileNames: !settings.tileNames })}
+          />
+          <Switch
             label="Sound"
             testId="setting-sound"
             on={settings.sound}
@@ -62,6 +76,14 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
             onToggle={() => onSettings({ ...settings, sound: !settings.sound })}
           />
         </section>
+        {onResetResults && (
+          <div className="setting">
+            <button type="button" data-testid="reset-results" disabled={!canReset} onClick={onResetResults}>
+              Reset results
+            </button>
+            <span className="help">Sets your wins, losses and draws against the bot back to zero.</span>
+          </div>
+        )}
         {onQuit && (
           <button type="button" data-testid="menu-quit" onClick={onQuit}>
             Quit to title

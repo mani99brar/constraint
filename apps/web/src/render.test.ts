@@ -22,8 +22,8 @@ function decode(html: string): string {
 
 const normal = versusBot('normal');
 
-const renderMatch = (state: GameState, { mode = normal, highlights = true, score = NO_SCORE }: { mode?: GameMode; highlights?: boolean; score?: Score } = {}) =>
-  decode(renderToStaticMarkup(createElement(MatchScreen, { initialState: state, mode, score, settings: { ...DEFAULT_SETTINGS, highlights }, onPlayAgain: () => {}, onLeave: () => {} })));
+const renderMatch = (state: GameState, { mode = normal, highlights = true, tileNames = false, score = NO_SCORE }: { mode?: GameMode; highlights?: boolean; tileNames?: boolean; score?: Score } = {}) =>
+  decode(renderToStaticMarkup(createElement(MatchScreen, { initialState: state, mode, score, settings: { ...DEFAULT_SETTINGS, highlights, tileNames }, onPlayAgain: () => {}, onLeave: () => {} })));
 
 describe('the match screen (PRD U1, U2, §5.8)', () => {
   const state = afterTakes(4, 4);
@@ -38,7 +38,12 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     }
     const bar = /<header class="top-bar"[\s\S]*?<\/header>/.exec(html)![0];
     expect(bar.match(/<button/g)).toHaveLength(1);
-    expect(bar).toContain('data-testid="match-card"');
+    expect(bar).toContain('data-testid="menu-button"');
+    expect(bar).not.toContain('data-testid="match-card"');
+    // The score of the sitting shows once, as one line; the seats have no Wins of their own.
+    expect(html.match(/data-testid="sitting-score"/g)).toHaveLength(1);
+    expect(html).not.toMatch(/>Wins</);
+    expect(html).not.toContain('seat-A-score');
     for (const heading of ['Log', 'Last actions', 'Status', 'Settings', 'Legend']) expect(html).not.toMatch(new RegExp(`<h[1-6][^>]*>${heading}</h`));
   });
 
@@ -54,6 +59,11 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(html.match(/role="gridcell"/g)).toHaveLength(16);
     for (const view of model.cells) expect(html).toContain(`aria-label="${view.label}"`);
     expect(html.match(/data-glow="true"/g)).toHaveLength(legalTakes(state).length);
+    expect(html.match(/data-faded="true"/g)).toHaveLength(16 - 4 - legalTakes(state).length);
+    // Each free tile carries its name on a plate the stylesheet shows on demand, read out by the cell's name only.
+    expect(html.match(/class="tile-name" aria-hidden="true"/g)).toHaveLength(12);
+    expect(html).toContain('data-names="false"');
+    expect(renderMatch(state, { tileNames: true })).toContain('data-names="true"');
     expect(html.match(/data-last="true"/g)).toHaveLength(1);
     expect(html.match(/data-testid="token"/g)).toHaveLength(4);
     expect(html).toContain('aria-label="6 of 8 tokens left"');
@@ -93,6 +103,7 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
 
   it('makes nothing glow with highlights off', () => {
     expect(renderMatch(state, { highlights: false })).not.toContain('data-glow="true"');
+    expect(renderMatch(state, { highlights: false })).not.toContain('data-faded="true"');
     expect(renderMatch(state, { highlights: false })).not.toContain('data-glow-player');
   });
 
@@ -103,7 +114,19 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
       expect(ended).toContain(`data-by="${by}"`);
       expect(ended).toMatch(mode === normal ? /data-testid="result">(You win|The bot wins|Draw)/ : /data-testid="result">(Player [12] wins|Draw)/);
       expect(ended).toContain('Play again');
-      expect(ended).toContain('Title screen');
+      expect(ended).toContain('>Home</button>');
+      // The result card's buttons come first, so they sit in the same places in every ending.
+      expect(ended).toMatch(/data-testid="end-screen"[^>]*><div class="button-row end-buttons"><button[^>]*data-testid="play-again"/);
+      // The board plays the end sequence from the end model's marks.
+      expect(ended).toContain(`data-end-kind="${by === 'full-board' ? 'draw' : by === 'blockade' ? 'blockade' : 'shape'}"`);
+      expect(ended).toContain('data-end-skipped="false"');
+      if (by === 'line' || by === 'square') {
+        expect(ended.match(/data-end="lift"/g)).toHaveLength(4);
+        expect(ended.match(/data-end="dim"/g)).toHaveLength(12);
+        for (const order of [0, 1, 2, 3]) expect(ended).toContain(`data-lift-order="${order}"`);
+      }
+      if (by === 'blockade') expect(ended).toContain('data-testid="match-card-blocked">No tile matches');
+      expect(ended).not.toContain('data-faded="true"');
       expect(ended).not.toContain('data-kind="end"');
       expect(ended.match(/data-winning="true"/g) ?? []).toHaveLength(by === 'line' || by === 'square' ? 4 : 0);
       expect(ended.includes('data-testid="win-stroke"')).toBe(by === 'line' || by === 'square');
@@ -137,15 +160,15 @@ describe('no duplicate id attributes (PRD U1: CSS-only materials need no ids)', 
     saveGame(storage, afterTakes(4, 3), normal, NO_SCORE);
     const withSave = renderToStaticMarkup(createElement(App, { storage }));
     expect(withSave).toContain('data-testid="continue"');
-    expect(withSave.match(/ id="[^"]*replaces"/g)).toHaveLength(2);
+    expect(withSave.match(/ id="[^"]*replaces"/g)).toHaveLength(1);
     expect(duplicateIds(withSave)).toEqual([]);
     const home = renderToStaticMarkup(
       createElement(HomeScreen, {
         model: homeModel({ mode: TWO_PLAYERS, takes: 2 }, DEFAULT_SETTINGS, emptyResults()),
         settings: DEFAULT_SETTINGS,
         onContinue: noop,
-        onPlayBot: noop,
-        onPlayTwo: noop,
+        onPlay: noop,
+        onOpponent: noop,
         onDifficulty: noop,
         onHowTo: noop,
         onResetResults: noop,

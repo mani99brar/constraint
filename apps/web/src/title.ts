@@ -4,9 +4,6 @@
  */
 export const TITLE = 'Constraint';
 
-/** One line under the title on the title screen. */
-export const TAGLINE = 'Take a tile that matches the last one. Four in a row, a square or a blockade wins.';
-
 /** The placeholder `index.html` uses for the title; the Vite config replaces it with `TITLE`. */
 export const TITLE_PLACEHOLDER = '%GAME_TITLE%';
 

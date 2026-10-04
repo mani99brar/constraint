@@ -25,8 +25,8 @@ export interface AppProps {
 }
 
 /**
- * The published game (PRD §5.7, §5.8): the home screen, where one tap on Play starts a bot game at the
- * remembered difficulty or a two-player game, the game with the score of its sitting, How to Play, the
+ * The published game (PRD §5.7, §5.8): the home screen, where one tap on Play starts the game its play
+ * panel shows, a bot game at the remembered difficulty or a two-player game, the game with the score of its sitting, How to Play, the
  * remembered settings, the saved game and the results by difficulty.
  */
 export function App({ storage: given }: AppProps) {
@@ -61,6 +61,7 @@ export function App({ storage: given }: AppProps) {
   }, [sound]);
 
   function changeSettings(next: Settings) {
+    settingsRef.current = next;
     setSettings(next);
     saveSettings(storage, next);
   }
@@ -141,8 +142,11 @@ export function App({ storage: given }: AppProps) {
             setScore(current.score);
             play(current.state, current.mode);
           }}
-          onPlayBot={(difficulty) => newGame(versusBot(difficulty))}
-          onPlayTwo={() => newGame(TWO_PLAYERS)}
+          onPlay={() => {
+            const { opponent, difficulty } = settingsRef.current;
+            newGame(opponent === 'bot' ? versusBot(difficulty) : TWO_PLAYERS);
+          }}
+          onOpponent={(opponent) => changeSettings({ ...settingsRef.current, opponent })}
           onDifficulty={(difficulty) => changeSettings({ ...settingsRef.current, difficulty })}
           onHowTo={(opener) => setHowTo({ opener })}
           onResetResults={() => setResults(resetResults(storage))}

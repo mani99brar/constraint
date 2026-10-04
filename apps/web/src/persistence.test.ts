@@ -135,11 +135,11 @@ describe('saved game (PRD L2)', () => {
     expect(clearSavedGame(throwing)).toBe(false);
     expect(loadSavedGame(null)).toBeNull();
     const html = renderToStaticMarkup(createElement(App, { storage: throwing }));
-    expect(html).toContain('data-testid="play-bot"');
-    expect(html).toContain('data-testid="play-two"');
+    expect(html).toContain('data-testid="play"');
+    expect(html).toContain('Play · Normal bot');
     expect(html).toContain('How to play');
     expect(html).not.toContain('Continue');
-    expect(renderToStaticMarkup(createElement(App, { storage: null }))).toContain('data-testid="play-bot"');
+    expect(renderToStaticMarkup(createElement(App, { storage: null }))).toContain('data-testid="play"');
   });
 
   it('offers Continue on the home screen when a save restores', () => {
@@ -212,23 +212,44 @@ describe('results by difficulty (PRD E5)', () => {
 });
 
 describe('settings (PRD E3, E4, S1)', () => {
-  it('defaults to highlights and sound on and the Normal bot, and remembers changes', () => {
+  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard' } as const;
+
+  it('defaults to highlights and sound on, tile names off and the Normal bot, and remembers changes', () => {
     const storage = memoryStorage();
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, difficulty: 'normal' });
-    saveSettings(storage, { highlights: false, sound: false, difficulty: 'hard' });
-    expect(JSON.parse(storage.data.get('okiya.settings')!)).toEqual({ highlights: false, sound: false, difficulty: 'hard' });
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: false, difficulty: 'hard' });
-    saveSettings(storage, { highlights: true, sound: false, difficulty: 'easy' });
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, difficulty: 'easy' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal' });
+    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal' });
+    saveSettings(storage, all);
+    expect(JSON.parse(storage.data.get('okiya.settings')!)).toEqual(all);
+    expect(loadSettings(storage)).toEqual(all);
+    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy' });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy' });
   });
 
-  it('loads settings stored before the difficulty switch with Normal, and an unknown difficulty as Normal', () => {
+  it('round-trips the opponent, the difficulty and the Tile names setting one by one', () => {
     const storage = memoryStorage();
-    // Written under the literal key the previous build used.
+    for (const opponent of ['friend', 'bot'] as const) {
+      saveSettings(storage, { ...loadSettings(storage), opponent });
+      expect(loadSettings(storage).opponent).toBe(opponent);
+    }
+    for (const difficulty of ['easy', 'hard', 'normal'] as const) {
+      saveSettings(storage, { ...loadSettings(storage), difficulty });
+      expect(loadSettings(storage).difficulty).toBe(difficulty);
+    }
+    for (const tileNames of [true, false]) {
+      saveSettings(storage, { ...loadSettings(storage), tileNames });
+      expect(loadSettings(storage).tileNames).toBe(tileNames);
+    }
+  });
+
+  it('loads settings stored by older builds as the Normal bot with tile names off, and unknown values as the defaults', () => {
+    const storage = memoryStorage();
+    // Written under the literal key the previous builds used: before the difficulty switch, and with it.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: false, sound: true }));
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, difficulty: 'normal' });
-    storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme' }));
-    expect(loadSettings(storage).difficulty).toBe('normal');
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal' });
+    storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: false, difficulty: 'hard' }));
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard' });
+    storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme', opponent: 'cat', tileNames: 'yes' }));
+    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false });
   });
 
   it('falls back to the defaults for corrupt values and storage that throws', () => {
@@ -236,7 +257,7 @@ describe('settings (PRD E3, E4, S1)', () => {
     storage.data.set(SETTINGS_KEY, '{"highlights":"no"');
     expect(loadSettings(storage)).toEqual(DEFAULT_SETTINGS);
     storage.data.set(SETTINGS_KEY, '{"highlights":false,"sound":"loud"}');
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, difficulty: 'normal' });
+    expect(loadSettings(storage)).toEqual({ ...DEFAULT_SETTINGS, highlights: false });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(saveSettings(throwing, DEFAULT_SETTINGS)).toBe(false);
   });

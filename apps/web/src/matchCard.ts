@@ -10,16 +10,21 @@ export interface MatchCardModel {
   readonly text: string;
   /** The accessible name: "Tile to match: Desert–Moon" or "Tile to match: any edge tile". */
   readonly label: string;
-  /** The cell the tile was taken from, where it flies in from; null at the opening. */
+  /** After a blockade, that no tile matches (PRD U10): "No tile matches Desert–Moon"; else null. */
+  readonly blocked: string | null;
+  /** The cell the tile was taken from; null at the opening. */
   readonly cell: CellId | null;
+  /** The number of takes, which keys the card's crossfade. */
   readonly takes: number;
 }
 
 export const OPENING_LABEL = 'Any edge tile';
 
-export function matchCardModel(state: Pick<GameState, 'lastTile' | 'takes'>): MatchCardModel {
+export function matchCardModel(state: Pick<GameState, 'lastTile' | 'takes'> & Partial<Pick<GameState, 'result'>>): MatchCardModel {
   const { lastTile, takes } = state;
   const cell = takes[takes.length - 1] ?? null;
-  if (!lastTile) return { terrain: null, symbol: null, text: OPENING_LABEL, label: 'Tile to match: any edge tile', cell, takes: takes.length };
-  return { terrain: lastTile.terrain, symbol: lastTile.symbol, text: tileName(lastTile), label: `Tile to match: ${tileName(lastTile)}`, cell, takes: takes.length };
+  if (!lastTile) return { terrain: null, symbol: null, text: OPENING_LABEL, label: 'Tile to match: any edge tile', blocked: null, cell, takes: takes.length };
+  const name = tileName(lastTile);
+  const blocked = state.result?.kind === 'win' && state.result.by === 'blockade' ? `No tile matches ${name}` : null;
+  return { terrain: lastTile.terrain, symbol: lastTile.symbol, text: name, label: blocked ?? `Tile to match: ${name}`, blocked, cell, takes: takes.length };
 }

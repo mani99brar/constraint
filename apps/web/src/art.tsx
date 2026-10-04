@@ -155,24 +155,3 @@ export function MenuIcon() {
     </svg>
   );
 }
-
-/** The game's mark: four tiles forming a 2×2 square, each with a token. */
-export function Logo({ size = 72 }: { size?: number }) {
-  return (
-    <svg aria-hidden focusable={false} viewBox="0 0 64 64" width={size} height={size} className="logo" data-testid="logo">
-      <rect x="2" y="2" width="60" height="60" rx="12" fill="var(--frame)" />
-      <rect x="8" y="8" width="23" height="23" rx="4" fill="var(--forest)" />
-      <rect x="33" y="8" width="23" height="23" rx="4" fill="var(--water)" />
-      <rect x="8" y="33" width="23" height="23" rx="4" fill="var(--mountain)" />
-      <rect x="33" y="33" width="23" height="23" rx="4" fill="var(--desert)" />
-      {[
-        [19.5, 19.5],
-        [44.5, 19.5],
-        [19.5, 44.5],
-        [44.5, 44.5],
-      ].map(([x, y]) => (
-        <circle key={`${x}-${y}`} cx={x} cy={y} r="6.5" fill="var(--p1)" stroke="var(--p1-rim)" strokeWidth="2" />
-      ))}
-    </svg>
-  );
-}

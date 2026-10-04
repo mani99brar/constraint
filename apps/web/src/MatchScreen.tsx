@@ -5,6 +5,7 @@ import { Board } from './Board';
 import { boardModel } from './boardModel';
 import { EndScreen, SittingScore } from './EndScreen';
 import { takeFeedback } from './feedback';
+import { MatchCard } from './MatchCard';
 import { matchCardModel } from './matchCard';
 import { MenuDialog } from './MenuDialog';
 import type { GameMode } from './mode';
@@ -40,8 +41,9 @@ export interface MatchScreenProps {
 }
 
 /**
- * The table (PRD U1–U3, U9, §5.8): the board with a nameplate for each player beside it, the Match card,
- * a top bar with the menu button, a fixed toast slot outside the board and the end screen under it.
+ * The table (PRD U1–U3, U9, U10, §5.8): the board with a slim nameplate for each player beside it, the
+ * score of the sitting in one line between them, the Match card, a top bar with the menu button, a fixed
+ * toast slot outside the board and, at the end, the result card beside the board (below it on a phone).
  * Every change of turn is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
@@ -62,7 +64,7 @@ export function MatchScreen(props: MatchScreenProps) {
     if (feedback.sound) sound.play(feedback.sound);
   }, [state, mode, sound, afterTake]);
 
-  const board = boardModel(state, { mode, highlights: settings.highlights });
+  const board = boardModel(state, { mode, highlights: settings.highlights, tileNames: settings.tileNames });
   // The avatars react to the last event, derived here from the takes and the refusals, never the board.
   const { event, key } = lastEvent(state, shownAtTakes, refusal);
   const [one, two] = seatModels(state, mode, score, event, key);
@@ -91,24 +93,29 @@ export function MatchScreen(props: MatchScreenProps) {
       <p className="visually-hidden" aria-live="polite" aria-atomic="true" data-testid="announcer">
         {turnAnnouncement(state, mode)}
       </p>
-      <TopBar card={matchCardModel(state)} onMenu={(opener) => setMenu({ opener })} />
-      <Seat view={one} />
+      <TopBar onMenu={(opener) => setMenu({ opener })} />
+      <div className="side side-a">
+        <Seat view={one} />
+        <MatchCard model={matchCardModel(state)} />
+      </div>
+      <SittingScore score={score} mode={mode} />
       <div className="board-area" data-testid="table">
         <Board model={board} onCellClick={tapCell} />
       </div>
-      <Seat view={two} />
-      <Toasts toasts={toasts} />
-      <SittingScore score={score} mode={mode} />
-      <EndScreen state={state} mode={mode}>
-        {onPlayAgain && (
-          <button type="button" className="primary" data-testid="play-again" onClick={() => onPlayAgain(state)}>
-            Play again
+      <div className="side side-b">
+        <Seat view={two} />
+        <EndScreen state={state} mode={mode}>
+          {onPlayAgain && (
+            <button type="button" className="primary" data-testid="play-again" onClick={() => onPlayAgain(state)}>
+              Play again
+            </button>
+          )}
+          <button type="button" data-testid="end-home" onClick={onLeave}>
+            Home
           </button>
-        )}
-        <button type="button" data-testid="end-title" onClick={onLeave}>
-          Title screen
-        </button>
-      </EndScreen>
+        </EndScreen>
+      </div>
+      <Toasts toasts={toasts} />
 
       {menu && (
         <MenuDialog

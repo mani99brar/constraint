@@ -3,17 +3,18 @@ import { TILES, type Player } from '@okiya/game';
 import { TileArt, TokenMark } from './art';
 import { Avatar } from './Avatar';
 import { DIFFICULTY_OPTIONS, type Difficulty } from './difficulty';
-import { difficultyAfterKey, REPLACES_NOTE, type HomeModel } from './home';
+import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
 import { MenuDialog } from './MenuDialog';
-import type { Settings } from './settings';
-import { TAGLINE, TITLE } from './title';
+import { OPPONENTS, type Opponent, type Settings } from './settings';
+import { TITLE } from './title';
 
 export interface HomeScreenProps {
   readonly model: HomeModel;
   readonly settings: Settings;
   readonly onContinue: () => void;
-  readonly onPlayBot: (difficulty: Difficulty) => void;
-  readonly onPlayTwo: () => void;
+  /** Starts the game the play panel shows. */
+  readonly onPlay: () => void;
+  readonly onOpponent: (opponent: Opponent) => void;
   readonly onDifficulty: (difficulty: Difficulty) => void;
   readonly onHowTo: (opener: HTMLElement) => void;
   readonly onResetResults: () => void;
@@ -47,28 +48,42 @@ function HeroBoard() {
 }
 
 /**
- * The difficulty switch (PRD S1): a radio group with one Tab stop, where the arrow keys move and select,
- * as a radio group does. The choice is remembered in the settings.
+ * A switch of a few options (PRD S1): a radio group with one Tab stop, where the arrow keys move and
+ * select, as a radio group does.
  */
-function DifficultySwitch({ value, onChange }: { value: Difficulty; onChange: (difficulty: Difficulty) => void }) {
-  const buttons = useRef(new Map<Difficulty, HTMLButtonElement>());
+function RadioSwitch<T extends string>({
+  label,
+  testId,
+  options,
+  value,
+  afterKey,
+  onChange,
+}: {
+  label: string;
+  testId: string;
+  options: readonly { readonly id: T; readonly label: string }[];
+  value: T;
+  afterKey: (current: T, key: string) => T | null;
+  onChange: (value: T) => void;
+}) {
+  const buttons = useRef(new Map<T, HTMLButtonElement>());
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    const next = difficultyAfterKey(value, event.key);
+    const next = afterKey(value, event.key);
     if (!next) return;
     event.preventDefault();
     onChange(next);
     buttons.current.get(next)?.focus();
   }
   return (
-    <div className="difficulty-switch" role="radiogroup" aria-label="Bot difficulty" data-testid="difficulty-switch" data-value={value}>
-      {DIFFICULTY_OPTIONS.map(({ id, label }) => (
+    <div className="radio-switch" role="radiogroup" aria-label={label} data-testid={testId} data-value={value} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+      {options.map(({ id, label: text }) => (
         <button
           key={id}
           type="button"
           role="radio"
           aria-checked={id === value}
           tabIndex={id === value ? 0 : -1}
-          data-difficulty={id}
+          data-option={id}
           ref={(element) => {
             if (element) buttons.current.set(id, element);
             else buttons.current.delete(id);
@@ -76,7 +91,7 @@ function DifficultySwitch({ value, onChange }: { value: Difficulty; onChange: (d
           onClick={() => onChange(id)}
           onKeyDown={onKeyDown}
         >
-          {label}
+          {text}
         </button>
       ))}
     </div>
@@ -85,24 +100,21 @@ function DifficultySwitch({ value, onChange }: { value: Difficulty; onChange: (d
 
 /**
  * The home screen (PRD S1, E1, E5): a hero with the drawn wordmark over a board in its frame and both
- * avatars, Continue for a saved game, a Versus bot card with its remembered difficulty, a Two players
- * card, a compact results strip with its reset, and How to Play and Settings. One tap on Play starts a game.
+ * avatars, Continue for a saved game, one play panel (the opponent, the bot's difficulty while the bot is
+ * chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
+ * Settings, which holds the results' reset. One tap on Play starts a game.
  */
-export function HomeScreen({ model, settings, onContinue, onPlayBot, onPlayTwo, onDifficulty, onHowTo, onResetResults, onSettings }: HomeScreenProps) {
+export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onHowTo, onResetResults, onSettings }: HomeScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
-  const difficulty = DIFFICULTY_OPTIONS.find((option) => option.id === model.difficulty)!;
   return (
     <main className="home" data-testid="home-screen">
       <header className="hero" data-testid="hero">
         <Avatar player="A" expression="to-move" testId="hero-avatar-A" />
         <div className="hero-centre">
-          <h1 className="wordmark" data-testid="title">
-            {TITLE}
-          </h1>
+          <h1 className="wordmark" data-testid="title">{TITLE}</h1>
           <HeroBoard />
         </div>
         <Avatar player="B" expression="idle" testId="hero-avatar-B" />
-        <p className="tagline material-card">{TAGLINE}</p>
       </header>
 
       {model.continueGame && (
@@ -112,73 +124,38 @@ export function HomeScreen({ model, settings, onContinue, onPlayBot, onPlayTwo, 
         </button>
       )}
 
-      <div className="play-cards">
-        <section className="play-card material-card" aria-labelledby="play-bot-title" data-testid="card-bot">
-          <h2 id="play-bot-title">Versus bot</h2>
-          <p className="card-note">You against the bot. {difficulty.description}</p>
-          <DifficultySwitch value={model.difficulty} onChange={onDifficulty} />
-          {model.replacesSaved && (
-            <p className="replaces" id="play-bot-replaces" data-testid="replaces-bot">
-              {REPLACES_NOTE}
-            </p>
-          )}
-          <button
-            type="button"
-            className="primary play"
-            data-testid="play-bot"
-            aria-describedby={model.replacesSaved ? 'play-bot-replaces' : undefined}
-            onClick={() => onPlayBot(model.difficulty)}
-          >
-            Play<span className="visually-hidden"> versus bot</span>
-          </button>
-        </section>
-        <section className="play-card material-card" aria-labelledby="play-two-title" data-testid="card-two">
-          <h2 id="play-two-title">Two players</h2>
-          <p className="card-note">Player 1 and Player 2 take turns on this device.</p>
-          {model.replacesSaved && (
-            <p className="replaces" id="play-two-replaces" data-testid="replaces-two">
-              {REPLACES_NOTE}
-            </p>
-          )}
-          <button
-            type="button"
-            className="primary play"
-            data-testid="play-two"
-            aria-describedby={model.replacesSaved ? 'play-two-replaces' : undefined}
-            onClick={onPlayTwo}
-          >
-            Play<span className="visually-hidden"> two players</span>
-          </button>
-        </section>
-      </div>
-
-      <section aria-labelledby="results-title" data-testid="results" className="results-strip material-card">
-        <h2 id="results-title">Your results against the bot</h2>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Bot</th>
-              <th scope="col">Wins</th>
-              <th scope="col">Losses</th>
-              <th scope="col">Draws</th>
-            </tr>
-          </thead>
-          <tbody>
-            {model.results.map((row) => (
-              <tr key={row.difficulty} data-difficulty={row.difficulty} data-wins={row.wins} data-losses={row.losses} data-draws={row.draws}>
-                <th scope="row">{row.label}</th>
-                <td>{row.wins}</td>
-                <td>{row.losses}</td>
-                <td>{row.draws}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button type="button" data-testid="reset-results" disabled={!model.canReset} onClick={onResetResults}>
-          Reset
-          <span className="visually-hidden"> results</span>
+      <section className="play-panel material-card" aria-label="Play" data-testid="play-panel">
+        <div className="panel-row">
+          <span className="panel-label" aria-hidden="true">
+            Opponent
+          </span>
+          <RadioSwitch label="Opponent" testId="opponent-switch" options={OPPONENTS} value={model.opponent} afterKey={opponentAfterKey} onChange={onOpponent} />
+        </div>
+        {model.showDifficulty && (
+          <div className="panel-row">
+            <span className="panel-label" aria-hidden="true">
+              Bot
+            </span>
+            <RadioSwitch label="Bot difficulty" testId="difficulty-switch" options={DIFFICULTY_OPTIONS} value={model.difficulty} afterKey={difficultyAfterKey} onChange={onDifficulty} />
+          </div>
+        )}
+        {model.replacesSaved && (
+          <p className="replaces" id="play-replaces" data-testid="replaces">
+            {REPLACES_NOTE}
+          </p>
+        )}
+        <button type="button" className="primary play" data-testid="play" aria-describedby={model.replacesSaved ? 'play-replaces' : undefined} onClick={onPlay}>
+          {model.playLabel}
         </button>
       </section>
+
+      <p className="results-line" data-testid="results">
+        <span aria-hidden="true">{model.resultsLine}</span>
+        <span className="visually-hidden">{model.resultsSpoken}</span>
+        {model.results.map((row) => (
+          <span key={row.difficulty} hidden data-difficulty={row.difficulty} data-wins={row.wins} data-losses={row.losses} data-draws={row.draws} />
+        ))}
+      </p>
 
       <nav className="home-links" aria-label="More">
         <button type="button" data-testid="open-how-to-play" onClick={(event) => onHowTo(event.currentTarget)}>
@@ -189,7 +166,17 @@ export function HomeScreen({ model, settings, onContinue, onPlayBot, onPlayTwo, 
         </button>
       </nav>
 
-      {menu && <MenuDialog title="Settings" settings={settings} onSettings={onSettings} onClose={() => setMenu(null)} returnFocusTo={menu.opener} />}
+      {menu && (
+        <MenuDialog
+          title="Settings"
+          settings={settings}
+          onSettings={onSettings}
+          onClose={() => setMenu(null)}
+          returnFocusTo={menu.opener}
+          onResetResults={onResetResults}
+          canReset={model.canReset}
+        />
+      )}
     </main>
   );
 }

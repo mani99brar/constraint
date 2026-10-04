@@ -8,6 +8,8 @@ import {
   chooseDifficulty,
   chooseTwoPlayers,
   difficultySwitch,
+  opponentSwitch,
+  playButton,
   frameStripe,
   glowing,
   lowContrastText,
@@ -98,34 +100,42 @@ async function expectDistinguishable(page: Page) {
   expect(looks[0]!.border).not.toBe(looks[1]!.border);
   expect(looks[0]!.background).not.toBe(looks[1]!.background);
 
-  // The material surfaces: felt under the table, wood grain on the frame, tiles with depth, bevelled tokens.
+  // The material surfaces: the calm ground under the table, wood grain on the frame, tiles with depth, bevelled tokens.
   const materials = await page.evaluate(() => {
     const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
     return {
-      felt: style('[data-testid="match-screen"]').backgroundImage,
+      ground: style('[data-testid="match-screen"]').backgroundImage,
       wood: style('[data-testid="board-frame"]').backgroundImage,
       woodColour: style('[data-testid="board-frame"]').backgroundColor,
-      feltColour: style('[data-testid="match-screen"]').backgroundColor,
+      groundColour: style('[data-testid="match-screen"]').backgroundColor,
       token: style('[data-testid="board"] [data-testid="token"]').backgroundImage,
     };
   });
-  expect(materials.felt).toMatch(/radial-gradient/);
+  expect(materials.ground).toMatch(/radial-gradient/);
+  expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
   expect(materials.wood).toMatch(/repeating-linear-gradient/);
   expect(materials.token).toMatch(/radial-gradient/);
-  expect(materials.woodColour).not.toBe(materials.feltColour);
+  expect(materials.woodColour).not.toBe(materials.groundColour);
+  // The tiles stand apart from the board's well, and the plates stand apart from the ground.
+  const plates = await page.evaluate(() => ['[data-testid="seat-A"]', '[data-testid="seat-B"]', '[data-testid="sitting-score"]'].map((selector) => getComputedStyle(document.querySelector(selector)!).backgroundColor));
+  for (const plate of plates) expect(plate).not.toBe(materials.groundColour);
 }
 
 /**
- * Walks the home screen, its dialogs, a bot game with both toasts and the menu, the home screen with a
- * saved game, and a two-player game with Player 2 lit to its end, checking every text for 4.5:1 against
- * its material and that the pieces stay distinguishable. Attaches the screenshot `id` in the bot game.
+ * Walks the home screen, its dialogs, a bot game with both toasts, every tile's name plate and the menu,
+ * the home screen with a saved game, and a two-player game with Player 2 lit to its end and its result
+ * card, checking every text for 4.5:1 against the worst colour behind it and that the pieces stay
+ * distinguishable. Attaches the screenshot `id` in the bot game.
  */
 async function readableThroughout(page: Page, testInfo: TestInfo, id: string) {
+  expect(await lowContrastText(page)).toEqual([]);
   await page.getByTestId('home-screen').getByRole('button', { name: 'How to play' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   expect(await lowContrastText(page)).toEqual([]);
   await page.keyboard.press('Escape');
+  // The Tile names setting on, so every free tile's name plate is checked in the game below.
   await page.getByTestId('home-screen').getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('switch', { name: 'Tile names' }).click();
   expect(await lowContrastText(page)).toEqual([]);
   await page.keyboard.press('Escape');
 
@@ -134,6 +144,8 @@ async function readableThroughout(page: Page, testInfo: TestInfo, id: string) {
   await takeGlowing(page);
   await waitForHumanTurn(page);
   await expectDistinguishable(page);
+  // Every free tile shows its name, on a plate that reads.
+  expect(await page.locator('[data-testid="board"] .tile-name').evaluateAll((plates) => plates.filter((plate) => getComputedStyle(plate).display !== 'none').length)).toBe(14);
 
   // All text meets 4.5:1 with a take toast and a refusal toast shown, and in the menu.
   await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'B')!.cell).click();
@@ -158,18 +170,20 @@ async function readableThroughout(page: Page, testInfo: TestInfo, id: string) {
   expect(await lowContrastText(page)).toEqual([]);
   for (let i = 0; i < 20 && (await page.getByTestId('end-screen').count()) === 0; i += 1) await takeGlowing(page);
   await expect(page.getByTestId('end-screen')).toBeVisible();
+  await expect(page.getByTestId('sitting-score')).toBeVisible();
   expect(await lowContrastText(page)).toEqual([]);
 }
 
 test.describe('dark colour scheme', () => {
   test.use({ colorScheme: 'dark' });
 
-  test('[scenario:dark-theme] on the home screen and in a game the board, tiles, emblems, both players’ tokens, both avatars, the materials and the lit and dimmed seats stay distinguishable and all text is readable in dark', async ({ page }, testInfo) => {
+  test('[scenario:dark-theme] on the slate ground, on the home screen and in a game, the board, tiles, emblems, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the result card and the score line included, reads at 4.5:1 in dark', async ({ page }, testInfo) => {
     await openHome(page);
-    // The dark set is in use, on its own felt.
+    // The dark set is in use, on its slate ground: dark and cool, its blue a touch above its red.
     const pageBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     const [r, g, b] = pageBackground.match(/\d+/g)!.map(Number);
     expect(r! + g! + b!).toBeLessThan(120);
+    expect(b!).toBeGreaterThanOrEqual(r!);
     await readableThroughout(page, testInfo, 'dark-theme');
   });
 });
@@ -177,14 +191,16 @@ test.describe('dark colour scheme', () => {
 test.describe('light colour scheme', () => {
   test.use({ colorScheme: 'light' });
 
-  test('[scenario:light-theme] on the home screen and in a game all text, the seat labels on lit and dimmed seats and the play cards included, meets 4.5:1, and both players’ tokens and avatars stay distinguishable in light', async ({ page }, testInfo) => {
+  test('[scenario:light-theme] on the paper ground, on the home screen and in a game, all text, the play panel, the nameplates, the name plates and the result card included, meets 4.5:1, and both players’ tokens and avatars stay distinguishable in light', async ({ page }, testInfo) => {
     await openHome(page);
-    // The light set is in use.
+    // The light set is in use, on its warm paper ground.
     const pageBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     const [r, g, b] = pageBackground.match(/\d+/g)!.map(Number);
     expect(r! + g! + b!).toBeGreaterThan(600);
-    // The play cards and the results strip are cards over the felt, each with its gradient read by the check.
-    for (const id of ['card-bot', 'card-two', 'results']) expect(await page.getByTestId(id).evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/linear-gradient/);
+    expect(r!).toBeGreaterThan(b!);
+    // The play panel is a card over the ground with its gradient read by the check; the results line sits on a solid plate.
+    expect(await page.getByTestId('play-panel').evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/linear-gradient/);
+    expect(await page.getByTestId('results').evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(pageBackground);
     await readableThroughout(page, testInfo, 'light-theme');
   });
 });
@@ -219,19 +235,34 @@ async function expectInside(page: Page, testIds: readonly string[]) {
   }
 }
 
+/** The empty band at the bottom of the screen: from the lowest visible element (the toast slot counts) to the bottom. */
+async function bottomBand(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const screen = document.querySelector('[data-testid="match-screen"]')!;
+    let lowest = 0;
+    for (const element of screen.querySelectorAll('*')) {
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      if (style.display === 'none' || style.visibility === 'hidden' || box.width === 0 || box.height === 0 || element.closest('.visually-hidden')) continue;
+      lowest = Math.max(lowest, box.bottom);
+    }
+    return window.innerHeight - lowest;
+  });
+}
+
 test.describe('phone viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('[scenario:phone-layout] at 390 × 844 the home screen fits across, the game fits with no scrolling with nameplates at most 96 px tall, Player 2 above the board and Player 1 below, the end state with a toast fits too, and every tile and button is at least 44 px', async ({ page }, testInfo) => {
+  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling, and the game fits with no scrolling and no empty band at the bottom, mid-game and with the end card shown, Player 2 above the board and Player 1 below, every tile and button at least 44 px', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const ending = nearWin('B');
     await seedSavedGame(page, ending.state, 'bot');
     await openHome(page);
 
-    // The home screen: the hero, Continue, both play cards, the results strip, How to play and Settings fit across.
-    const home = ['hero', 'title', 'hero-board', 'hero-avatar-A', 'hero-avatar-B', 'continue', 'card-bot', 'card-two', 'difficulty-switch', 'play-bot', 'play-two', 'results', 'open-how-to-play', 'open-settings'];
-    expect((await overflow(page)).x).toBeLessThanOrEqual(0);
-    await expectInsideAcross(page, home);
+    // The home screen: the hero, Continue, the play panel, the results line, How to play and Settings fit with no scrolling.
+    const home = ['hero', 'title', 'hero-board', 'hero-avatar-A', 'hero-avatar-B', 'continue', 'play-panel', 'opponent-switch', 'difficulty-switch', 'play', 'results', 'open-how-to-play', 'open-settings'];
+    expect(await overflow(page)).toEqual({ x: 0, y: 0 });
+    await expectInside(page, home);
     expect(await smallTargets(page)).toEqual([]);
     await page.getByTestId('home-screen').getByRole('button', { name: 'How to play' }).tap();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -239,22 +270,23 @@ test.describe('phone viewport', () => {
     expect(await smallTargets(page)).toEqual([]);
     await page.getByRole('button', { name: 'Close How to play' }).tap();
 
-    // A game: the whole table fits with no scrolling in either direction.
+    // A game: the whole table fits with no scrolling in either direction and no empty band at the bottom.
     await difficultySwitch(page).getByRole('radio', { name: 'Easy' }).tap();
-    await page.getByTestId('play-bot').tap();
+    await playButton(page).tap();
     await expect(board(page)).toBeVisible();
-    const fits = ['top-bar', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'board-frame', 'toasts', 'sitting-score'];
+    const fits = ['top-bar', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'sitting-score', 'board-frame', 'toasts'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
     await expectInside(page, fits);
     expect(await smallTargets(page)).toEqual([]);
     await expectNameplates(page);
+    expect(await bottomBand(page)).toBeLessThanOrEqual(48);
 
     // The frame's stripe sits on the mover's side: below the board for Player 1, above it for Player 2.
     const p1 = await seat(page, 'A').evaluate((element) => getComputedStyle(element).borderTopColor);
     expect(await frameStripe(page)).toEqual({ side: 'bottom', color: p1 });
 
     // Take a tile by touch so the last tile shows its emblems; while the bot thinks, the stripe moves above
-    // the board, and then the bot replies.
+    // the board, and then the bot replies. Mid-game with no toast, still no scrolling and no empty band.
     const before = await takeCount(page);
     await glowing(page).first().tap();
     await expect.poll(async () => (await frameStripe(page)).side, { intervals: [25], timeout: 2_000 }).toBe('top');
@@ -265,6 +297,8 @@ test.describe('phone viewport', () => {
     await expectInside(page, [...fits, 'match-card-terrain', 'match-card-symbol']);
     expect(await smallTargets(page)).toEqual([]);
     await expectNameplates(page);
+    await expect(page.getByTestId('toast')).toHaveCount(0, { timeout: 6_000 });
+    expect(await bottomBand(page)).toBeLessThanOrEqual(48);
     await attachScreenshot(page, testInfo, 'phone-layout');
 
     // The menu fits too.
@@ -273,45 +307,39 @@ test.describe('phone viewport', () => {
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
 
-    // The end state: Continue a saved game where the bot wins with its next take. The end card and the
-    // bot's take toast show, and everything still fits with no scrolling, every tile at least 44 px.
+    // The end state: Continue a saved game where the bot wins with its next take. The result card takes
+    // the toast slot's row below the board, and everything still fits with no scrolling and no empty band.
     await page.getByRole('button', { name: /^Quit to title/ }).tap();
     await page.evaluate((log) => window.localStorage.setItem('okiya.saved-match', log), JSON.stringify({ version: 3, mode: 'bot', difficulty: 'easy', score: { A: 0, B: 0, draws: 0 }, log: gameLogOfState(ending.state) }));
     await page.reload();
     await page.getByTestId('continue').tap();
     await expect(page.getByTestId('end-screen')).toBeVisible({ timeout: 11_000 });
-    await expect(takeToast(page)).toBeVisible();
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
-    await expectInside(page, ['top-bar', 'seat-A', 'seat-B', 'board-frame', 'toasts', 'sitting-score', 'end-screen', 'play-again', 'end-title']);
+    await expectInside(page, ['top-bar', 'seat-A', 'seat-B', 'sitting-score', 'board-frame', 'end-screen', 'play-again', 'end-home']);
     expect(await smallTargets(page)).toEqual([]);
     expect(await toastsOverCells(page)).toEqual([]);
+    const [frame, card, plate] = await Promise.all(['board-frame', 'end-screen', 'seat-A'].map(async (id) => (await page.getByTestId(id).boundingBox())!));
+    expect(card!.y).toBeGreaterThanOrEqual(plate!.y + plate!.height);
+    expect(card!.y).toBeGreaterThanOrEqual(frame!.y + frame!.height);
     await expectNameplates(page);
+    expect(await bottomBand(page)).toBeLessThanOrEqual(48);
   });
 });
 
-/** At most 96 px tall, Player 2's nameplate above the board and Player 1's below, the Match card and menu on top. */
+/** At most 96 px tall, Player 2's nameplate above the board and Player 1's below, the Match card and menu on top, the score between the plates. */
 async function expectNameplates(page: Page) {
   const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
-  const [card, menu, frame, top, bottom] = await Promise.all(['match-card', 'menu-button', 'board-frame', 'seat-B', 'seat-A'].map(box));
+  const [card, menu, frame, top, bottom, score] = await Promise.all(['match-card', 'menu-button', 'board-frame', 'seat-B', 'seat-A', 'sitting-score'].map(box));
   for (const plate of [top!, bottom!]) expect(plate.height).toBeLessThanOrEqual(96);
   expect(Math.abs(card!.y + card!.height / 2 - (menu!.y + menu!.height / 2))).toBeLessThan(8);
   expect(card!.x + card!.width).toBeLessThanOrEqual(menu!.x);
   expect(top!.y + top!.height).toBeLessThanOrEqual(frame!.y);
   expect(bottom!.y).toBeGreaterThanOrEqual(frame!.y + frame!.height);
   expect(card!.y + card!.height).toBeLessThanOrEqual(top!.y);
+  expect(score!.y).toBeGreaterThanOrEqual(top!.y + top!.height);
+  expect(score!.y + score!.height).toBeLessThanOrEqual(bottom!.y);
   // The nameplates' text reads the same way up.
   for (const testId of ['seat-A', 'seat-B']) expect(await page.getByTestId(testId).evaluate((element) => getComputedStyle(element).transform)).toBe('none');
-}
-
-/** Each element lies across the viewport's width, with nothing cut off at either side. */
-async function expectInsideAcross(page: Page, testIds: readonly string[]) {
-  const { width } = page.viewportSize()!;
-  for (const testId of testIds) {
-    const box = (await page.getByTestId(testId).boundingBox())!;
-    expect(box, testId).not.toBeNull();
-    expect(box.x, testId).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width, testId).toBeLessThanOrEqual(width);
-  }
 }
 
 /** Presses Tab (or Shift+Tab) until the focused element matches the selector. */
@@ -335,10 +363,10 @@ async function arrowTo(page: Page, cell: string) {
   expect(await focusedCell(page)).toBe(cell);
 }
 
-test('[scenario:keyboard-play] with the keyboard only, the player changes the difficulty switch, starts a game in each mode from the home screen, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
+test('[scenario:keyboard-play] with the keyboard only, the player switches the opponent and the difficulty, starts a game in each mode from the home screen, sees a focused tile’s name, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
   await openHome(page);
 
-  // How to Play from the title screen opens with Enter and closes with Escape.
+  // How to Play from the home screen opens with Enter and closes with Escape.
   await tabTo(page, '[data-testid="open-how-to-play"]');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog', { name: 'How to play' })).toBeVisible();
@@ -346,8 +374,22 @@ test('[scenario:keyboard-play] with the keyboard only, the player changes the di
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('open-how-to-play')).toBeFocused();
 
-  // The difficulty switch is one Tab stop, on the chosen key; the arrow keys move and select, wrapping round.
-  await tabTo(page, '[data-testid="difficulty-switch"] [role="radio"]', true);
+  // The Opponent switch is one Tab stop on the chosen key; the arrow keys move and select. A friend takes
+  // the difficulty switch off the page, and back to the bot brings it back.
+  await tabTo(page, '[data-testid="opponent-switch"] [role="radio"]', true);
+  await expect(opponentSwitch(page).getByRole('radio', { name: 'Bot' })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(opponentSwitch(page).getByRole('radio', { name: 'Friend' })).toBeFocused();
+  await expect(opponentSwitch(page).getByRole('radio', { name: 'Friend' })).toHaveAttribute('aria-checked', 'true');
+  await expect(difficultySwitch(page)).toHaveCount(0);
+  await expect(playButton(page)).toHaveText('Play · with a friend');
+  await page.keyboard.press('ArrowLeft');
+  await expect(opponentSwitch(page).getByRole('radio', { name: 'Bot' })).toHaveAttribute('aria-checked', 'true');
+  await expect(difficultySwitch(page)).toBeVisible();
+  await expect(opponentSwitch(page).locator('[role="radio"][tabindex="0"]')).toHaveCount(1);
+
+  // The difficulty switch, the next Tab stop: the arrow keys move and select, wrapping round.
+  await page.keyboard.press('Tab');
   await expect(difficultySwitch(page).getByRole('radio', { name: 'Normal' })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(difficultySwitch(page).getByRole('radio', { name: 'Hard' })).toBeFocused();
@@ -357,9 +399,10 @@ test('[scenario:keyboard-play] with the keyboard only, the player changes the di
   await expect(difficultySwitch(page).getByRole('radio', { name: 'Easy' })).toBeFocused();
   await expect(difficultySwitch(page).locator('[role="radio"][tabindex="0"]')).toHaveCount(1);
 
-  // Start a bot game at Easy: Tab to its Play, then Enter.
+  // Start a bot game at Easy: Tab to Play, then Enter.
   await page.keyboard.press('Tab');
-  await expect(page.getByTestId('play-bot')).toBeFocused();
+  await expect(playButton(page)).toBeFocused();
+  await expect(playButton(page)).toHaveText('Play · Easy bot');
   await page.keyboard.press('Enter');
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('seat-B-name')).toHaveText('Bot · Easy');
@@ -396,8 +439,22 @@ test('[scenario:keyboard-play] with the keyboard only, the player changes the di
   await page.keyboard.press('Home');
   expect(await focusedCell(page)).toBe('A1');
 
-  // Enter on an inner tile is refused; Enter on a glowing edge tile takes it.
+  // The focused tile shows its name on its plate, and only it.
   await arrowTo(page, 'B2');
+  const named = await page.locator('[data-testid="board"] [data-cell]').evaluateAll((cells) =>
+    cells.filter((cell) => cell.querySelector('.tile-name') && getComputedStyle(cell.querySelector('.tile-name')!).display !== 'none').map((cell) => [cell.getAttribute('data-cell'), cell.querySelector('.tile-name')!.textContent]),
+  );
+  const b2 = (await readBoard(page)).find((cell) => cell.cell === 'B2')!;
+  expect(named).toEqual([['B2', `${b2.terrain}–${b2.symbol}`]]);
+  // Keyboard focus keeps its own visible ring, which no glow or fade replaces.
+  const ring = await page.evaluate(() => {
+    const style = getComputedStyle(document.activeElement!);
+    return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) };
+  });
+  expect(ring.style).toBe('solid');
+  expect(ring.width).toBeGreaterThanOrEqual(2);
+
+  // Enter on an inner tile is refused; Enter on a glowing edge tile takes it.
   await page.keyboard.press('Enter');
   await expect(refusalToast(page)).toContainText('is not an edge tile');
   expect(await takeCount(page)).toBe(0);
@@ -417,14 +474,20 @@ test('[scenario:keyboard-play] with the keyboard only, the player changes the di
   await expect(cellAt(page, next)).toHaveAttribute('data-owner', 'A');
   expect(await takeCount(page)).toBeGreaterThanOrEqual(3);
 
-  // Back home through the menu, then a two-player game, where the keyboard takes for both seats.
+  // Back home through the menu, a friend chosen with the keyboard, then a two-player game, where the
+  // keyboard takes for both seats.
   await tabTo(page, '[data-testid="menu-button"]', true);
   await page.keyboard.press('Enter');
   await tabTo(page, '[data-testid="menu-quit"]');
   await page.keyboard.press('Enter');
-  await tabTo(page, '[data-testid="play-two"]');
+  await tabTo(page, '[data-testid="opponent-switch"] [role="radio"]');
+  await page.keyboard.press('ArrowRight');
+  await expect(opponentSwitch(page).getByRole('radio', { name: 'Friend' })).toHaveAttribute('aria-checked', 'true');
+  await tabTo(page, '[data-testid="play"]');
+  await expect(playButton(page)).toHaveText('Play · with a friend');
   await page.keyboard.press('Enter');
   await expect(board(page)).toBeVisible();
+  await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');
   for (const player of ['A', 'B'] as const) {
     const number = player === 'A' ? 1 : 2;
     if ((await page.getByTestId('match-screen').getAttribute('data-to-move')) !== player) continue;

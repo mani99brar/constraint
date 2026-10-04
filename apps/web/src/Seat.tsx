@@ -3,9 +3,10 @@ import { TokenMark } from './art';
 import type { SeatView } from './seats';
 
 /**
- * One seat's nameplate beside the board (PRD U2, I3, U9): the avatar with its face and reaction, the
- * name, the token mark, the tokens left out of 8 and the score of the sitting. The seat to move is lit
- * in its player's colour and labelled; the other is dimmed. Compact on a phone. Not interactive.
+ * One seat's slim nameplate (PRD U2, I3, U9): the avatar with its face and reaction, the name with its
+ * status, the token mark and the tokens left out of 8. The seat to move is lit in its player's colour and
+ * labelled; the other is dimmed. The score of the sitting is not here: it is one line between the plates.
+ * Not interactive.
  */
 export function Seat({ view }: { view: SeatView }) {
   const { player, number } = view;
@@ -31,23 +32,14 @@ export function Seat({ view }: { view: SeatView }) {
           {view.status}
         </p>
       </div>
-      <dl className="seat-stats">
-        <div className="seat-tokens" data-testid={`seat-${player}-tokens`}>
-          <dt>
-            <span className={`count-token p${number}`} aria-hidden="true">
-              <TokenMark player={player} />
-            </span>
-            <span className="visually-hidden">Tokens left</span>
-          </dt>
-          <dd aria-label={view.tokensLabel}>
-            {view.tokensLeft}/{view.tokensTotal}
-          </dd>
-        </div>
-        <div className="seat-score" data-testid={`seat-${player}-score`}>
-          <dt>Wins</dt>
-          <dd>{view.score}</dd>
-        </div>
-      </dl>
+      <p className="seat-tokens" data-testid={`seat-${player}-tokens`}>
+        <span className={`count-token p${number}`} aria-hidden="true">
+          <TokenMark player={player} />
+        </span>
+        <span aria-label={view.tokensLabel}>
+          {view.tokensLeft}/{view.tokensTotal}
+        </span>
+      </p>
     </section>
   );
 }

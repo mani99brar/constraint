@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CELLS, EDGE_CELLS, legalTakes, LINES, newGame, SQUARES, tileAt, tokenAt, type GameState } from '@okiya/game';
 import { boardModel } from './boardModel';
 import { TWO_PLAYERS, versusBot } from './mode';
-import { afterTakes, endings } from './playouts.test-helper';
+import { afterTakes, endings, handBuilt } from './playouts.test-helper';
 import { tileName } from './text';
 
 const bot = versusBot('normal');
@@ -120,5 +120,81 @@ describe('board model (PRD U1, R2, I2, R4, U7)', () => {
     expect(state.result?.by).toBe(by);
     expect(boardModel(state, on).cells.some((view) => view.winning)).toBe(false);
     expect(boardModel(state, on).winningShape).toBeNull();
+  });
+
+  describe('the legal-tile look (PRD R2, I2, E3)', () => {
+    // Hand-built states on one board: three tokens, the last tile Water–Sun, and the player to move.
+    const lastTile = { terrain: 'Water', symbol: 'Sun' } as const;
+    const tokens = ['A', null, 'B', null, null, 'A'] as const;
+
+    it.each([
+      ['a bot game, your turn', bot, 'A'],
+      ['a two-player game, Player 1 to move', TWO_PLAYERS, 'A'],
+      ['a two-player game, Player 2 to move', TWO_PLAYERS, 'B'],
+    ] as const)('in %s, marks the legal tiles to glow, the other free tiles to fade, and washes in the mover’s colour', (_name, mode, mover) => {
+      const state = handBuilt(tokens, mover, lastTile);
+      const legal = legalTakes(state);
+      expect(legal.length).toBeGreaterThan(0);
+      const model = boardModel(state, { mode, highlights: true });
+      expect(model.cells.filter((view) => view.glow).map((view) => view.cell)).toEqual(legal);
+      const free = model.cells.filter((view) => view.token === null);
+      expect(model.cells.filter((view) => view.faded).map((view) => view.cell)).toEqual(free.filter((view) => !legal.includes(view.cell)).map((view) => view.cell));
+      expect(model.cells.filter((view) => view.faded).length).toBeGreaterThan(0);
+      // Taken cells never fade or glow; a cell never both glows and fades.
+      for (const view of model.cells) {
+        if (view.token !== null) expect([view.faded, view.glow]).toEqual([false, false]);
+        expect(view.glow && view.faded).toBe(false);
+      }
+      expect(model.wash).toBe(mover);
+      // The last take is the last cell in `takes` of the hand-built state.
+      expect(model.cells.filter((view) => view.last).map((view) => view.cell)).toEqual([state.takes[state.takes.length - 1]]);
+    });
+
+    it('fades, lifts and washes nothing with highlights off, in both modes', () => {
+      for (const [mode, mover] of [
+        [bot, 'A'],
+        [TWO_PLAYERS, 'B'],
+      ] as const) {
+        const model = boardModel(handBuilt(tokens, mover, lastTile), { mode, highlights: false });
+        expect(model.cells.some((view) => view.glow || view.faded)).toBe(false);
+        expect(model.wash).toBeNull();
+        expect(model.cells.filter((view) => view.last)).toHaveLength(1);
+      }
+    });
+
+    it('fades, lifts and washes nothing while the bot chooses, so the board stays still on its turn', () => {
+      const model = boardModel(handBuilt(tokens, 'B', lastTile), on);
+      expect(model.acceptsTakes).toBe(false);
+      expect(model.cells.some((view) => view.glow || view.faded)).toBe(false);
+      expect(model.wash).toBeNull();
+      expect(model.active).toBe('B');
+    });
+
+    it('fades nothing at the end of a game, in either mode', () => {
+      for (const finished of Object.values(endings())) {
+        for (const options of [on, pair]) {
+          const model = boardModel(finished, options);
+          expect(model.cells.some((view) => view.glow || view.faded)).toBe(false);
+          expect(model.wash).toBeNull();
+          expect(model.end).not.toBeNull();
+        }
+      }
+    });
+
+    it('names every free cell by its tile and keeps a taken cell’s name to its token', () => {
+      const state = handBuilt(tokens, 'A', lastTile);
+      const model = boardModel(state, on);
+      for (const view of model.cells) {
+        if (view.token === null) expect(view.label).toContain(tileName(view.tile));
+        else expect(view.label).not.toContain(tileName(view.tile));
+      }
+      expect(model.cells[0]!.label).toBe('A1, your token');
+    });
+
+    it('carries the Tile names setting, off by default', () => {
+      const state = handBuilt(tokens, 'A', lastTile);
+      expect(boardModel(state, on).names).toBe(false);
+      expect(boardModel(state, { ...on, tileNames: true }).names).toBe(true);
+    });
   });
 });

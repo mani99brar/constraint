@@ -3,6 +3,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   attachScreenshot,
+  boardSpacing,
   BOT_REPLY_MS,
   cellAt,
   glowing,
@@ -10,6 +11,7 @@ import {
   legalFromPage,
   match,
   nearWin,
+  playButton,
   readBoard,
   recordedLooks,
   recordReactions,
@@ -184,8 +186,11 @@ async function readMaterials(page: Page) {
     const everything = [...document.querySelectorAll('*')];
     const ids = everything.map((element) => element.id).filter((id) => id !== '');
     return {
-      felt: table.backgroundImage,
-      feltColour: table.backgroundColor,
+      ground: table.backgroundImage,
+      groundColour: table.backgroundColor,
+      bodyGround: style(document.body).backgroundImage,
+      groundSize: table.backgroundSize,
+      overlays: ['::before', '::after'].map((pseudo) => getComputedStyle(document.querySelector('[data-testid="match-screen"]')!, pseudo).content),
       wood: frame.backgroundImage,
       woodColour: frame.backgroundColor,
       tile: { colour: style(tile).backgroundColor, shadows: shadows(style(tile).boxShadow), filter: style(tile).filter },
@@ -199,12 +204,19 @@ async function readMaterials(page: Page) {
 }
 
 function expectMaterials(materials: Awaited<ReturnType<typeof readMaterials>>) {
-  // Felt: soft radial light over the table's colour, with a fine repeating weave.
-  expect(materials.felt).toMatch(/radial-gradient/);
-  expect(materials.felt).toMatch(/repeating-linear-gradient/);
+  // The calm ground: solid paper or slate under radial layers only (grain dots, one glow, a vignette),
+  // no felt and no repeating or directional pattern, on the screen itself with nothing laid over it.
+  expect(materials.ground).toMatch(/radial-gradient/);
+  expect(materials.ground).not.toMatch(/repeating-|linear-gradient|conic-gradient/);
+  expect(materials.ground.match(/radial-gradient/g)!.length).toBe(4);
+  expect(materials.bodyGround).toBe(materials.ground);
+  expect(materials.groundColour).toMatch(/^rgb\(/);
+  expect(materials.overlays).toEqual(['none', 'none']);
+  // The grain tiles at two co-prime sizes; the glow and the vignette cover the screen.
+  expect(materials.groundSize).toBe('5px 5px, 7px 7px, 100% 100%, 100% 100%');
   // Wood: a repeating grain across the frame over its solid colour.
   expect(materials.wood).toMatch(/^repeating-linear-gradient/);
-  expect(materials.woodColour).not.toBe(materials.feltColour);
+  expect(materials.woodColour).not.toBe(materials.groundColour);
   // Tiles: an edge (inset shadows) and depth (an outer shadow), and no filter on a cell.
   expect(materials.tile.shadows.filter((shadow) => shadow.endsWith('inset')).length).toBeGreaterThanOrEqual(1);
   expect(materials.tile.shadows.filter((shadow) => !shadow.endsWith('inset')).length).toBeGreaterThanOrEqual(1);
@@ -231,7 +243,7 @@ function expectMaterials(materials: Awaited<ReturnType<typeof readMaterials>>) {
   expect(materials.duplicateIds).toEqual([]);
 }
 
-test('[scenario:table-materials] the table shows felt, a wood-grain frame, tiles with an edge and depth, bevelled tokens with their marks and shaded avatars, wide and at 390 × 844, with no blur and no duplicate ids; a placed token drops inside its cell and takes no taps', async ({ page }, testInfo) => {
+test('[scenario:table-materials] the board shows separate raised tiles 10 to 14 percent of a tile apart with the same padding, bevelled tokens with their marks and shaded avatars over a calm ground with no felt or pattern, wide and at 390 × 844, with no blur and no duplicate ids; a placed token drops inside its cell and takes no taps', async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   await startTwoPlayerGame(page, { seed: HUMAN_STARTS });
 
@@ -297,15 +309,29 @@ test('[scenario:table-materials] the table shows felt, a wood-grain frame, tiles
   await page.evaluate(() => document.querySelectorAll('[data-testid="token"]').forEach((token) => token.getAnimations().forEach((animation) => animation.finish())));
   await page.emulateMedia({ reducedMotion: 'reduce' });
 
-  // The materials at the default wide viewport.
+  // The materials and the spacing at the default wide viewport.
   expectMaterials(await readMaterials(page));
+  expectSpacing(await boardSpacing(page));
   await attachScreenshot(page, testInfo, 'table-materials');
 
-  // And at 390 × 844.
+  // And at 390 × 844, where every tile stays at least 44 px.
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(seat(page, 'B')).toBeVisible();
   expectMaterials(await readMaterials(page));
+  const phone = await boardSpacing(page);
+  expectSpacing(phone);
+  expect(phone.tile).toBeGreaterThanOrEqual(44);
 });
+
+/** Tiles 10 to 14 percent of a tile apart, across and down, with the same padding round them on the board. */
+function expectSpacing(spacing: Awaited<ReturnType<typeof boardSpacing>>) {
+  expect(Math.abs(spacing.tile - spacing.tileHeight)).toBeLessThan(1);
+  for (const gap of [spacing.across, spacing.down, ...spacing.padding]) {
+    expect(gap).toBeGreaterThanOrEqual(0.1);
+    expect(gap).toBeLessThanOrEqual(0.14);
+  }
+  for (const padding of spacing.padding) expect(Math.abs(padding - spacing.across)).toBeLessThan(0.01);
+}
 
 /** The board frame's position on the page. */
 async function frameBox(page: Page) {
@@ -357,7 +383,7 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
-  await page.getByTestId('play-bot').click();
+  await playButton(page).click();
   await expect(match(page)).toHaveAttribute('data-takes', /^[01]$/);
   await checkToastsBesideBoard(page, '390 × 844');
   // Nothing on the phone layout scrolls to fit them.

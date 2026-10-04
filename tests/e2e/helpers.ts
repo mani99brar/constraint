@@ -76,24 +76,38 @@ export async function openHome(page: Page, seed: number = HUMAN_STARTS) {
   await expect(page.getByTestId('home-screen')).toBeVisible();
 }
 
-/** The home screen's difficulty switch. */
+/** The home screen's difficulty switch, on the page only while the bot is chosen. */
 export const difficultySwitch = (page: Page) => page.getByTestId('difficulty-switch');
+/** The home screen's Opponent switch. */
+export const opponentSwitch = (page: Page) => page.getByTestId('opponent-switch');
+/** The play panel's one Play button. */
+export const playButton = (page: Page) => page.getByTestId('play');
+
+/** From the home screen: chooses the bot as the opponent. */
+export async function chooseBot(page: Page) {
+  await opponentSwitch(page).getByRole('radio', { name: 'Bot' }).click();
+  await expect(difficultySwitch(page)).toBeVisible();
+}
 
 /**
- * From the home screen: the difficulty on the Versus bot card's switch (never Hard in tests), then one
- * tap on its Play; the board appears.
+ * From the home screen: the bot at a difficulty (never Hard in tests) on the play panel, then one tap on
+ * its Play; the board appears.
  */
 export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal' = 'Easy') {
+  await chooseBot(page);
   await difficultySwitch(page).getByRole('radio', { name: difficulty }).click();
   await expect(difficultySwitch(page).getByRole('radio', { name: difficulty })).toHaveAttribute('aria-checked', 'true');
-  await page.getByTestId('play-bot').click();
+  await expect(playButton(page)).toHaveText(`Play · ${difficulty} bot`);
+  await playButton(page).click();
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'bot');
 }
 
-/** From the home screen: one tap on the Two players card's Play; the board appears at once. */
+/** From the home screen: a friend as the opponent, then one tap on Play; the board appears at once. */
 export async function chooseTwoPlayers(page: Page) {
-  await page.getByTestId('play-two').click();
+  await opponentSwitch(page).getByRole('radio', { name: 'Friend' }).click();
+  await expect(playButton(page)).toHaveText('Play · with a friend');
+  await playButton(page).click();
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');
 }
@@ -110,28 +124,48 @@ export async function startTwoPlayerGame(page: Page, { seed = HUMAN_STARTS }: { 
   await chooseTwoPlayers(page);
 }
 
+export type Ending = 'shape' | 'blockade' | 'draw';
+
 /**
- * A real game one take before a win by a line or a square for `mover`, who is to move: its state and
- * the winning cells, found by deterministic playouts with the engine.
+ * A real game one take before it ends, with the player to move making the ending take: a win by a line
+ * or a square (`shape`), a blockade or the full-board draw, for `mover` (a draw for whoever is to move).
+ * Found by deterministic playouts with the engine; `ends` lists the takes that end it, and no other take
+ * would end it another way, so a bot that takes an immediate win still ends it the wanted way.
  */
-export function nearWin(mover: Player): { state: GameState; wins: CellId[] } {
-  for (let seed = 1; seed < 5000; seed += 1) {
-    let state = newGame({ seed, starter: 'A' });
-    while (!state.result) {
-      const legal = legalTakes(state);
-      if (state.toMove === mover && state.takes.length >= 7) {
-        const wins = legal.filter((cell) => {
-          const next = take(state, cell);
-          return next.ok && next.state.result?.kind === 'win' && next.state.result.by !== 'blockade';
-        });
-        if (wins.length > 0) return { state, wins };
+export function nearEnding(ending: Ending, mover: Player = 'B'): { state: GameState; ends: CellId[] } {
+  const kind = (state: GameState): Ending | null => {
+    const { result } = state;
+    if (!result) return null;
+    if (result.kind === 'draw') return 'draw';
+    return result.by === 'blockade' ? 'blockade' : 'shape';
+  };
+  for (let seed = 1; seed < 20_000; seed += 1) {
+    for (const stride of [5, 3]) {
+      let state = newGame({ seed, starter: 'A' });
+      while (!state.result) {
+        const legal = legalTakes(state);
+        if ((ending === 'draw' || state.toMove === mover) && state.takes.length >= 6) {
+          const outcomes = legal.map((cell) => {
+            const next = take(state, cell);
+            return { cell, kind: next.ok ? kind(next.state) : null };
+          });
+          const ends = outcomes.filter((outcome) => outcome.kind === ending).map((outcome) => outcome.cell);
+          // Every ending take ends the game the wanted way, so a bot with a choice still ends it so.
+          if (ends.length > 0 && outcomes.every((outcome) => outcome.kind === null || outcome.kind === ending)) return { state, ends };
+        }
+        const next = take(state, legal[(seed + state.takes.length * stride) % legal.length]!);
+        if (!next.ok) throw new Error('a legal take was refused');
+        state = next.state;
       }
-      const next = take(state, legal[(seed + state.takes.length * 5) % legal.length]!);
-      if (!next.ok) throw new Error('a legal take was refused');
-      state = next.state;
     }
   }
-  throw new Error('no game near a win was found');
+  throw new Error(`no game near a ${ending} was found`);
+}
+
+/** A real game one take before a win by a line or a square for `mover`, who is to move. */
+export function nearWin(mover: Player): { state: GameState; wins: CellId[] } {
+  const { state, ends } = nearEnding('shape', mover);
+  return { state, wins: ends };
 }
 
 /**
@@ -251,11 +285,11 @@ export async function frameStripe(page: Page): Promise<{ side: 'left' | 'right' 
 }
 
 /**
- * With motion on, the state of the Match card's tile right after a take (PRD U8): whether it is flying
- * in, its start offset, whether it takes taps (the element hit at its own centre is inside it), and the
- * centre of a glowing cell to tap next.
+ * The Match card's tile right after a take (PRD U8): whether it carries any animation other than its
+ * short crossfade, its crossfade's duration, whether it takes taps (the element hit at its own centre is
+ * inside it), and the centre of a glowing cell to tap next.
  */
-export async function matchTileFlight(page: Page) {
+export async function matchTileNow(page: Page) {
   return page.evaluate(() => {
     const tile = document.querySelector('[data-testid="match-card"] .match-tile');
     const glow = document.querySelector('[data-testid="board"] [data-cell][data-glow="true"]');
@@ -264,11 +298,45 @@ export async function matchTileFlight(page: Page) {
     const target = glow.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
     return {
-      arriving: tile.classList.contains('arriving'),
-      animation: getComputedStyle(tile).animationName,
-      fromX: getComputedStyle(tile).getPropertyValue('--from-x').trim(),
+      animations: getComputedStyle(tile).animationName.split(',').map((name) => name.trim()),
+      duration: getComputedStyle(tile).animationDuration,
+      transform: getComputedStyle(tile).transform,
       takesTaps: hit !== null && tile.contains(hit),
       next: { cell: glow.getAttribute('data-cell')!, x: target.left + target.width / 2, y: target.top + target.height / 2 },
+    };
+  });
+}
+
+/** Every pair of an element and a board cell whose boxes overlap; empty when it covers no cell. */
+export async function overCells(page: Page, testId: string): Promise<string[]> {
+  return page.evaluate((id) => {
+    const element = document.querySelector(`[data-testid="${id}"]`);
+    if (!element) return [];
+    const box = element.getBoundingClientRect();
+    return [...document.querySelectorAll('[data-testid="board"] [data-cell]')]
+      .filter((cell) => {
+        const other = cell.getBoundingClientRect();
+        return box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom;
+      })
+      .map((cell) => cell.getAttribute('data-cell')!);
+  }, testId);
+}
+
+/**
+ * The board's spacing as the page lays it out: the tile size, the gaps between neighbouring tiles across
+ * and down, and the padding between the board's edges and the outer tiles, each as a share of a tile.
+ */
+export async function boardSpacing(page: Page) {
+  return page.evaluate(() => {
+    const board = document.querySelector('[data-testid="board"]')!.getBoundingClientRect();
+    const slots = [...document.querySelectorAll('[data-testid="board"] [role="gridcell"]')].map((slot) => slot.getBoundingClientRect());
+    const tile = slots[0]!.width;
+    return {
+      tile,
+      tileHeight: slots[0]!.height,
+      across: (slots[1]!.left - slots[0]!.right) / tile,
+      down: (slots[4]!.top - slots[0]!.bottom) / tile,
+      padding: [slots[0]!.left - board.left, slots[0]!.top - board.top, board.right - slots[15]!.right, board.bottom - slots[15]!.bottom].map((gap) => gap / tile),
     };
   });
 }
