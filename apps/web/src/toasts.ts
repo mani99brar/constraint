@@ -7,17 +7,22 @@ export type ToastKind = 'refusal' | 'take';
 export interface ToastSpec {
   readonly kind: ToastKind;
   readonly text: string;
+  /**
+   * The one-line form a phone shows, chosen by the kind of notice, never by measuring text ("Bot took
+   * D3", "Edge tiles only at the start"); the full text stays in the page for screen readers.
+   */
+  readonly short: string;
   /** Alerts are about something that went against the player. */
   readonly tone: 'info' | 'alert';
 }
 
-export function refusalToast(reason: string): ToastSpec {
-  return { kind: 'refusal', text: reason, tone: 'alert' };
+export function refusalToast(reason: string, short: string = reason): ToastSpec {
+  return { kind: 'refusal', text: reason, short, tone: 'alert' };
 }
 
-/** The other side's take, for example "Bot took D3, Desert–Star". */
-export function takeToast(text: string): ToastSpec {
-  return { kind: 'take', text, tone: 'info' };
+/** The other side's take, for example "Bot took D3, Desert–Star", or "Bot took D3" on a phone. */
+export function takeToast(text: string, short: string = text): ToastSpec {
+  return { kind: 'take', text, short, tone: 'info' };
 }
 
 /** How long a toast stays, the fade at its end (under 400 ms, PRD U8) and how many show at once. */
@@ -82,6 +87,15 @@ export function visibleToasts(queue: ToastQueue, now: number): { readonly toast:
   return queue.items
     .filter((item) => item.shownAt !== null)
     .map((toast) => ({ toast, leaving: now >= toast.shownAt! + TOAST_MS - FADE_MS }));
+}
+
+/**
+ * The one toast a phone shows in the gap under the board (PRD U3, U6): a refusal outranks a take, and the
+ * newest of a kind replaces an older one. Null when no toast is up.
+ */
+export function phoneToast(visible: readonly { readonly toast: QueuedToast }[]): number | null {
+  const newest = (items: readonly { readonly toast: QueuedToast }[]) => (items.length === 0 ? null : items.reduce((a, b) => (b.toast.id > a.toast.id ? b : a)).toast.id);
+  return newest(visible.filter(({ toast }) => toast.kind === 'refusal')) ?? newest(visible);
 }
 
 /** The next moment the queue changes on its own (a fade starts or a toast leaves), or null. */

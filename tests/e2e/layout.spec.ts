@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 // The DOM library types the callbacks that run in the page (page.evaluate).
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import type { PaletteId } from '../../apps/web/src/theme';
 import {
   attachScreenshot,
   board,
@@ -10,10 +11,14 @@ import {
   difficultySwitch,
   opponentSwitch,
   playButton,
-  frameStripe,
   glowing,
   lowContrastText,
+  nearEnding,
   nearWin,
+  continueSaved,
+  PALETTES,
+  seededPosition,
+  setPalette,
   openHome,
   seedSavedGame,
   gameLogOfState,
@@ -116,9 +121,11 @@ async function expectDistinguishable(page: Page) {
   expect(materials.wood).toMatch(/repeating-linear-gradient/);
   expect(materials.token).toMatch(/radial-gradient/);
   expect(materials.woodColour).not.toBe(materials.groundColour);
-  // The tiles stand apart from the board's well, and the plates stand apart from the ground.
-  const plates = await page.evaluate(() => ['[data-testid="seat-A"]', '[data-testid="seat-B"]', '[data-testid="sitting-score"]'].map((selector) => getComputedStyle(document.querySelector(selector)!).backgroundColor));
+  // The tiles stand apart from the board's well, and the plates and the scoreboard stand apart from the ground.
+  const plates = await page.evaluate(() => ['[data-testid="seat-A"]', '[data-testid="seat-B"]', '[data-testid="score-A"]', '[data-testid="score-B"]', '[data-testid="match-card"]'].map((selector) => getComputedStyle(document.querySelector(selector)!).backgroundColor));
   for (const plate of plates) expect(plate).not.toBe(materials.groundColour);
+  const well = await board(page).evaluate((element) => getComputedStyle(element).backgroundColor);
+  for (const cell of byTerrain.values()) expect(cell.colour).not.toBe(well);
 }
 
 /**
@@ -170,38 +177,85 @@ async function readableThroughout(page: Page, testInfo: TestInfo, id: string) {
   expect(await lowContrastText(page)).toEqual([]);
   for (let i = 0; i < 20 && (await page.getByTestId('end-screen').count()) === 0; i += 1) await takeGlowing(page);
   await expect(page.getByTestId('end-screen')).toBeVisible();
-  await expect(page.getByTestId('sitting-score')).toBeVisible();
+  await expect(page.getByTestId('scoreboard')).toBeVisible();
   expect(await lowContrastText(page)).toEqual([]);
+}
+
+/** The page ground's channels, for telling a light ground from a dark one. */
+async function groundChannels(page: Page) {
+  return (await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).match(/\d+/g)!.slice(0, 3).map(Number) as [number, number, number];
+}
+
+/**
+ * The other colour themes on seeded positions, switched in place rather than replayed: the home screen and
+ * Settings, a bot game after two takes with tile names on (a refusal toast and the menu shown), and a
+ * two-player game's end with its result card, each read for 4.5:1 and the pieces kept distinguishable.
+ */
+async function readableInPalette(page: Page, palette: PaletteId, scheme: 'light' | 'dark') {
+  const where = `${palette} ${scheme}`;
+  await continueSaved(page, seededPosition(2), 'bot');
+  await setPalette(page, palette);
+  const [r, g, b] = await groundChannels(page);
+  if (scheme === 'dark') expect(r + g + b, where).toBeLessThan(120);
+  else expect(r + g + b, where).toBeGreaterThan(600);
+  expect(await lowContrastText(page), where).toEqual([]);
+  await expectDistinguishable(page);
+  await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'B')!.cell).click();
+  await expect(refusalToast(page)).toBeVisible();
+  expect(await lowContrastText(page), where).toEqual([]);
+  await page.getByTestId('menu-button').click();
+  await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
+  expect(await lowContrastText(page), where).toEqual([]);
+  await page.getByRole('button', { name: /^Quit to title/ }).click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  expect(await lowContrastText(page), where).toEqual([]);
+  await page.getByTestId('open-settings').click();
+  expect(await lowContrastText(page), where).toEqual([]);
+  await page.keyboard.press('Escape');
+  // A two-player game's end, Player 2 lit before the ending take.
+  const { state, ends } = nearEnding('shape', 'B');
+  await continueSaved(page, state, 'two-player');
+  await setPalette(page, palette);
+  await expect(seat(page, 'B')).toHaveAttribute('data-lit', 'true');
+  expect(await lowContrastText(page), where).toEqual([]);
+  await cellAt(page, ends[0]!).click();
+  await expect(page.getByTestId('end-screen')).toBeVisible();
+  expect(await lowContrastText(page), where).toEqual([]);
 }
 
 test.describe('dark colour scheme', () => {
   test.use({ colorScheme: 'dark' });
 
-  test('[scenario:dark-theme] on the slate ground, on the home screen and in a game, the board, tiles, emblems, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the result card and the score line included, reads at 4.5:1 in dark', async ({ page }, testInfo) => {
+  test('[scenario:dark-theme] for each colour theme in dark, on the home screen and in a game, the ground, board, tiles, emblems, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the scoreboard and the result card included, reads at 4.5:1', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
     await openHome(page);
-    // The dark set is in use, on its slate ground: dark and cool, its blue a touch above its red.
-    const pageBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    const [r, g, b] = pageBackground.match(/\d+/g)!.map(Number);
-    expect(r! + g! + b!).toBeLessThan(120);
-    expect(b!).toBeGreaterThanOrEqual(r!);
+    // The default theme's dark set is in use, on its warm charcoal ground.
+    await expect(page.locator('html')).toHaveAttribute('data-palette', 'walnut');
+    const [r, g, b] = await groundChannels(page);
+    expect(r + g + b).toBeLessThan(120);
+    expect(r).toBeGreaterThanOrEqual(b);
     await readableThroughout(page, testInfo, 'dark-theme');
+    for (const palette of PALETTES.filter((id) => id !== 'walnut')) await readableInPalette(page, palette, 'dark');
   });
 });
 
 test.describe('light colour scheme', () => {
   test.use({ colorScheme: 'light' });
 
-  test('[scenario:light-theme] on the paper ground, on the home screen and in a game, all text, the play panel, the nameplates, the name plates and the result card included, meets 4.5:1, and both players’ tokens and avatars stay distinguishable in light', async ({ page }, testInfo) => {
+  test('[scenario:light-theme] for each colour theme in light, on the home screen and in a game, all text, the play panel, the nameplates, the scoreboard, the name plates and the result card included, meets 4.5:1, and both players’ tokens and avatars stay distinguishable', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
     await openHome(page);
-    // The light set is in use, on its warm paper ground.
+    // The default theme's light set is in use, on its parchment ground.
+    await expect(page.locator('html')).toHaveAttribute('data-palette', 'walnut');
     const pageBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    const [r, g, b] = pageBackground.match(/\d+/g)!.map(Number);
-    expect(r! + g! + b!).toBeGreaterThan(600);
-    expect(r!).toBeGreaterThan(b!);
+    const [r, g, b] = await groundChannels(page);
+    expect(r + g + b).toBeGreaterThan(600);
+    expect(r).toBeGreaterThan(b);
     // The play panel is a card over the ground with its gradient read by the check; the results line sits on a solid plate.
     expect(await page.getByTestId('play-panel').evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/linear-gradient/);
     expect(await page.getByTestId('results').evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(pageBackground);
     await readableThroughout(page, testInfo, 'light-theme');
+    for (const palette of PALETTES.filter((id) => id !== 'walnut')) await readableInPalette(page, palette, 'light');
   });
 });
 
@@ -235,25 +289,50 @@ async function expectInside(page: Page, testIds: readonly string[]) {
   }
 }
 
-/** The empty band at the bottom of the screen: from the lowest visible element (the toast slot counts) to the bottom. */
-async function bottomBand(page: Page): Promise<number> {
+/**
+ * The empty strips across the game's column, mid-game: between consecutive elements that paint something
+ * (text, a background, a border or a drawing; a transparent wrapper or an empty toast slot is not content),
+ * the top and the bottom of the screen included. Returns their heights, top first, and the bottom one.
+ */
+async function emptyStrips(page: Page): Promise<{ strips: number[]; bottom: number }> {
   return page.evaluate(() => {
     const screen = document.querySelector('[data-testid="match-screen"]')!;
-    let lowest = 0;
-    for (const element of screen.querySelectorAll('*')) {
+    const paints = (element: Element) => {
       const style = getComputedStyle(element);
       const box = element.getBoundingClientRect();
-      if (style.display === 'none' || style.visibility === 'hidden' || box.width === 0 || box.height === 0 || element.closest('.visually-hidden')) continue;
-      lowest = Math.max(lowest, box.bottom);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 || box.width === 0 || box.height === 0 || element.closest('.visually-hidden')) return false;
+      const text = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent!.trim() !== '');
+      const background = style.backgroundColor !== 'rgba(0, 0, 0, 0)' || style.backgroundImage !== 'none';
+      const border = parseFloat(style.borderTopWidth) > 0 && style.borderTopStyle !== 'none';
+      return text || background || border || element instanceof SVGElement;
+    };
+    const spans = [...screen.querySelectorAll('*')]
+      .filter(paints)
+      .map((element) => element.getBoundingClientRect())
+      .map((box) => [Math.max(0, box.top), Math.min(window.innerHeight, box.bottom)] as const)
+      .sort((a, b) => a[0] - b[0]);
+    const strips: number[] = [];
+    let reached = 0;
+    for (const [top, bottom] of spans) {
+      if (top > reached) strips.push(top - reached);
+      reached = Math.max(reached, bottom);
     }
-    return window.innerHeight - lowest;
+    strips.push(window.innerHeight - reached);
+    return { strips, bottom: window.innerHeight - reached };
   });
+}
+
+/** Mid-game with no toast: no empty strip over 56 px anywhere in the column, and at most 48 px at the bottom. */
+async function expectNoEmptyBand(page: Page) {
+  const { strips, bottom } = await emptyStrips(page);
+  expect(Math.max(...strips), JSON.stringify(strips)).toBeLessThanOrEqual(56);
+  expect(bottom).toBeLessThanOrEqual(48);
 }
 
 test.describe('phone viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling, and the game fits with no scrolling and no empty band at the bottom, mid-game and with the end card shown, Player 2 above the board and Player 1 below, every tile and button at least 44 px', async ({ page }, testInfo) => {
+  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling; in the game the scoreboard row is the top row with the menu at its end, Player 2 above the board and Player 1 below, no empty strip over 56 px and at most 48 px at the bottom mid-game, no scrolling mid-game or with the end card shown, every tile and button at least 44 px', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const ending = nearWin('B');
     await seedSavedGame(page, ending.state, 'bot');
@@ -274,22 +353,20 @@ test.describe('phone viewport', () => {
     await difficultySwitch(page).getByRole('radio', { name: 'Easy' }).tap();
     await playButton(page).tap();
     await expect(board(page)).toBeVisible();
-    const fits = ['top-bar', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'sitting-score', 'board-frame', 'toasts'];
+    const fits = ['top-bar', 'scoreboard', 'score-A', 'score-B', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'board-frame'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
     await expectInside(page, fits);
     expect(await smallTargets(page)).toEqual([]);
     await expectNameplates(page);
-    expect(await bottomBand(page)).toBeLessThanOrEqual(48);
+    await expectNoEmptyBand(page);
+    // The height went to the elements: about 80 px avatars and a 64 px Match card.
+    expect((await page.getByTestId('avatar-A').boundingBox())!.width).toBeGreaterThanOrEqual(76);
+    expect((await page.getByTestId('match-card').boundingBox())!.height).toBeCloseTo(64, 0);
 
-    // The frame's stripe sits on the mover's side: below the board for Player 1, above it for Player 2.
-    const p1 = await seat(page, 'A').evaluate((element) => getComputedStyle(element).borderTopColor);
-    expect(await frameStripe(page)).toEqual({ side: 'bottom', color: p1 });
-
-    // Take a tile by touch so the last tile shows its emblems; while the bot thinks, the stripe moves above
-    // the board, and then the bot replies. Mid-game with no toast, still no scrolling and no empty band.
+    // Take a tile by touch so the last tile shows its emblems, and the bot replies. Mid-game with no toast,
+    // still no scrolling and no empty band.
     const before = await takeCount(page);
     await glowing(page).first().tap();
-    await expect.poll(async () => (await frameStripe(page)).side, { intervals: [25], timeout: 2_000 }).toBe('top');
     await expect.poll(() => takeCount(page)).toBeGreaterThan(before);
     await waitForHumanTurn(page);
     await expect(page.getByTestId('match-card-terrain')).toBeVisible();
@@ -298,7 +375,7 @@ test.describe('phone viewport', () => {
     expect(await smallTargets(page)).toEqual([]);
     await expectNameplates(page);
     await expect(page.getByTestId('toast')).toHaveCount(0, { timeout: 6_000 });
-    expect(await bottomBand(page)).toBeLessThanOrEqual(48);
+    await expectNoEmptyBand(page);
     await attachScreenshot(page, testInfo, 'phone-layout');
 
     // The menu fits too.
@@ -307,37 +384,47 @@ test.describe('phone viewport', () => {
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
 
-    // The end state: Continue a saved game where the bot wins with its next take. The result card takes
-    // the toast slot's row below the board, and everything still fits with no scrolling and no empty band.
+    // The end state: Continue a saved game where the bot wins with its next take. The board shrinks and the
+    // result card sits under Player 1's nameplate, and everything fits with no scrolling and no toast.
     await page.getByRole('button', { name: /^Quit to title/ }).tap();
     await page.evaluate((log) => window.localStorage.setItem('okiya.saved-match', log), JSON.stringify({ version: 3, mode: 'bot', difficulty: 'easy', score: { A: 0, B: 0, draws: 0 }, log: gameLogOfState(ending.state) }));
     await page.reload();
     await page.getByTestId('continue').tap();
     await expect(page.getByTestId('end-screen')).toBeVisible({ timeout: 11_000 });
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
-    await expectInside(page, ['top-bar', 'seat-A', 'seat-B', 'sitting-score', 'board-frame', 'end-screen', 'play-again', 'end-home']);
+    await expectInside(page, ['top-bar', 'seat-A', 'seat-B', 'scoreboard', 'board-frame', 'end-screen', 'play-again', 'end-home', 'result', 'result-detail']);
     expect(await smallTargets(page)).toEqual([]);
     expect(await toastsOverCells(page)).toEqual([]);
+    await expect(page.getByTestId('toasts')).toBeHidden();
     const [frame, card, plate] = await Promise.all(['board-frame', 'end-screen', 'seat-A'].map(async (id) => (await page.getByTestId(id).boundingBox())!));
     expect(card!.y).toBeGreaterThanOrEqual(plate!.y + plate!.height);
     expect(card!.y).toBeGreaterThanOrEqual(frame!.y + frame!.height);
     await expectNameplates(page);
-    expect(await bottomBand(page)).toBeLessThanOrEqual(48);
+    expect((await emptyStrips(page)).bottom).toBeLessThanOrEqual(48);
+
+    // On a shorter phone the ended board stops at 44 px tiles; once the shrink is over the column may
+    // scroll, so Play again and Home stay reachable.
+    await expect(page.getByTestId('match-screen')).not.toHaveAttribute('data-end-shrinking', /.*/);
+    await page.setViewportSize({ width: 375, height: 667 });
+    expect(await smallTargets(page)).toEqual([]);
+    for (const id of ['play-again', 'end-home']) {
+      await page.getByTestId(id).scrollIntoViewIfNeeded();
+      await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 });
+    }
   });
 });
 
-/** At most 96 px tall, Player 2's nameplate above the board and Player 1's below, the Match card and menu on top, the score between the plates. */
+/** The phone's rows: the scoreboard row on top with the menu at its end, Player 2's nameplate, the board, Player 1's nameplate, the plates at most 96 px. */
 async function expectNameplates(page: Page) {
   const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
-  const [card, menu, frame, top, bottom, score] = await Promise.all(['match-card', 'menu-button', 'board-frame', 'seat-B', 'seat-A', 'sitting-score'].map(box));
+  const [row, card, menu, frame, top, bottom] = await Promise.all(['scoreboard', 'match-card', 'menu-button', 'board-frame', 'seat-B', 'seat-A'].map(box));
   for (const plate of [top!, bottom!]) expect(plate.height).toBeLessThanOrEqual(96);
+  expect(menu!.x).toBeGreaterThanOrEqual(row!.x + row!.width);
   expect(Math.abs(card!.y + card!.height / 2 - (menu!.y + menu!.height / 2))).toBeLessThan(8);
-  expect(card!.x + card!.width).toBeLessThanOrEqual(menu!.x);
+  expect(row!.y + row!.height).toBeLessThanOrEqual(top!.y);
+  expect(menu!.y + menu!.height).toBeLessThanOrEqual(top!.y);
   expect(top!.y + top!.height).toBeLessThanOrEqual(frame!.y);
   expect(bottom!.y).toBeGreaterThanOrEqual(frame!.y + frame!.height);
-  expect(card!.y + card!.height).toBeLessThanOrEqual(top!.y);
-  expect(score!.y).toBeGreaterThanOrEqual(top!.y + top!.height);
-  expect(score!.y + score!.height).toBeLessThanOrEqual(bottom!.y);
   // The nameplates' text reads the same way up.
   for (const testId of ['seat-A', 'seat-B']) expect(await page.getByTestId(testId).evaluate((element) => getComputedStyle(element).transform)).toBe('none');
 }
@@ -363,7 +450,7 @@ async function arrowTo(page: Page, cell: string) {
   expect(await focusedCell(page)).toBe(cell);
 }
 
-test('[scenario:keyboard-play] with the keyboard only, the player switches the opponent and the difficulty, starts a game in each mode from the home screen, sees a focused tile’s name, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
+test('[scenario:keyboard-play] with the keyboard only, the player switches the opponent and the difficulty, starts a game in each mode from the home screen, changes the colour theme in the menu, sees a focused tile’s name, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
   await openHome(page);
 
   // How to Play from the home screen opens with Enter and closes with Escape.
@@ -413,6 +500,22 @@ test('[scenario:keyboard-play] with the keyboard only, the player switches the o
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
   await expect(page.getByTestId('menu-resume')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('menu-button')).toBeFocused();
+
+  // The colour theme in the menu: one Tab stop on the chosen theme, the arrow keys choose, at once.
+  await page.keyboard.press('Enter');
+  const themes = page.getByRole('dialog', { name: 'Menu' }).getByRole('radiogroup', { name: 'Theme' });
+  await tabTo(page, '[data-testid="setting-palette"] [role="radio"]');
+  await expect(themes.getByRole('radio', { name: 'Walnut' })).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(themes.getByRole('radio', { name: 'Sea glass' })).toBeFocused();
+  await expect(themes.getByRole('radio', { name: 'Sea glass' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'seaglass');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'walnut');
+  await expect(themes.locator('[role="radio"][tabindex="0"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('menu-button')).toBeFocused();

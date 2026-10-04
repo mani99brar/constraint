@@ -60,6 +60,11 @@ export function App({ storage: given }: AppProps) {
     };
   }, [sound]);
 
+  useEffect(() => {
+    // The colour theme (PRD U5): index.html sets it before the first paint; a new choice applies at once.
+    document.documentElement.setAttribute('data-palette', settings.palette);
+  }, [settings.palette]);
+
   function changeSettings(next: Settings) {
     settingsRef.current = next;
     setSettings(next);

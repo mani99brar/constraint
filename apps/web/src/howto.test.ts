@@ -8,6 +8,7 @@ import {
   DIAGRAM_BOARD,
   DIAGRAM_START,
   diagramCells,
+  diagramMover,
   diagramState,
   DIAGRAMS,
   HOWTO_SEEN_KEY,
@@ -170,5 +171,14 @@ describe('How to Play focus (PRD U7, E2)', () => {
     expect(restoreFocus({ isConnected: false, focus: () => void focused.push('gone') })).toBe(false);
     expect(restoreFocus(null)).toBe(false);
     expect(focused).toEqual(['opener']);
+  });
+});
+
+describe('the diagrams’ glow (PRD R2)', () => {
+  it('glows in the colour of the diagram’s player to move: Player 2 after the matching example’s three takes', () => {
+    expect(diagramMover(DIAGRAMS.matching)).toBe('B');
+    expect(diagramMover(DIAGRAMS.opening)).toBe('A');
+    const html = renderToStaticMarkup(createElement(HowToPlay, { onClose: () => {}, returnFocusTo: null }));
+    expect(html).toMatch(/class="mini-board"[^>]*data-glow-player="B"/);
   });
 });

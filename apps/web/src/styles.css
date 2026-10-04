@@ -1,4 +1,5 @@
-/* Colours come only from the theme tokens of theme.ts (light and dark, following the system). */
+/* Colours come only from the theme tokens of theme.ts: three colour themes under :root[data-palette], each
+   light or dark following the system. */
 
 /* A calm table (PRD U1): a quiet ground of warm paper (light) or slate ink (dark) with one soft glow
    behind the board, a gentle vignette and a static grain of 3% at most, drawn as background layers of the
@@ -353,23 +354,34 @@ button:disabled {
   gap: 10px;
 }
 
-/* The game (PRD U1, U2, U10, §5.8). On wide screens Player 1's nameplate and the Match card sit left of
-   the board, Player 2's nameplate and, at the end, the result card right of it, the score of the sitting
-   in one line above the board, the menu in the corner and the toasts' fixed slot under the board, sized
-   for two, so no toast covers a tile and the board never moves (PRD U3). On a phone the Match card and the
-   menu share the top row, then Player 2's nameplate, the score, the board and Player 1's nameplate, then
-   the toast slot, which the result card takes once the game has ended; spare height is spread evenly. */
+/* The game (PRD U1, U2, U10, §5.8). On wide screens the scoreboard row spans the top (Player 1's score,
+   the Match card at the top centre and Player 2's score), Player 1's nameplate sits left of the board,
+   Player 2's nameplate and, at the end, the result card right of it, the menu in the corner and the
+   toasts' fixed room under the board, sized for two, so no toast covers a tile and the board never moves
+   (PRD U3). On a phone the scoreboard row with the menu at its end is the top row, then Player 2's
+   nameplate, the board and Player 1's nameplate, with the spare height spread evenly between them. The
+   board's size is one registered length, --board-size, which the board's whole drawing reads, so tiles,
+   gaps, labels and the win stroke keep their proportions whatever it is. */
+
+@property --board-size {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
 
 .match {
   --seat: clamp(200px, 21vw, 270px);
-  --slot: 88px;
-  --chrome: calc(var(--slot) + 104px);
-  --board: min(100vw - 2 * var(--seat) - 72px, 100dvh - var(--chrome), 640px);
+  --toast-room: 88px;
+  --score-row: 64px;
+  --chrome: calc(var(--toast-room) + var(--score-row) + 40px);
+  --board-size: min(100vw - 2 * var(--seat) - 72px, 100dvh - var(--chrome), 640px);
+  --board: var(--board-size);
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  grid-template-rows: auto auto var(--slot);
+  grid-template-rows: var(--score-row) auto var(--toast-room);
   grid-template-areas:
-    '.      score  menu'
+    'score  score  score'
     'sideA  board  sideB'
     'toasts toasts toasts';
   align-content: center;
@@ -381,9 +393,9 @@ button:disabled {
 }
 
 .top-bar {
-  grid-area: menu;
-  justify-self: end;
-  align-self: start;
+  position: absolute;
+  top: 10px;
+  right: 16px;
   display: flex;
 }
 
@@ -427,18 +439,75 @@ button:disabled {
   position: relative;
 }
 
-/* The score of the sitting: one line on its own plate, never on the ground. */
-.sitting-score {
+/* The scoreboard row (PRD U2, I1, P3): each seat's wins in its player's colour with its token mark, on a
+   card either side of the Match card, and the draws small on their own plate under it. The row has one
+   fixed height: the draws line keeps its place, hidden, at zero. */
+.scoreboard {
   grid-area: score;
+  justify-self: center;
+  align-self: start;
+  display: grid;
+  grid-template-columns: auto minmax(0, auto) auto;
+  align-items: start;
+  gap: 12px;
+  max-width: 100%;
+  height: var(--score-row);
+}
+
+.score-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--card-height, 46px);
   margin: 0;
-  padding: 3px 14px;
+  padding: 0 14px 0 8px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background-color: var(--surface);
-  color: var(--text);
-  font-size: 0.92rem;
-  font-weight: 700;
+  background-image: linear-gradient(170deg, var(--surface) 35%, var(--surface-2));
+  font-size: 1.45rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+  box-shadow: 2px 4px 10px color-mix(in srgb, var(--shade) 12%, transparent);
+}
+
+.score-p1 {
+  color: var(--p1);
+}
+
+.score-p2 {
+  color: var(--p2);
+}
+
+.score-centre {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.score-draws {
+  margin: 0;
+  padding: 0 8px;
+  height: 16px;
+  border-radius: 999px;
+  background-color: var(--surface);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* No draws yet: the line keeps its place, so the row never changes height. */
+.score-draws.empty {
+  visibility: hidden;
+}
+
+.score-draws.empty::before {
+  content: '\00a0';
 }
 
 /* Slim nameplates (PRD U2, I3): the avatar, the name over its status, and the tokens left. The seat to
@@ -447,10 +516,13 @@ button:disabled {
 .seat {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'avatar name   tokens'
+    'avatar status status';
   align-items: center;
-  gap: 0 10px;
+  gap: 2px clamp(6px, 0.8vw, 10px);
   width: var(--seat);
-  padding: 5px 12px 5px 5px;
+  padding: 5px clamp(8px, 0.9vw, 12px) 5px 5px;
   border-radius: 999px;
   border: 2px solid var(--border);
   background-color: var(--surface-2);
@@ -486,8 +558,10 @@ button:disabled {
     2px 5px 12px color-mix(in srgb, var(--shade) 18%, transparent);
 }
 
+/* The avatar shrinks on narrow wide layouts, so the status keeps one line. */
 .seat .avatar {
-  width: 52px;
+  grid-area: avatar;
+  width: clamp(40px, 4.2vw, 52px);
 }
 
 /* The avatar's disc: lit from the top left. */
@@ -592,13 +666,9 @@ button:disabled {
   }
 }
 
-.seat-info {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
 .seat-name {
+  grid-area: name;
+  min-width: 0;
   margin: 0;
   font-size: 1rem;
   white-space: nowrap;
@@ -606,9 +676,13 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
+/* The status: one line that never wraps and is never clipped, with the plate's full text width. */
 .seat-status {
+  grid-area: status;
   justify-self: start;
+  max-width: 100%;
   margin: 0;
+  white-space: nowrap;
   padding: 1px 8px;
   border-radius: 999px;
   font-size: 0.8rem;
@@ -638,6 +712,7 @@ button:disabled {
 }
 
 .seat-tokens {
+  grid-area: tokens;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -672,20 +747,24 @@ button:disabled {
 /* The Match card (PRD I1): the tile to match with its scene, emblem and names. A new tile and its names
    change in place with a crossfade under 200 ms (PRD U8); nothing flies in. */
 
+/* One size in every turn, sized for the longest names and the blockade's sentence, so the scores beside
+   it never move. */
 .match-card {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: min(100%, var(--seat));
-  padding: 8px 14px 8px 8px;
-  border-radius: 16px;
+  gap: 10px;
+  width: 18rem;
+  height: var(--card-height, 46px);
+  max-width: 100%;
+  padding: 4px 14px 4px 4px;
+  border-radius: 12px;
 }
 
 .match-tile-slot {
   position: relative;
   display: block;
-  width: 60px;
-  height: 60px;
+  width: calc(var(--card-height, 46px) - 10px);
+  height: calc(var(--card-height, 46px) - 10px);
   flex: none;
   border-radius: 10px;
   background-color: var(--slot);
@@ -729,7 +808,8 @@ button:disabled {
 
 .match-heading {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.66rem;
+  line-height: 1.1;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -737,9 +817,20 @@ button:disabled {
 
 .match-names {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 2px 12px;
   font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* A blockade's sentence; a phone shows its short form in the card's fixed names area. */
+.match-blocked {
+  font-size: 0.85rem;
+}
+
+.match-blocked .short-form {
+  display: none;
 }
 
 .match-blocked {
@@ -754,8 +845,8 @@ button:disabled {
 
 .match-name .glyph,
 .match-name .emblem-svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
 }
 
 /* A tile drawn anywhere: the board, the Match card, How to Play and the home screen. Its terrain colour
@@ -794,8 +885,9 @@ button:disabled {
 }
 
 /* The board (PRD U1): separate raised tiles in a wooden frame. The tiles have a gap of 12% of a tile
-   between them and the same padding round them on the board; the A–D and 1–4 labels sit in a band of the
-   frame outside that padding. The frame is --board wide: its band, its border, then the board, whose width
+   between them and the same padding round them on the board's well, its own pale tone of the ground in
+   the light themes and a dark one in the dark themes; the wood is the outer frame only. The A–D and 1–4
+   labels sit in a band of the frame outside that padding. The frame is --board wide: its band, its border, then the board, whose width
    is four tiles and five gaps, so a gap is 0.12 / 4.6 of it. */
 
 .board-frame {
@@ -866,8 +958,8 @@ button:disabled {
   gap: var(--gap);
   padding: var(--gap);
   border-radius: 12px;
-  background-color: var(--frame-edge);
-  box-shadow: inset 0 2px 6px color-mix(in srgb, var(--shade) 45%, transparent);
+  background-color: var(--well);
+  box-shadow: inset 0 1px 3px color-mix(in srgb, var(--shade) 30%, transparent);
 }
 
 .board-row {
@@ -898,7 +990,7 @@ button:disabled {
     inset 0 2px 0 color-mix(in srgb, var(--shine) 45%, transparent),
     inset 0 -4px 0 color-mix(in srgb, var(--shade) 18%, transparent),
     0 3px 0 color-mix(in srgb, var(--shade) 45%, transparent),
-    1px 5px 7px color-mix(in srgb, var(--shade) 30%, transparent);
+    0 6px 5px -3px color-mix(in srgb, var(--shade) 30%, transparent);
   transition: translate 160ms ease, box-shadow 160ms ease;
 }
 
@@ -919,7 +1011,8 @@ button:disabled {
 }
 
 /* The tile's art layer: the scene and the emblem, or the token, with two layers over them that never hold
-   text: the wash (::before) and the veil (::after). The name plate sits above the whole layer. */
+   text: the tint and ring (::before) and the veil (::after), and over those the mover's badge. The name
+   plate sits above the whole layer. */
 .tile-face {
   position: absolute;
   inset: 0;
@@ -934,6 +1027,7 @@ button:disabled {
   position: absolute;
   inset: 0;
   z-index: 2;
+  border-radius: inherit;
   pointer-events: none;
 }
 
@@ -988,37 +1082,134 @@ button:disabled {
   display: flex;
 }
 
-/* Legal tiles (PRD R2): with highlights on, a legal tile keeps its full brightness, lifts slightly and
-   carries a light wash of the mover's colour; the other free tiles fade back under a veil of the ground.
-   No outline and no border marks either, and a taken cell never fades. The cell's name says "legal take". */
-
-.board {
-  --wash: var(--legal);
-}
+/* Legal tiles (PRD R2): with highlights on and a person to move, the legal tiles pop up one after another
+   when the turn starts and stay raised with a soft halo of the mover's colour (reaching a third of the
+   gap at most, so bare well shows between tiles), a 3 px ring in it (the cell's border and the tint
+   layer's inset edge), a tint of 30% of it inside the art and a corner badge with the mover's token mark;
+   the other free tiles fade back under a veil of the ground, never by opacity, and a taken cell never
+   fades. The pop: two identical keyframes, picked by the turn's parity on the board's data-pop-turn, so
+   every turn restarts it, even for a tile that stays legal, while a re-render never does; one static delay
+   per data-pop-order, 16 ms apart, the parity rules setting only the name; and no transition on a glowing
+   cell, so the pop alone owns the lift and fills backwards while a tile waits its turn. */
 
 .board[data-glow-player='A'] {
   --wash: var(--p1);
+  --on-wash: var(--on-p1);
 }
 
 .board[data-glow-player='B'] {
   --wash: var(--p2);
+  --on-wash: var(--on-p2);
 }
 
 .cell[data-glow='true'] {
   translate: 0 -3px;
+  border-color: var(--wash);
   box-shadow:
-    inset 0 2px 0 color-mix(in srgb, var(--shine) 55%, transparent),
-    inset 0 -4px 0 color-mix(in srgb, var(--shade) 18%, transparent),
+    0 0 calc(var(--gap) / 6) calc(var(--gap) / 6) color-mix(in srgb, var(--wash) 45%, transparent),
     0 5px 0 color-mix(in srgb, var(--shade) 40%, transparent),
-    2px 9px 12px color-mix(in srgb, var(--shade) 32%, transparent);
+    0 9px 7px -5px color-mix(in srgb, var(--shade) 32%, transparent);
+  transition: none;
+  animation-duration: 190ms;
+  animation-timing-function: cubic-bezier(0.34, 1.5, 0.64, 1);
+  animation-fill-mode: backwards;
+}
+
+.board[data-pop-turn='odd'] .cell[data-glow='true'] {
+  animation-name: pop-odd;
+}
+
+.board[data-pop-turn='even'] .cell[data-glow='true'] {
+  animation-name: pop-even;
+}
+
+.board .cell[data-glow='true'][data-pop-order='1'] {
+  animation-delay: 16ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='2'] {
+  animation-delay: 32ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='3'] {
+  animation-delay: 48ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='4'] {
+  animation-delay: 64ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='5'] {
+  animation-delay: 80ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='6'] {
+  animation-delay: 96ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='7'] {
+  animation-delay: 112ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='8'] {
+  animation-delay: 128ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='9'] {
+  animation-delay: 144ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='10'] {
+  animation-delay: 160ms;
+}
+
+.board .cell[data-glow='true'][data-pop-order='11'] {
+  animation-delay: 176ms;
+}
+
+@keyframes pop-odd {
+  from {
+    translate: 0 0;
+    scale: 0.94;
+  }
+}
+
+@keyframes pop-even {
+  from {
+    translate: 0 0;
+    scale: 0.94;
+  }
 }
 
 .cell[data-glow='true'] .tile-face::before {
-  background-color: color-mix(in srgb, var(--wash) 15%, transparent);
+  background-color: color-mix(in srgb, var(--wash) 30%, transparent);
+  box-shadow: inset 0 0 0 2px var(--wash);
+}
+
+.move-badge {
+  position: absolute;
+  top: 6%;
+  right: 6%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 30%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--on-wash);
+  background-color: var(--wash);
+  color: var(--on-wash);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 35%, transparent);
+  pointer-events: none;
+}
+
+.move-badge .token-mark {
+  width: 74%;
+  height: 74%;
 }
 
 .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 45%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 55%, transparent);
 }
 
 /* A taken cell shows the taker's token in a bare, sunken slot instead of its tile (PRD U1). */
@@ -1031,10 +1222,20 @@ button:disabled {
     0 1px 0 color-mix(in srgb, var(--shine) 20%, transparent);
 }
 
-/* The last take stays marked until the next one by one warm tint on its cell (PRD I2). */
+/* The last take stays marked until the next one by a soft ring in its taker's colour (PRD I2). */
 
-.cell.taken.last {
-  background-color: var(--recent);
+.cell.taken.last[data-owner='A'] {
+  box-shadow:
+    inset 0 0 0 2px var(--p1),
+    inset 0 0 6px 3px color-mix(in srgb, var(--p1) 35%, transparent),
+    inset 0 3px 5px color-mix(in srgb, var(--shade) 30%, transparent);
+}
+
+.cell.taken.last[data-owner='B'] {
+  box-shadow:
+    inset 0 0 0 2px var(--p2),
+    inset 0 0 6px 3px color-mix(in srgb, var(--p2) 35%, transparent),
+    inset 0 3px 5px color-mix(in srgb, var(--shade) 30%, transparent);
 }
 
 /* The winning shape's four cells keep a ring (PRD R4). */
@@ -1161,25 +1362,6 @@ button:disabled {
   animation: none !important;
 }
 
-/* The frame takes the colour of the player to move on that player's side: left for Player 1 and right
-   for Player 2 on wide screens, below and above on a phone (PRD I3). The stripe is the first shadow. */
-
-.board-frame[data-active='A'] {
-  box-shadow:
-    inset 6px 0 0 var(--p1),
-    0 10px 24px color-mix(in srgb, var(--shade) 28%, transparent),
-    inset 2px 2px 0 color-mix(in srgb, var(--shine) 16%, transparent),
-    inset -3px -3px 0 color-mix(in srgb, var(--shade) 28%, transparent);
-}
-
-.board-frame[data-active='B'] {
-  box-shadow:
-    inset -6px 0 0 var(--p2),
-    0 10px 24px color-mix(in srgb, var(--shade) 28%, transparent),
-    inset 2px 2px 0 color-mix(in srgb, var(--shine) 16%, transparent),
-    inset -3px -3px 0 color-mix(in srgb, var(--shade) 28%, transparent);
-}
-
 /* Tokens: round and bevelled, in two colours, a solid rim and a ring for Player 1, a notched rim and a
    diamond for Player 2 (PRD U1). The player's colour stays solid underneath the bevel. A placed token
    drops into its own cell and settles, clipped by the cell, under 400 ms; it never takes a tap. */
@@ -1244,7 +1426,8 @@ button:disabled {
   animation: none;
 }
 
-/* Toasts (PRD U3): a fixed slot under the board, never over a tile, never taking a tap. */
+/* Toasts (PRD U3): on wide screens a fixed room under the board, sized for two, never over a tile, never
+   taking a tap. */
 
 .toasts {
   grid-area: toasts;
@@ -1254,7 +1437,7 @@ button:disabled {
   align-items: center;
   gap: 6px;
   width: min(100%, 640px);
-  height: var(--slot);
+  height: var(--toast-room);
   overflow: hidden;
   pointer-events: none;
 }
@@ -1319,63 +1502,113 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-/* Phone and narrow screens: the Match card and the menu on top, Player 2's nameplate, the score, the board
-   and Player 1's nameplate, then the toast slot, which the result card takes once the game has ended. The
-   spare height is spread evenly round the rows, so no empty band gathers at the bottom. */
+/* Phone and narrow screens: the scoreboard row with the menu at its end, Player 2's nameplate, the board
+   and Player 1's nameplate, each a fixed height but the board, with the spare height given to the
+   elements first (80 px avatars, a 64 px Match card) and the rest spread evenly as one spacer above,
+   between and below them. Every length is derived from the mid-game board, never from the animated size,
+   so the top rows never move. Toasts show one at a time in their one-line short form, in the gap under
+   the board, over nothing. At the final take the board shrinks, centred with its top edge fixed, to the
+   size that fits the result card under Player 1's nameplate with small fixed gaps, within 100dvh. */
 
 @media (max-width: 760px) {
   .match {
-    --slot: 96px;
-    --board: min(100vw - 20px, 100dvh - 420px, 640px);
+    --pad: 8px;
+    --score-row: 82px;
+    --card-height: 64px;
+    --plate: 94px;
+    --end-gap: 6px;
+    --end-card: 128px;
+    /* The smallest board whose tiles stay 44 px: four tiles, five gaps of 12%, the band and the border. */
+    --min-board: calc(44px * 4.6 + 2 * 18px + 6px);
+    --board-mid: min(100vw - 20px, 640px, 100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - 30px);
+    --spacer: max(6px, (100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - var(--board-mid)) / 5);
+    --board-end: clamp(
+      var(--min-board),
+      100dvh - 2 * var(--pad) - 3 * var(--spacer) - var(--score-row) - 2 * var(--plate) - 3 * var(--end-gap) - var(--end-card),
+      var(--board-mid)
+    );
+    --board-size: var(--board-mid);
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto auto auto auto minmax(var(--slot), auto);
+    grid-template-rows: none;
     grid-template-areas:
-      'card   menu'
-      'seatB  seatB'
-      'score  score'
-      'board  board'
-      'seatA  seatA'
-      'toasts toasts';
-    align-content: space-evenly;
-    align-items: stretch;
-    gap: 6px 10px;
-    padding: 8px 10px;
+      'score menu'
+      'seatB seatB'
+      'board board'
+      'seatA seatA'
+      'end   end';
+    align-content: start;
+    align-items: start;
+    gap: 0 10px;
+    padding: calc(var(--pad) + var(--spacer)) 10px var(--pad);
+  }
+
+  /* The end: the board takes its ended size. While it shrinks the column is exactly the screen, clipped,
+     so no scrollbar ever flashes; afterwards a very short phone may scroll to the result card. */
+  .match.ended {
+    --board-size: var(--board-end);
+  }
+
+  .match.ended[data-end-shrinking] {
+    height: 100dvh;
+    overflow: clip;
   }
 
   .side {
     display: contents;
   }
 
+  .scoreboard {
+    justify-self: stretch;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .score-side {
+    padding: 0 10px 0 6px;
+    font-size: 1.6rem;
+  }
+
   .top-bar {
-    align-self: center;
+    position: static;
+    grid-area: menu;
+    align-self: start;
+    margin-top: calc((var(--card-height) - 44px) / 2);
   }
 
   .match-card {
-    grid-area: card;
-    width: auto;
+    width: 100%;
     min-width: 0;
-    gap: 10px;
-    padding: 4px 10px 4px 4px;
+    gap: 8px;
+    padding: 4px 8px 4px 4px;
   }
 
-  .match-tile-slot {
-    width: 46px;
-    height: 46px;
+  .match-text {
+    height: calc(var(--card-height) - 12px);
+    align-content: center;
   }
 
   .match-heading {
-    font-size: 0.7rem;
+    font-size: 0.66rem;
   }
 
   .match-names {
-    gap: 0 10px;
-    font-size: 0.95rem;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    font-size: 0.88rem;
+  }
+
+  .match-blocked .long-form {
+    display: none;
+  }
+
+  .match-blocked .short-form {
+    display: inline;
   }
 
   .match-name .glyph,
   .match-name .emblem-svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
 
   .menu-button {
@@ -1385,6 +1618,10 @@ button:disabled {
   .seat {
     justify-self: stretch;
     width: auto;
+    height: var(--plate);
+    margin-top: var(--spacer);
+    padding: 5px 16px 5px 5px;
+    gap: 2px 12px;
   }
 
   .seat-p1 {
@@ -1396,29 +1633,65 @@ button:disabled {
   }
 
   .seat .avatar {
-    width: 48px;
+    width: 80px;
   }
 
-  .sitting-score {
-    justify-self: center;
-    padding: 2px 12px;
-    font-size: 0.88rem;
+  .seat-name {
+    font-size: 1.1rem;
+  }
+
+  .seat-status {
+    font-size: 0.85rem;
   }
 
   .board-area {
     justify-self: center;
+    margin-top: var(--spacer);
   }
 
   .board-frame {
     --band: 18px;
   }
 
+  .match.ended .seat-p1 {
+    margin-top: var(--end-gap);
+  }
+
+  /* One toast at a time, its short form on one line, in the gap between the board and Player 1's
+     nameplate; the full text stays in the page for screen readers. */
   .toasts {
-    justify-self: center;
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: calc(var(--pad) + 3 * var(--spacer) + var(--score-row) + var(--plate) + var(--board-mid));
+    width: auto;
+    height: var(--spacer);
+    justify-content: center;
+  }
+
+  .toast:not([data-phone='true']) {
+    display: none;
   }
 
   .toast {
+    height: min(32px, var(--spacer));
+    padding: 0 12px;
     font-size: 0.85rem;
+    line-height: min(32px, var(--spacer));
+    white-space: nowrap;
+  }
+
+  .toast-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .toast::after {
+    content: attr(data-short) / '';
   }
 
   .match.ended .toasts {
@@ -1426,11 +1699,15 @@ button:disabled {
   }
 
   .end-screen {
-    grid-area: toasts;
+    grid-area: end;
     justify-self: stretch;
     width: auto;
+    height: var(--end-card);
     min-height: 0;
-    padding: 8px 12px 10px;
+    margin-top: var(--end-gap);
+    padding: 6px 12px 8px;
+    gap: 4px;
+    overflow: hidden;
   }
 
   .end-screen h2 {
@@ -1439,22 +1716,15 @@ button:disabled {
 
   .end-screen p {
     font-size: 0.86rem;
+    line-height: 1.3;
   }
+}
 
-  .board-frame[data-active='A'] {
-    box-shadow:
-      inset 0 -6px 0 var(--p1),
-      0 10px 24px color-mix(in srgb, var(--shade) 28%, transparent),
-      inset 2px 2px 0 color-mix(in srgb, var(--shine) 16%, transparent),
-      inset -3px -3px 0 color-mix(in srgb, var(--shade) 28%, transparent);
-  }
-
-  .board-frame[data-active='B'] {
-    box-shadow:
-      inset 0 6px 0 var(--p2),
-      0 10px 24px color-mix(in srgb, var(--shade) 28%, transparent),
-      inset 2px 2px 0 color-mix(in srgb, var(--shine) 16%, transparent),
-      inset -3px -3px 0 color-mix(in srgb, var(--shade) 28%, transparent);
+/* The phone's end shrink: about 250 ms, declared only while the end sequence runs (data-end-shrinking),
+   with motion allowed, so Play again, rotation and resizing change the board's size at once. */
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .match.ended[data-end-shrinking] {
+    transition: --board-size 250ms ease-out;
   }
 }
 
@@ -1516,6 +1786,12 @@ button:disabled {
   gap: 10px;
   padding: 8px 16px 16px;
   overflow: auto;
+}
+
+.setting-label {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .menu-settings {
@@ -1672,9 +1948,19 @@ button:disabled {
   width: 46%;
 }
 
+/* A diagram's playable tiles glow in the colour of its player to move, as on the board. */
+.mini-board[data-glow-player='A'] {
+  --wash: var(--p1);
+}
+
+.mini-board[data-glow-player='B'] {
+  --wash: var(--p2);
+}
+
 .mini-cell.glow .tile-art {
   box-shadow:
-    inset 0 0 0 999px color-mix(in srgb, var(--p1) 15%, transparent),
+    inset 0 0 0 2px var(--wash),
+    inset 0 0 0 999px color-mix(in srgb, var(--wash) 30%, transparent),
     0 2px 3px color-mix(in srgb, var(--shade) 35%, transparent);
 }
 
@@ -1682,8 +1968,12 @@ button:disabled {
   box-shadow: inset 0 0 0 3px var(--win);
 }
 
-.mini-cell.last {
-  background-color: var(--recent);
+.mini-cell.last[data-token='A'] {
+  box-shadow: inset 0 0 0 2px var(--p1);
+}
+
+.mini-cell.last[data-token='B'] {
+  box-shadow: inset 0 0 0 2px var(--p2);
 }
 
 .mini-cell.dead .tile-art {

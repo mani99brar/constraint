@@ -12,7 +12,6 @@ import {
   chooseTwoPlayers,
   expectSeatsBeside,
   fixRandomness,
-  frameStripe,
   gameSnapshot,
   glowing,
   HUMAN_STARTS,
@@ -28,6 +27,7 @@ import {
   playToEnd,
   readBoard,
   readLastTile,
+  readScore,
   refusalToast,
   seat,
   seatStatus,
@@ -62,13 +62,6 @@ async function openMenu(page: Page) {
   await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
 }
 
-/** The score of the sitting as the page shows it. */
-async function readScore(page: Page) {
-  const line = page.getByTestId('sitting-score');
-  const [a, b, draws] = await Promise.all(['data-a', 'data-b', 'data-draws'].map(async (name) => Number(await line.getAttribute(name))));
-  return { a: a!, b: b!, draws: draws!, text: (await line.innerText()).replace(/\s+/g, ' ').trim() };
-}
-
 /** The results by difficulty from the home screen. */
 async function readResults(page: Page) {
   return page
@@ -78,6 +71,31 @@ async function readResults(page: Page) {
 }
 
 const tile = (cell: { terrain: string; symbol: string }) => `${cell.terrain}–${cell.symbol}`;
+
+/**
+ * The lit seat's status on one line, neither wrapped nor clipped: no scrolling inside it, one line box,
+ * and wholly inside its nameplate's border. Checks the longest status a seat shows too.
+ */
+async function expectStatusOnOneLine(page: Page) {
+  for (const player of ['A', 'B'] as const) {
+    const status = page.getByTestId(`seat-${player}-status`);
+    const text = (await status.textContent()) ?? '';
+    // The longest status of any seat, "Player 2's move", tried in place, then the real one put back.
+    for (const probe of ["Player 2's move", 'Bot is thinking', text]) {
+      const fit = await status.evaluate((element, value) => {
+        element.textContent = value;
+        element.classList.remove('empty');
+        const plate = element.closest('.seat')!.getBoundingClientRect();
+        const box = element.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const lines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+        return { scrolls: element.scrollWidth > element.clientWidth, lines, inside: box.left >= plate.left && box.right <= plate.right - 2, whiteSpace: getComputedStyle(element).whiteSpace };
+      }, probe);
+      expect(fit, `${player}: ${probe}`).toEqual({ scrolls: false, lines: probe ? 1 : 0, inside: true, whiteSpace: 'nowrap' });
+    }
+  }
+}
 
 /** The home screen's layout: the wordmark on one line over the hero board, flanked by the avatars. */
 async function expectHero(page: Page) {
@@ -223,7 +241,7 @@ test('[scenario:start-from-home] Play starts the chosen setup at once, the bot a
   await expect(page.getByTestId('announcer')).toHaveText('You start. Your move.');
   await expect(matchCard(page)).toContainText('Any edge tile');
   for (const player of ['A', 'B'] as const) await expect(seat(page, player)).toHaveAttribute('data-tokens-left', '8');
-  await expect(page.getByTestId('sitting-score')).toContainText('You 0 – 0 Bot');
+  await expect(page.getByTestId('scoreboard')).toHaveAttribute('aria-label', 'You 0, Bot 0');
   await expectNoLeftovers(page);
 
   // With a saved game, the panel says that Play replaces it.
@@ -280,7 +298,7 @@ test('[scenario:start-from-home] Play starts the chosen setup at once, the bot a
   await context.close();
 });
 
-test('[scenario:match-screen] the game is the board, a slim nameplate for each player, the score of the sitting once in one line between them, the Match card and a top bar holding only the menu button, and no panel', async ({ page }, testInfo) => {
+test('[scenario:match-screen] the game is the board, a slim nameplate for each player with a one-line status, the scoreboard row above the board holding the Match card, and a top bar holding only the menu button; no floating score line, corner pill, per-seat Wins or panel', async ({ page }, testInfo) => {
   await startGame(page);
   await takeGlowing(page);
   await waitForHumanTurn(page);
@@ -301,17 +319,24 @@ test('[scenario:match-screen] the game is the board, a slim nameplate for each p
     await expect(view.locator('button, a, [tabindex]')).toHaveCount(0);
     expect((await view.boundingBox())!.height).toBeLessThanOrEqual(80);
   }
-  // The score of the sitting: once, one line, between the nameplates and above the board, not in a corner.
-  const score = page.getByTestId('sitting-score');
+  // The score of the sitting: once, in the scoreboard row above the board round the Match card; no floating
+  // score line and no corner pill.
+  const score = page.getByTestId('scoreboard');
   await expect(score).toHaveCount(1);
-  await expect(score).toHaveText(/You 0 – 0 Bot/);
-  await expect(page.getByText(/0 – 0/)).toHaveCount(1);
-  const [line, frame, left, right] = await Promise.all([score, page.getByTestId('board-frame'), seat(page, 'A'), seat(page, 'B')].map(async (locator) => (await locator.boundingBox())!));
-  expect(line!.height).toBeLessThan(40);
-  expect(line!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
-  expect(line!.x + line!.width).toBeLessThanOrEqual(right!.x);
-  expect(Math.abs(line!.x + line!.width / 2 - (frame!.x + frame!.width / 2))).toBeLessThan(4);
-  expect(line!.y + line!.height).toBeLessThanOrEqual(frame!.y);
+  await expect(score).toHaveAttribute('aria-label', 'You 0, Bot 0');
+  await expect(page.locator('[data-testid="sitting-score"], .sitting-score, .score-pill')).toHaveCount(0);
+  const [row, frame, left, right, tileCard] = await Promise.all([score, page.getByTestId('board-frame'), seat(page, 'A'), seat(page, 'B'), matchCard(page)].map(async (locator) => (await locator.boundingBox())!));
+  expect(row!.height).toBeLessThanOrEqual(64);
+  expect(row!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
+  expect(row!.x + row!.width).toBeLessThanOrEqual(right!.x);
+  expect(Math.abs(tileCard!.x + tileCard!.width / 2 - (frame!.x + frame!.width / 2))).toBeLessThan(4);
+  expect(row!.y + row!.height).toBeLessThanOrEqual(frame!.y);
+  expect(await score.locator('[data-testid="match-card"]').count()).toBe(1);
+  // Each nameplate's status stays on one line, never wrapped or clipped, at 1280 px and at the narrowest wide layout.
+  await expectStatusOnOneLine(page);
+  await page.setViewportSize({ width: 761, height: 720 });
+  await expectStatusOnOneLine(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
   // On a wide screen You sit left of the board and the bot right of it.
   await expectSeatsBeside(page);
 
@@ -354,15 +379,19 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
   await startTwoPlayerGame(page, { seed: HUMAN_STARTS });
   const announcer = page.getByTestId('announcer');
 
-  /** The lit seat's colour, the glowing tiles' ring colour, and the frame's active side. */
+  /** The seat's colour, and the glowing tiles' ring, tint and badge, and the frame's shadow. */
   async function colours(player: 'A' | 'B') {
     return page.evaluate((who) => {
       const seatElement = document.querySelector(`[data-testid="seat-${who}"]`)!;
       const glow = document.querySelector('[data-testid="board"] [data-glow="true"]');
+      const badge = glow?.querySelector('[data-testid="move-badge"]');
       return {
         seat: getComputedStyle(seatElement).borderTopColor,
         seatBackground: getComputedStyle(seatElement).backgroundColor,
-        glow: glow ? getComputedStyle(glow.querySelector('.tile-face')!, '::before').backgroundColor : '',
+        ring: glow ? getComputedStyle(glow).borderTopColor : '',
+        tint: glow ? getComputedStyle(glow.querySelector('.tile-face')!, '::before').backgroundColor : '',
+        badge: badge ? getComputedStyle(badge).backgroundColor : '',
+        mark: badge?.getAttribute('data-mark') ?? null,
         frame: getComputedStyle(document.querySelector('[data-testid="board-frame"]')!).boxShadow,
       };
     }, player);
@@ -377,19 +406,22 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
     await expect(seat(page, other)).toHaveAttribute('data-lit', 'false');
     await expect(seat(page, other)).toHaveAttribute('data-expression', 'idle');
     await expect(seatStatus(page, other)).toHaveText('');
-    await expect(page.getByTestId('board-frame')).toHaveAttribute('data-active', player);
     await expect(board(page)).toHaveAttribute('data-glow-player', player);
     const lit = await colours(player);
     const dim = await colours(other);
-    // The glowing tiles' wash and the frame's side take the lit seat's colour; the dimmed seat looks different.
+    // The glowing tiles take the lit seat's colour: their ring, their tint and their badge, with its token
+    // mark. No stripe on the board frame says whose turn it is; the dimmed seat looks different.
     const channels = (value: string) => {
       const parts = value.match(/[\d.]+/g)!.map(Number);
       return value.startsWith('color(') ? parts.slice(0, 3).map((part) => Math.round(part * 255)) : parts.slice(0, 3);
     };
-    expect(channels(lit.glow).every((part, index) => Math.abs(part - channels(lit.seat)[index]!) <= 1)).toBe(true);
-    expect(lit.frame).toContain(lit.seat);
-    // The stripe sits on the mover's side of the frame: left for Player 1, right for Player 2.
-    expect(await frameStripe(page)).toEqual({ side: player === 'A' ? 'left' : 'right', color: lit.seat });
+    const same = (a: string, b: string) => channels(a).every((part, index) => Math.abs(part - channels(b)[index]!) <= 1);
+    expect(same(lit.ring, lit.seat), 'ring').toBe(true);
+    expect(same(lit.tint, lit.seat), 'tint').toBe(true);
+    expect(same(lit.badge, lit.seat), 'badge').toBe(true);
+    expect(lit.mark).toBe(player === 'A' ? 'ring' : 'diamond');
+    expect(lit.frame).not.toContain(lit.seat);
+    await expect(page.getByTestId('board-frame')).not.toHaveAttribute('data-active', /.*/);
     expect(dim.seat).not.toBe(lit.seat);
     expect(dim.seatBackground).not.toBe(lit.seatBackground);
   }
@@ -457,7 +489,8 @@ test('[scenario:opening-take] at the opening only the 12 edge tiles stand out, a
   await expect(board(page).locator('[data-faded="true"]')).toHaveCount(4);
   await expect(board(page).locator('.glow-dot')).toHaveCount(0);
   expect(await glowing(page).first().evaluate((element) => [...element.children].map((child) => child.getAttribute('class')))).toEqual(['tile-face', 'tile-name']);
-  expect(await glowing(page).first().evaluate((element) => [...element.querySelector('.tile-face')!.children].map((child) => child.getAttribute('class')))).toEqual(['scene', 'tile-symbol']);
+  expect(await glowing(page).first().evaluate((element) => [...element.querySelector('.tile-face')!.children].map((child) => child.getAttribute('class')))).toEqual(['scene', 'tile-symbol', 'move-badge p1']);
+  await expect(board(page).locator('[data-testid="move-badge"][data-mark="ring"]')).toHaveCount(12);
 
   // An inner tile is refused with its reason, and nothing is taken.
   const inner = cells.find((cell) => cell.cell === 'B2')!;
@@ -557,7 +590,7 @@ test('[scenario:legal-turn] after the bot’s take its cell is marked and toaste
   await expect(cellAt(page, next.cell)).toHaveAttribute('data-owner', 'A');
 });
 
-test('[scenario:highlight-toggle] with highlights off no tile fades, lifts or carries a wash, a legal take works, an illegal one is refused, and the setting survives a reload', async ({ page }, testInfo) => {
+test('[scenario:highlight-toggle] with highlights off nothing pops, fades, glows or carries a tint or badge, a legal take works, an illegal one is refused, and the setting survives a reload', async ({ page }, testInfo) => {
   await startGame(page);
   await openMenu(page);
   const highlights = page.getByRole('switch', { name: 'Highlight legal tiles' });
@@ -567,9 +600,9 @@ test('[scenario:highlight-toggle] with highlights off no tile fades, lifts or ca
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
-  const lit = page.locator('[data-glow="true"], [data-faded="true"], .glow, [data-glow-player]');
+  const lit = page.locator('[data-glow="true"], [data-faded="true"], .glow, [data-glow-player], [data-pop-order], [data-pop-turn], [data-testid="move-badge"]');
   await expect(lit).toHaveCount(0);
-  /** Every cell that lifts or carries a wash or a veil. */
+  /** Every cell that lifts, pops, or carries a ring, a halo, a tint or a veil. */
   const marked = () =>
     board(page)
       .locator('[data-cell]')
@@ -578,14 +611,21 @@ test('[scenario:highlight-toggle] with highlights off no tile fades, lifts or ca
           .filter((element) => {
             const face = element.querySelector('.tile-face')!;
             const clear = (value: string) => value === 'rgba(0, 0, 0, 0)' || / \/ 0\)$/.test(value);
-            return !['none', '0px'].includes(getComputedStyle(element).translate) || !clear(getComputedStyle(face, '::before').backgroundColor) || !clear(getComputedStyle(face, '::after').backgroundColor);
+            const style = getComputedStyle(element);
+            return (
+              !['none', '0px'].includes(style.translate) ||
+              style.animationName !== 'none' ||
+              !clear(getComputedStyle(face, '::before').backgroundColor) ||
+              getComputedStyle(face, '::before').boxShadow !== 'none' ||
+              !clear(getComputedStyle(face, '::after').backgroundColor)
+            );
           })
           .map((element) => element.getAttribute('data-cell')),
       );
   expect(await marked()).toEqual([]);
-  // Whose move it is still shows on the seats and the frame.
+  // Whose move it is still shows on the seats.
   await expect(seatStatus(page, 'A')).toHaveText('Your move');
-  await expect(page.getByTestId('board-frame')).toHaveAttribute('data-active', 'A');
+  await expect(seat(page, 'A')).toHaveAttribute('data-lit', 'true');
 
   // The opening: an inner tile is refused with its reason, an edge tile is taken.
   const opening = await readBoard(page);
@@ -709,7 +749,7 @@ test('[scenario:resume-match] after a reload, Continue restores the same board, 
   expect(before.tokens).toBe(6);
   expect(before.mode).toBe('bot');
   expect(before.seats.map((view) => view.tokensLeft)).toEqual(['5', '5']);
-  expect(before.score).toContain('You 0 – 0 Bot');
+  expect(before.score).toBe('You 0, Bot 0');
 
   await page.reload();
   const resume = page.getByTestId('continue');
@@ -853,7 +893,7 @@ test('[scenario:two-player-match] both seats play glowing takes to the end scree
     a: winner === 'A' ? 1 : 0,
     b: winner === 'B' ? 1 : 0,
     draws: winner === 'draw' ? 1 : 0,
-    text: `Score of this sitting: Player 1 ${winner === 'A' ? 1 : 0} – ${winner === 'B' ? 1 : 0} Player 2${winner === 'draw' ? ' · 1 draw' : ''}`,
+    text: `Player 1 ${winner === 'A' ? 1 : 0}, Player 2 ${winner === 'B' ? 1 : 0}${winner === 'draw' ? ', 1 draw' : ''}`,
   });
   if (winner !== 'draw') {
     await expect(seat(page, winner as 'A' | 'B')).toHaveAttribute('data-expression', 'won');
@@ -870,7 +910,7 @@ test('[scenario:two-player-match] both seats play glowing takes to the end scree
   expect(await readResults(page)).toEqual(results);
 });
 
-test('[scenario:sitting-score] the score of a sitting counts finished games across Play again, survives a reload with Continue, and resets on leaving to the home screen', async ({ page }, testInfo) => {
+test('[scenario:sitting-score] the scoreboard row counts finished games on the winner’s side or as draws under the Match card, across Play again, survives a reload with Continue, and resets on leaving to the home screen', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await startTwoPlayerGame(page, { seed: HUMAN_STARTS });
   expect(await readScore(page)).toMatchObject({ a: 0, b: 0, draws: 0 });
@@ -886,9 +926,18 @@ test('[scenario:sitting-score] the score of a sitting counts finished games acro
     draws: score.draws + (winner === 'draw' ? 1 : 0),
   });
 
-  // After a finished game the score shows it.
+  /** The scoreboard's sides and draws line show the expected score, each on its own side. */
+  async function expectRow(score: { a: number; b: number; draws: number }) {
+    await expect(page.getByTestId('score-A')).toHaveText(String(score.a));
+    await expect(page.getByTestId('score-B')).toHaveText(String(score.b));
+    if (score.draws === 0) await expect(page.getByTestId('score-draws')).toBeHidden();
+    else await expect(page.getByTestId('score-draws')).toHaveText(`${score.draws} ${score.draws === 1 ? 'draw' : 'draws'}`);
+  }
+
+  // After a finished game the score shows it, on the winner's side or under the Match card.
   let expected = add({ a: 0, b: 0, draws: 0 }, await finish());
   expect(await readScore(page)).toMatchObject(expected);
+  await expectRow(expected);
   const firstStarter = await match(page).getAttribute('data-starter');
 
   // Play again keeps the score and swaps the starter; a second finished game adds to it.
@@ -900,6 +949,7 @@ test('[scenario:sitting-score] the score of a sitting counts finished games acro
   await expect(seat(page, 'B')).toHaveAttribute('data-score', String(expected.b));
   expected = add(expected, await finish());
   expect(await readScore(page)).toMatchObject(expected);
+  await expectRow(expected);
   expect(expected.a + expected.b + expected.draws).toBe(2);
 
   // A reload with Continue in mid-game restores the score.
@@ -919,7 +969,8 @@ test('[scenario:sitting-score] the score of a sitting counts finished games acro
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
   await chooseTwoPlayers(page);
-  expect(await readScore(page)).toEqual({ a: 0, b: 0, draws: 0, text: 'Score of this sitting: Player 1 0 – 0 Player 2' });
+  expect(await readScore(page)).toEqual({ a: 0, b: 0, draws: 0, text: 'Player 1 0, Player 2 0' });
+  await expectRow({ a: 0, b: 0, draws: 0 });
   await expect(seat(page, 'A')).toHaveAttribute('data-score', '0');
   await expect(seat(page, 'B')).toHaveAttribute('data-score', '0');
 });

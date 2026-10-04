@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { cellColumn, cellRow, COLUMNS, ROWS, type CellId } from '@okiya/game';
-import { SymbolEmblem, TerrainScene } from './art';
+import { SymbolEmblem, TerrainScene, TokenMark } from './art';
 import type { BoardModel, WinningShape } from './boardModel';
 import { liftOrder } from './end';
 import { boardKey, tabStop } from './keyboard';
@@ -48,10 +48,12 @@ function WinStroke({ shape, centres }: { shape: WinningShape; centres: ReadonlyM
 }
 
 /**
- * The board as a wooden frame of separate raised tiles (PRD U1): every cell a button named by its cell,
- * tile or token (PRD U7), one Tab stop with arrow keys moving between cells, and Enter or Space to take
- * the focused tile. With highlights on, the legal tiles lift and carry a wash of the mover's colour while
- * the other free tiles fade back (PRD R2). A tile's name shows on hover, focus or a long press, or on every
+ * The board as a wooden frame of separate raised tiles on a well (PRD U1): every cell a button named by
+ * its cell, tile or token (PRD U7), one Tab stop with arrow keys moving between cells, and Enter or Space
+ * to take the focused tile. With highlights on, the legal tiles pop up one after another when a person's
+ * turn starts and stay raised with a halo, a ring and a tint of the mover's colour and the mover's token
+ * mark on a corner badge, while the other free tiles fade back (PRD R2). The pop is pure CSS, keyed by
+ * the board's data-pop-turn, so a re-render never replays it. A tile's name shows on hover, focus or a long press, or on every
  * tile with the Tile names setting (PRD I1, E3). At the end the cells play the end sequence (PRD U10),
  * which any tap or key skips. During the bot's turn taps are ignored; focus still moves.
  */
@@ -113,7 +115,7 @@ export function Board({ model, onCellClick }: BoardProps) {
   }
 
   return (
-    <div className="board-frame" data-testid="board-frame" data-active={model.active ?? undefined}>
+    <div className="board-frame" data-testid="board-frame">
       <div className="frame-labels frame-columns" aria-hidden="true">
         {COLUMNS.map((column) => (
           <span key={column}>{column}</span>
@@ -131,7 +133,8 @@ export function Board({ model, onCellClick }: BoardProps) {
         aria-disabled={disabled || undefined}
         className="board"
         data-testid="board"
-        data-glow-player={model.wash ?? undefined}
+        data-glow-player={model.mover ?? undefined}
+        data-pop-turn={model.popTurn ?? undefined}
         data-names={model.names}
         data-end-kind={model.end?.kind}
         data-end-skipped={ended ? skipped : undefined}
@@ -163,6 +166,7 @@ export function Board({ model, onCellClick }: BoardProps) {
                       data-symbol={tile.symbol}
                       data-edge={view.edge}
                       data-glow={view.glow}
+                      data-pop-order={view.popOrder ?? undefined}
                       data-faded={view.faded}
                       data-taken={token !== null}
                       data-owner={token ?? undefined}
@@ -195,6 +199,11 @@ export function Board({ model, onCellClick }: BoardProps) {
                             <span className="tile-symbol">
                               <SymbolEmblem symbol={tile.symbol} />
                             </span>
+                            {view.glow && model.mover && (
+                              <span className={`move-badge p${model.mover === 'A' ? 1 : 2}`} data-testid="move-badge" data-mark={model.badge ?? undefined} aria-hidden="true">
+                                <TokenMark player={model.mover} />
+                              </span>
+                            )}
                           </>
                         ) : (
                           <Token key={cell} player={token} />

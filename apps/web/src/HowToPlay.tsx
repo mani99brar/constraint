@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { TileArt, TokenMark } from './art';
 import { Dialog } from './Dialog';
-import { diagramCells, howToPages, MATCHING_EXAMPLE, type Diagram } from './howto';
+import { diagramCells, diagramMover, howToPages, MATCHING_EXAMPLE, type Diagram } from './howto';
 import { tileName } from './text';
 
 export interface HowToPlayProps {
@@ -38,7 +38,7 @@ function MatchingExample() {
 function MiniBoard({ diagram }: { diagram: Diagram }) {
   return (
     <figure className="diagram" data-testid={`diagram-${diagram.id}`}>
-      <div className="mini-board" role="img" aria-label={diagram.caption}>
+      <div className="mini-board" role="img" aria-label={diagram.caption} data-glow-player={diagramMover(diagram)}>
         {diagramCells(diagram).map(({ cell, tile, token, mark }) => (
           <span key={cell} className={`mini-cell${mark ? ` ${mark}` : ''}`} data-cell={cell} data-mark={mark ?? undefined} data-token={token ?? undefined}>
             {token ? (

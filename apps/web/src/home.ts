@@ -2,6 +2,7 @@ import { DIFFICULTY_OPTIONS, difficultyLabel, type Difficulty } from './difficul
 import { modeLabel, TWO_PLAYERS, versusBot, type GameMode } from './mode';
 import type { Results } from './results';
 import { OPPONENTS, type Opponent, type Settings } from './settings';
+import { PALETTE_IDS, type PaletteId } from './theme';
 
 /** One difficulty's wins, losses and draws in the home screen's results line (PRD E5). */
 export interface ResultsRow {
@@ -108,4 +109,9 @@ export function opponentAfterKey(current: Opponent, key: string): Opponent | nul
     current,
     key,
   );
+}
+
+/** The colour theme an arrow key moves the menu's Theme switch to. */
+export function paletteAfterKey(current: PaletteId, key: string): PaletteId | null {
+  return optionAfterKey(PALETTE_IDS, current, key);
 }

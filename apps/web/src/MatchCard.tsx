@@ -4,7 +4,9 @@ import type { MatchCardModel } from './matchCard';
 /**
  * The Match card (PRD I1): the tile the next take must match, with its scene, its emblem and both
  * names, or "Any edge tile" at the opening; after a blockade it says that no tile matches (PRD U10).
- * A new tile changes in place with a short crossfade under 200 ms (PRD U8): nothing flies in.
+ * A new tile changes in place with a short crossfade under 200 ms (PRD U8): nothing flies in. It sits
+ * at the centre of the scoreboard row; on a phone its names area keeps one size, so the blockade says
+ * "No match" there in one line, and the card's accessible name keeps the whole sentence.
  */
 export function MatchCard({ model }: { model: MatchCardModel }) {
   const { terrain, symbol } = model;
@@ -32,7 +34,8 @@ export function MatchCard({ model }: { model: MatchCardModel }) {
         <span className="match-heading">Match</span>
         {model.blocked ? (
           <span className="match-names match-blocked" data-testid="match-card-blocked">
-            {model.blocked}
+            <span className="long-form">{model.blocked}</span>
+            <span className="short-form">{model.blockedShort}</span>
           </span>
         ) : terrain && symbol ? (
           <span className="match-names">

@@ -30,7 +30,7 @@ import {
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
-/** The look of every cell as the page paints it: lift, wash, veil, outline, border and opacity. */
+/** The look of every cell as the page paints it: lift, ring, halo, tint, badge, veil, outline and opacity. */
 async function cellLooks(page: Page) {
   return board(page)
     .locator('[data-cell]')
@@ -40,11 +40,16 @@ async function cellLooks(page: Page) {
         const scale = value.startsWith('color(') ? 255 : 1;
         return { r: parts[0]! * scale, g: parts[1]! * scale, b: parts[2]! * scale, a: parts.length > 3 ? parts[3]! : 1 };
       };
+      /** The colours in a computed box-shadow, in order. */
+      const shadowColours = (value: string) => [...value.matchAll(/(?:rgba?|color)\([^)]*\)/g)].map((match) => parse(match[0]));
       return elements.map((element) => {
         const style = getComputedStyle(element);
         const face = element.querySelector('.tile-face')!;
+        const badge = element.querySelector('[data-testid="move-badge"]');
+        const edge = getComputedStyle(face, '::before').boxShadow;
         return {
           cell: element.getAttribute('data-cell')!,
+          owner: element.getAttribute('data-owner'),
           glow: element.getAttribute('data-glow') === 'true',
           faded: element.getAttribute('data-faded') === 'true',
           taken: element.getAttribute('data-taken') === 'true',
@@ -53,75 +58,122 @@ async function cellLooks(page: Page) {
           opacity: Number(style.opacity),
           faceOpacity: Number(getComputedStyle(face).opacity),
           outline: style.outlineStyle,
-          border: parse(style.borderTopColor),
-          background: style.backgroundColor,
-          wash: parse(getComputedStyle(face, '::before').backgroundColor),
+          ring: parse(style.borderTopColor),
+          // The ring: the cell's border and the tint layer's inset edge ("<colour> 0px 0px 0px 2px inset").
+          ringWidth: parseFloat(style.borderTopWidth) + (edge === 'none' ? 0 : Number(/0px 0px 0px ([\d.]+)px inset/.exec(edge)?.[1] ?? 0)),
+          shadows: shadowColours(style.boxShadow),
+          tint: parse(getComputedStyle(face, '::before').backgroundColor),
+          tintEdge: shadowColours(edge),
+          badge: badge ? { colour: parse(getComputedStyle(badge).backgroundColor), mark: badge.getAttribute('data-mark') } : null,
           veil: parse(getComputedStyle(face, '::after').backgroundColor),
         };
       });
     });
 }
 
-/** A seat's border colour (its player's colour when lit) as channels. */
-async function seatColour(page: Page, player: 'A' | 'B'): Promise<Rgba> {
-  return seat(page, player).evaluate((element) => {
-    const parts = getComputedStyle(element).borderTopColor.match(/[\d.]+/g)!.map(Number);
-    return { r: parts[0]!, g: parts[1]!, b: parts[2]!, a: 1 };
+/** Each player's colour, as their token's solid fill on the scoreboard. */
+async function playerColours(page: Page): Promise<Record<'A' | 'B', Rgba>> {
+  return page.evaluate(() => {
+    const parse = (value: string) => {
+      const parts = value.match(/[\d.]+/g)!.map(Number);
+      const scale = value.startsWith('color(') ? 255 : 1;
+      return { r: parts[0]! * scale, g: parts[1]! * scale, b: parts[2]! * scale, a: 1 };
+    };
+    const probe = (player: string) => parse(getComputedStyle(document.querySelector(`[data-testid="score-${player}"] .count-token`)!).backgroundColor);
+    return { A: probe('A'), B: probe('B') };
   });
 }
 
 const sameColour = (a: Rgba, b: Rgba) => Math.abs(a.r - b.r) < 2 && Math.abs(a.g - b.g) < 2 && Math.abs(a.b - b.b) < 2;
 
 /**
- * With highlights on and a person to move: the legal tiles keep full brightness, lift and carry a light
- * wash of the mover's colour with no outline or border in it, the other free tiles fade under a veil while
- * the cell itself stays opaque, the taken cells do not fade, and the last take is one warm tint.
+ * With highlights on and a person to move: the legal tiles stay raised with a halo, a 3 px ring, a tint
+ * of about 30% and a corner badge, all in the mover's colour and mark; the other free tiles fade under a
+ * veil while the cell stays opaque; taken cells never fade; the last take carries a soft ring in its
+ * taker's colour.
  */
 async function expectLegalLook(page: Page, mover: 'A' | 'B') {
   const { legal } = await legalFromPage(page);
   const looks = await cellLooks(page);
-  const colour = await seatColour(page, mover);
+  const colours = await playerColours(page);
+  const colour = colours[mover];
   expect(looks.filter((look) => look.glow).map((look) => look.cell)).toEqual(legal);
   for (const look of looks) {
     expect(look.opacity, look.cell).toBe(1);
     expect(look.faceOpacity, look.cell).toBe(1);
     expect(look.outline, look.cell).toBe('none');
-    expect(sameColour(look.border, colour), `${look.cell} has no border in the mover's colour`).toBe(false);
     if (look.glow) {
       expect(look.translate, look.cell).toMatch(/^0px -[1-9]\d*(\.\d+)?px$/);
-      expect(sameColour(look.wash, colour), `${look.cell} washes in the mover's colour`).toBe(true);
-      expect(look.wash.a, look.cell).toBeGreaterThanOrEqual(0.1);
-      expect(look.wash.a, look.cell).toBeLessThanOrEqual(0.2);
+      expect(sameColour(look.ring, colour), `${look.cell} is ringed in the mover's colour`).toBe(true);
+      expect(look.ringWidth, look.cell).toBeGreaterThanOrEqual(2);
+      expect(look.ringWidth, look.cell).toBeLessThanOrEqual(3);
+      expect(look.tintEdge.some((edge) => sameColour(edge, colour) && edge.a === 1), `${look.cell} ring's inner edge`).toBe(true);
+      expect(sameColour(look.shadows[0]!, colour), `${look.cell} has a halo of the mover's colour`).toBe(true);
+      expect(sameColour(look.tint, colour), `${look.cell} is tinted in the mover's colour`).toBe(true);
+      expect(look.tint.a, look.cell).toBeGreaterThanOrEqual(0.25);
+      expect(look.tint.a, look.cell).toBeLessThanOrEqual(0.35);
+      expect(look.badge, look.cell).not.toBeNull();
+      expect(sameColour(look.badge!.colour, colour), `${look.cell} badge`).toBe(true);
+      expect(look.badge!.mark, look.cell).toBe(mover === 'A' ? 'ring' : 'diamond');
       expect(look.veil.a, look.cell).toBe(0);
     } else {
       expect(look.translate, look.cell).toMatch(/^(none|0px)$/);
-      expect(look.wash.a, look.cell).toBe(0);
+      expect(look.tint.a, look.cell).toBe(0);
+      expect(look.badge, look.cell).toBeNull();
+      expect(sameColour(look.ring, colour), `${look.cell} has no ring in the mover's colour`).toBe(false);
     }
     if (look.taken) {
       expect(look.faded, look.cell).toBe(false);
       expect(look.veil.a, look.cell).toBe(0);
     } else if (!look.glow) {
       expect(look.faded, look.cell).toBe(true);
-      // A veil of the ground at about 45% leaves the art at about 55%.
-      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.35);
-      expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.55);
+      // A veil of the ground fades the art back.
+      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.45);
+      expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.65);
     }
   }
-  // The last take: one warm tint on its cell, not the bare slot of the other taken cells, and no mark on it.
+  // The last take: a soft ring in its taker's colour on its slot, the other taken cells without one.
   const last = looks.filter((look) => look.last);
   expect(last).toHaveLength(1);
-  for (const other of looks.filter((look) => look.taken && !look.last)) expect(other.background).not.toBe(last[0]!.background);
+  const taker = last[0]!.owner as 'A' | 'B';
+  expect(last[0]!.shadows.some((shadow) => sameColour(shadow, colours[taker]) && shadow.a === 1), 'the last take is ringed in its taker’s colour').toBe(true);
+  for (const other of looks.filter((look) => look.taken && !look.last)) expect(other.shadows.some((shadow) => sameColour(shadow, colours.A) || sameColour(shadow, colours.B)), other.cell).toBe(false);
   await expect(board(page).locator('.last-mark, .winning-mark')).toHaveCount(0);
   expect(await cellAt(page, last[0]!.cell).evaluate((element) => getComputedStyle(element).outlineStyle)).toBe('none');
 }
 
-test('[scenario:legal-tiles] with highlights on the legal tiles keep full brightness, lift and carry a wash of the mover’s colour with no outline, the others fade, taken cells do not, and the last take is one warm tint, wide and at 390 × 844, the wash following the mover', async ({ page }, testInfo) => {
+/** Records, at every change of the turn or the board, how much of the move highlight shows and whose turn it is. */
+async function recordHighlights(page: Page) {
+  await page.evaluate(() => {
+    const w = window as unknown as { __highlights: { toMove: string | null; accepts: string | null; lit: number }[]; __highlightObserver?: MutationObserver };
+    w.__highlightObserver?.disconnect();
+    w.__highlights = [];
+    const screen = document.querySelector('[data-testid="match-screen"]')!;
+    const snapshot = () =>
+      w.__highlights.push({
+        toMove: screen.getAttribute('data-to-move'),
+        accepts: screen.getAttribute('data-accepts-takes'),
+        lit: screen.querySelectorAll('[data-glow="true"], [data-faded="true"], [data-testid="move-badge"], [data-pop-order], [data-pop-turn], [data-glow-player]').length,
+      });
+    w.__highlightObserver = new MutationObserver(snapshot);
+    w.__highlightObserver.observe(screen, { attributes: true, subtree: true, childList: true });
+    snapshot();
+  });
+}
+
+test('[scenario:legal-tiles] with highlights on and a person to move, the legal tiles stay raised with a halo, a ring, a tint and a corner badge in the mover’s colour and mark, the others fade, taken cells do not, and the last take carries a soft ring in its taker’s colour, wide and at 390 × 844; in a two-player game the colour and badge follow the mover, and on the bot’s turn nothing is highlighted', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await startGame(page);
+  await recordHighlights(page);
   await takeGlowing(page);
   await waitForHumanTurn(page);
   await expectLegalLook(page, 'A');
   await expect(board(page)).toHaveAttribute('data-glow-player', 'A');
+  // While the bot chose, nothing popped, faded, glowed or carried a badge.
+  const record = await page.evaluate(() => (window as unknown as { __highlights: { toMove: string | null; accepts: string | null; lit: number }[] }).__highlights);
+  const botTurn = record.filter((entry) => entry.toMove === 'B');
+  expect(botTurn.length).toBeGreaterThan(0);
+  for (const entry of botTurn) expect(entry).toEqual({ toMove: 'B', accepts: 'false', lit: 0 });
   await attachScreenshot(page, testInfo, 'legal-tiles');
 
   // At 390 × 844 the same look.
@@ -129,7 +181,7 @@ test('[scenario:legal-tiles] with highlights on the legal tiles keep full bright
   await expect(seat(page, 'A')).toBeVisible();
   await expectLegalLook(page, 'A');
 
-  // In a two-player game the wash follows the mover: Player 1's blue, then Player 2's red.
+  // In a two-player game the colour and the badge follow the mover: Player 1's ring, then Player 2's diamond.
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
@@ -280,9 +332,10 @@ async function resumeBefore(page: Page, ending: Ending) {
 }
 
 /**
- * Before the ending take: a listener that pauses every animation of the page the moment the end
- * sequence starts, so the checks below see it mid-way whatever the machine's speed; a record of the
- * cells' data-end changes; and a record of what a tap or a key press meets.
+ * Before the ending take: a listener that pauses every CSS animation of the page the moment the end
+ * sequence starts, so the checks below see it mid-way whatever the machine's speed (never the phone's
+ * board shrink, a transition); a listener that holds the shrink at its very first frame and measures the
+ * board there; a record of the cells' data-end changes; and a record of what a tap or a key press meets.
  */
 async function watchTheEnd(page: Page) {
   await page.evaluate(() => {
@@ -301,7 +354,23 @@ async function watchTheEnd(page: Page) {
       (event) => {
         if (w.__paused || !['end-lift', 'end-veil', 'end-settle'].includes(event.animationName)) return;
         w.__paused = true;
-        for (const animation of document.getAnimations()) animation.pause();
+        for (const animation of document.getAnimations()) if (animation instanceof CSSAnimation) animation.pause();
+      },
+      true,
+    );
+    const v = window as unknown as { __shrinks: { duration: number; atZero: { top: number; left: number; width: number; height: number } }[] };
+    v.__shrinks = [];
+    document.addEventListener(
+      'transitionrun',
+      (event) => {
+        if (event.propertyName !== '--board-size') return;
+        const shrink = (event.target as Element).getAnimations().find((animation) => animation instanceof CSSTransition && animation.transitionProperty === '--board-size');
+        if (!shrink) return;
+        // Held at its first frame: the board must be exactly its mid-game size and place there.
+        shrink.pause();
+        shrink.currentTime = 0;
+        const frame = document.querySelector('[data-testid="board-frame"]')!.getBoundingClientRect();
+        v.__shrinks.push({ duration: Number(shrink.effect!.getTiming().duration), atZero: { top: frame.top, left: frame.left, width: frame.width, height: frame.height } });
       },
       true,
     );
@@ -400,14 +469,75 @@ async function resultCard(page: Page) {
   });
 }
 
+type Box = { top: number; left: number; width: number; height: number };
+
+/** The boxes of the phone's column that must never move at the end. */
+async function steadyBoxes(page: Page): Promise<Record<string, Box>> {
+  return page.evaluate(() =>
+    Object.fromEntries(
+      ['board-frame', 'scoreboard', 'seat-B', 'match-card'].map((id) => {
+        const box = document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+        return [id, { top: box.top, left: box.left, width: box.width, height: box.height }];
+      }),
+    ),
+  );
+}
+
+/**
+ * The phone's end shrink (PRD U6, U10): one transition of the board's size, at most 300 ms, starting at the
+ * mid-game size and place with no first-frame snap; then, let finish, the board's top where it was, its
+ * centre on the column's, about 300 px wide, the full result card under Player 1's nameplate, nothing
+ * overlapping, nothing above the board moved and no vertical scroll. Returns the ended board's box.
+ */
+async function expectShrink(page: Page, mid: Record<string, Box>) {
+  const shrinks = await page.evaluate(() => (window as unknown as { __shrinks: { duration: number; atZero: Box }[] }).__shrinks);
+  expect(shrinks, 'one size transition of the board').toHaveLength(1);
+  const [{ duration, atZero }] = shrinks as [{ duration: number; atZero: Box }];
+  expect(duration).toBeGreaterThan(0);
+  expect(duration).toBeLessThanOrEqual(300);
+  const frame = mid['board-frame']!;
+  for (const key of ['top', 'left', 'width', 'height'] as const) expect(Math.abs(atZero[key] - frame[key]), `at currentTime 0, ${key}`).toBeLessThanOrEqual(1);
+  // Let it run to its end.
+  await page.evaluate(() => document.getAnimations().filter((animation) => animation instanceof CSSTransition && animation.transitionProperty === '--board-size').forEach((animation) => animation.finish()));
+  await expect.poll(() => page.evaluate(() => document.getAnimations().filter((animation) => animation instanceof CSSTransition && animation.transitionProperty === '--board-size').length)).toBe(0);
+  const after = await steadyBoxes(page);
+  const ended = after['board-frame']!;
+  expect(Math.abs(ended.top - frame.top), 'the board’s top stays put').toBeLessThanOrEqual(1);
+  const column = await page.evaluate(() => window.innerWidth / 2);
+  expect(Math.abs(ended.left + ended.width / 2 - column), 'centred on the column').toBeLessThanOrEqual(1);
+  expect(ended.width).toBeGreaterThanOrEqual(280);
+  expect(ended.width).toBeLessThanOrEqual(320);
+  expect(Math.abs(ended.width - ended.height)).toBeLessThanOrEqual(1);
+  for (const id of ['scoreboard', 'seat-B', 'match-card']) expect(after[id], `${id} never slides`).toEqual(mid[id]);
+  const layout = await page.evaluate(() => {
+    const box = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+    const [frame, plate, card, detail] = ['board-frame', 'seat-A', 'end-screen', 'result-detail'].map(box) as [DOMRect, DOMRect, DOMRect, DOMRect];
+    return {
+      plateBelowBoard: plate.top >= frame.bottom,
+      cardBelowPlate: card.top >= plate.bottom,
+      cardInside: card.top >= 0 && card.bottom <= window.innerHeight && card.left >= 0 && card.right <= window.innerWidth,
+      detailInside: detail.bottom <= card.bottom && detail.height > 0,
+      scroll: document.documentElement.scrollHeight - window.innerHeight,
+      scrolled: window.scrollY,
+    };
+  });
+  expect(layout).toEqual({ plateBelowBoard: true, cardBelowPlate: true, cardInside: true, detailInside: true, scroll: 0, scrolled: 0 });
+  return ended;
+}
+
 /** Plays one ending with motion on, from a seeded save: checks the sequence mid-way and the result card, and returns where its buttons sit. */
 async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | 'play-again', viewport: 'wide' | 'phone') {
   const { state, cell } = await resumeBefore(page, ending);
   await watchTheEnd(page);
+  const mid = await steadyBoxes(page);
   const centre = (await cellAt(page, cell).boundingBox())!;
   await page.mouse.click(centre.x + centre.width / 2, centre.y + centre.height / 2);
   await expect(page.getByTestId('end-screen')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __paused: boolean }).__paused), { message: 'the end sequence started' }).toBe(true);
+  // On a phone the board shrinks to make room for the result card; its positions are compared after it.
+  let ended: Box | null = null;
+  if (viewport === 'phone') ended = await expectShrink(page, mid);
+  else expect(await page.evaluate(() => (window as unknown as { __shrinks: unknown[] }).__shrinks)).toEqual([]);
 
   // Mid-way: the sequence runs on the board, and the whole of it ends within 700 ms.
   const now = await endNow(page);
@@ -433,7 +563,13 @@ async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | '
   } else if (ending === 'blockade') {
     // The Match card says that no tile matches, and the remaining free tiles grey out.
     const last = (await readBoard(page)).find((entry) => entry.cell === cell)!;
-    await expect(page.getByTestId('match-card-blocked')).toHaveText(`No tile matches ${last.terrain}–${last.symbol}`);
+    const sentence = `No tile matches ${last.terrain}–${last.symbol}`;
+    await expect(page.getByTestId('match-card')).toHaveAttribute('aria-label', sentence);
+    // The whole sentence on a wide screen; a phone's fixed card says it in one short line.
+    const shown = page.getByTestId('match-card-blocked').locator(viewport === 'wide' ? '.long-form' : '.short-form');
+    await expect(shown).toBeVisible();
+    await expect(shown).toHaveText(viewport === 'wide' ? sentence : 'No match');
+    await expect(page.getByTestId('match-card-blocked').locator(viewport === 'wide' ? '.short-form' : '.long-form')).toBeHidden();
     const free = (await readBoard(page)).filter((entry) => entry.owner === null).map((entry) => entry.cell);
     expect(now.greys.map((grey) => grey.cell)).toEqual(free);
     for (const grey of now.greys) expect(grey.blend).toBe('saturation');
@@ -479,11 +615,14 @@ async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | '
     await page.getByTestId('play-again').click();
     await expect(page.getByTestId('end-screen')).toHaveCount(0);
     await expect(match(page)).toHaveAttribute('data-takes', '0');
+    // Back to full size at once: no size transition runs on the new game.
+    expect(await page.evaluate(() => document.getAnimations().filter((animation) => animation instanceof CSSTransition && animation.transitionProperty === '--board-size').length)).toBe(0);
+    if (ended) expect((await steadyBoxes(page))['board-frame']).toEqual(mid['board-frame']);
     const taps = await page.evaluate(() => (window as unknown as { __taps: { target: string | null; boardAnimations: number }[] }).__taps);
     expect(taps.at(-1)).toMatchObject({ target: 'play-again' });
     expect(taps.at(-1)!.boardAnimations).toBeGreaterThan(0);
   }
-  return card;
+  return { ...card, ended };
 }
 
 test('[scenario:end-sequence] with motion on, a win lifts its tokens in order and dims the rest, a blockade greys the free tiles and says no tile matches, a draw settles; the result card shows at once beside the board (below it on a phone) without covering a cell, Play again works during the sequence, a tap skips it, it ends within 700 ms, and the buttons keep their places', async ({ page }, testInfo) => {
@@ -511,13 +650,22 @@ test('[scenario:end-sequence] with motion on, a win lifts its tokens in order an
     expect(other.home).toEqual(phoneShape.home);
   }
 
-  // Under reduced motion the final frame shows at once: nothing runs on the board.
+  // Under reduced motion the final frame shows at once: nothing runs on the board, and on a phone the board
+  // takes its ended size with no transition, the same layout as with motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await resumeBefore(page, 'shape').then(async ({ cell }) => {
+    await watchTheEnd(page);
     await cellAt(page, cell).click();
     await expect(page.getByTestId('end-screen')).toBeVisible();
     expect((await endNow(page)).boardAnimations).toBe(0);
     expect((await endNow(page)).liftedAbove).toBe(true);
+    expect(await page.evaluate(() => (window as unknown as { __shrinks: unknown[] }).__shrinks)).toEqual([]);
+    expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+    const frame = (await steadyBoxes(page))['board-frame']!;
+    for (const key of ['top', 'left', 'width', 'height'] as const) expect(Math.abs(frame[key] - phoneShape.ended![key]), key).toBeLessThanOrEqual(1);
+    const card = await resultCard(page);
+    expect(card.playAgain).toEqual(phoneShape.playAgain);
+    expect(card.home).toEqual(phoneShape.home);
   });
   await expect(glowing(page)).toHaveCount(0);
 });

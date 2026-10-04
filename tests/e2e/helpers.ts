@@ -2,6 +2,7 @@
 // The DOM library types the callbacks that run in the page (addInitScript, evaluate).
 import { expect, type Page, type TestInfo } from '@playwright/test';
 import { gameLogOf, legalTakes, newGame, take, type CellId, type GameState, type Player } from '@okiya/game';
+import { PALETTE_IDS, type PaletteId } from '../../apps/web/src/theme';
 
 /** The bot's reply may take up to 10 seconds with the real bot (decisions), after its short pause. */
 export const BOT_REPLY_MS = 11_000;
@@ -270,21 +271,6 @@ export async function expectSeatsBeside(page: Page) {
 }
 
 /**
- * The stripe the board frame shows in the colour of the player to move (PRD I3): the side it sits on,
- * read from the offsets of the frame's first inset shadow, and its colour; no side when no stripe shows.
- */
-export async function frameStripe(page: Page): Promise<{ side: 'left' | 'right' | 'top' | 'bottom' | null; color: string }> {
-  return page.getByTestId('board-frame').evaluate((element) => {
-    // Chrome writes each shadow as "<colour> <x> <y> <blur> <spread> inset", separated by commas outside parentheses.
-    const first = getComputedStyle(element).boxShadow.split(/,(?![^(]*\))/)[0]!.trim();
-    const color = /^(?:rgba?|color)\([^)]*\)/.exec(first)?.[0] ?? '';
-    const [x = 0, y = 0] = first.slice(color.length).trim().split(/\s+/).map(parseFloat);
-    const side = !first.endsWith('inset') ? null : x > 0 ? 'left' : x < 0 ? 'right' : y > 0 ? 'top' : y < 0 ? 'bottom' : null;
-    return { side, color };
-  });
-}
-
-/**
  * The Match card's tile right after a take (PRD U8): whether it carries any animation other than its
  * short crossfade, its crossfade's duration, whether it takes taps (the element hit at its own centre is
  * inside it), and the centre of a glowing cell to tap next.
@@ -460,7 +446,7 @@ export async function gameSnapshot(page: Page) {
       toMove: attr('[data-testid="match-screen"]', 'data-to-move'),
       takes: attr('[data-testid="match-screen"]', 'data-takes'),
       seats: [seat('A'), seat('B')],
-      score: text('[data-testid="sitting-score"]'),
+      score: attr('[data-testid="scoreboard"]', 'aria-label'),
     };
   }, cells);
 }
@@ -569,3 +555,174 @@ export async function lowContrastText(page: Page): Promise<string[]> {
 
 /** The game log of a state, as a save stores it. */
 export const gameLogOfState = (state: GameState) => gameLogOf(state);
+
+/** The colour themes (PRD U5), Walnut and parchment first. */
+export const PALETTES: readonly PaletteId[] = PALETTE_IDS;
+
+/** Switches the page's colour theme in place, as the menu does, without replaying anything. */
+export async function setPalette(page: Page, palette: PaletteId) {
+  await page.evaluate((id) => document.documentElement.setAttribute('data-palette', id), palette);
+  await expect(page.locator('html')).toHaveAttribute('data-palette', palette);
+}
+
+/** The score of the sitting as the scoreboard row shows it: each seat's wins, the draws, and its accessible name. */
+export async function readScore(page: Page) {
+  const row = page.getByTestId('scoreboard');
+  const [a, b, draws] = await Promise.all(['data-a', 'data-b', 'data-draws'].map(async (name) => Number(await row.getAttribute(name))));
+  return { a: a!, b: b!, draws: draws!, text: (await row.getAttribute('aria-label'))! };
+}
+
+/**
+ * A real game after `takes` takes, each the legal take a fixed stride picks, Player 1 starting: a seeded
+ * position for a saved game with Continue, so a check never depends on which tile a bot takes.
+ */
+export function seededPosition(takes: number, seed = 11): GameState {
+  let state = newGame({ seed, starter: 'A' });
+  for (let i = 0; i < takes; i += 1) {
+    const legal = legalTakes(state);
+    const next = take(state, legal[(i * 5 + seed) % legal.length]!);
+    if (!next.ok || next.state.result) throw new Error('the seeded position ended early');
+    state = next.state;
+  }
+  return state;
+}
+
+/** Writes a saved game into storage and resumes it with Continue from a reload. */
+export async function continueSaved(page: Page, state: GameState, mode: 'bot' | 'two-player') {
+  const save = JSON.stringify({ version: 3, mode, ...(mode === 'bot' ? { difficulty: 'easy' } : {}), score: { A: 0, B: 0, draws: 0 }, log: gameLogOf(state) });
+  await page.evaluate((value) => window.localStorage.setItem('okiya.saved-match', value), save);
+  await page.reload();
+  await page.getByTestId('continue').click();
+  await expect(page.getByTestId('match-screen')).toHaveAttribute('data-takes', String(state.takes.length));
+}
+
+/** What the rendered pixels of the board say about the move highlights (PRD R2). */
+export interface HighlightPixels {
+  /** Each playable tile's ring against the bare well beside it: the contrast and how many well pixels were found. */
+  readonly rings: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number }[];
+  /** Each terrain's mean L* over its playable tiles and over its faded tiles, where both are present. */
+  readonly lightness: { readonly terrain: string; readonly playable: number; readonly faded: number }[];
+  readonly dpr: number;
+}
+
+/**
+ * Measures the move highlights from the board's rendered pixels: a `locator.screenshot()` decoded in the
+ * page with `createImageBitmap` and a canvas. Ring pixels are read at the ring's mid-width (1.5 px in from
+ * the tile's edge: its 1 px border and 2 px inset edge) along the middle of each side; well pixels along the
+ * outward normal into the gap or the padding, keeping only those within ΔE*ab 3 of the rendered --well
+ * colour, so neither a halo nor a shadow counts. A playable tile with no bare well beside it fails loudly.
+ */
+export async function highlightPixels(page: Page): Promise<HighlightPixels> {
+  const shot = await board(page).screenshot();
+  return page.evaluate(async (png) => {
+    const bytes = Uint8Array.from(atob(png), (char) => char.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext('2d', { colorSpace: 'srgb', willReadFrequently: true })!;
+    context.drawImage(bitmap, 0, 0);
+    const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    const boardElement = document.querySelector('[data-testid="board"]')!;
+    const box = boardElement.getBoundingClientRect();
+    const dpr = bitmap.width / box.width;
+    type Rgb = [number, number, number];
+    const pixel = (x: number, y: number): Rgb | null => {
+      const px = Math.floor((x - box.left) * dpr);
+      const py = Math.floor((y - box.top) * dpr);
+      if (px < 0 || py < 0 || px >= bitmap.width || py >= bitmap.height) return null;
+      const at = (py * bitmap.width + px) * 4;
+      return [data[at]!, data[at + 1]!, data[at + 2]!];
+    };
+    const linear = (c: number) => {
+      const v = c / 255;
+      return v <= 0.040_45 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const lab = ([r, g, b]: Rgb): Rgb => {
+      const [lr, lg, lb] = [r, g, b].map(linear) as Rgb;
+      const f = (t: number) => (t > 216 / 24_389 ? Math.cbrt(t) : ((24_389 / 27) * t + 16) / 116);
+      const fx = f((0.4124 * lr + 0.3576 * lg + 0.1805 * lb) / 0.950_47);
+      const fy = f(0.2126 * lr + 0.7152 * lg + 0.0722 * lb);
+      const fz = f((0.0193 * lr + 0.1192 * lg + 0.9505 * lb) / 1.088_83);
+      return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+    };
+    const deltaE = (a: Rgb, b: Rgb) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    const luminance = ([r, g, b]: Rgb) => 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+    const contrast = (a: Rgb, b: Rgb) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const mean = (colours: Rgb[]): Rgb => colours.reduce<Rgb>((sum, c) => [sum[0] + c[0] / colours.length, sum[1] + c[1] / colours.length, sum[2] + c[2] / colours.length], [0, 0, 0]);
+    const wellColour = getComputedStyle(boardElement).backgroundColor.match(/[\d.]+/g)!.slice(0, 3).map(Number) as Rgb;
+    const wellLab = lab(wellColour);
+    const cells = [...boardElement.querySelectorAll('[data-cell]')].map((element) => ({
+      cell: element.getAttribute('data-cell')!,
+      terrain: element.getAttribute('data-terrain')!,
+      glow: element.getAttribute('data-glow') === 'true',
+      faded: element.getAttribute('data-faded') === 'true',
+      rect: element.getBoundingClientRect(),
+    }));
+    // The gap between tiles, the same as the board's padding.
+    const gap = boardElement.querySelector('[role="gridcell"]')!.getBoundingClientRect().left - box.left;
+    const step = 1 / dpr;
+    const rings = cells
+      .filter((cell) => cell.glow)
+      .map(({ cell, rect }) => {
+        const ring: Rgb[] = [];
+        const well: Rgb[] = [];
+        let sides = 0;
+        // Each side: [the ring point at mid-width, the outward normal]; sampled along the middle fifth of the side.
+        const along = (from: number, length: number) => Array.from({ length: Math.max(1, Math.floor((length / 5) * dpr)) }, (_v, index) => from + length * 0.4 + index * step);
+        const sidesOf = [
+          { points: along(rect.top, rect.height).map((y) => [rect.left + 1.5, y] as const), out: [-1, 0] as const },
+          { points: along(rect.top, rect.height).map((y) => [rect.right - 1.5, y] as const), out: [1, 0] as const },
+          { points: along(rect.left, rect.width).map((x) => [x, rect.top + 1.5] as const), out: [0, -1] as const },
+          { points: along(rect.left, rect.width).map((x) => [x, rect.bottom - 1.5] as const), out: [0, 1] as const },
+        ];
+        for (const { points, out } of sidesOf) {
+          let found = 0;
+          for (const [x, y] of points) {
+            const own = pixel(x, y);
+            if (own) ring.push(own);
+            // Out from the tile's edge across the gap (or the padding), never as far as the next tile.
+            const edgeX = out[0] < 0 ? rect.left : out[0] > 0 ? rect.right : x;
+            const edgeY = out[1] < 0 ? rect.top : out[1] > 0 ? rect.bottom : y;
+            for (let d = 0.5; d < gap - 0.5; d += step) {
+              const sample = pixel(edgeX + out[0] * d, edgeY + out[1] * d);
+              if (!sample) break;
+              if (deltaE(lab(sample), wellLab) < 3) {
+                well.push(sample);
+                found += 1;
+              }
+            }
+          }
+          if (found > 0) sides += 1;
+        }
+        return { cell, ratio: well.length > 0 ? contrast(mean(ring), mean(well)) : 0, wellPixels: well.length, sides };
+      });
+    // Mean L* of each tile's art, inside its ring.
+    const tileLightness = (rect: DOMRect) => {
+      let sum = 0;
+      let count = 0;
+      for (let y = rect.top + 5; y < rect.bottom - 5; y += step) {
+        for (let x = rect.left + 5; x < rect.right - 5; x += step) {
+          const sample = pixel(x, y);
+          if (!sample) continue;
+          sum += lab(sample)[0];
+          count += 1;
+        }
+      }
+      return sum / count;
+    };
+    const terrains = [...new Set(cells.map((cell) => cell.terrain))];
+    const lightness = terrains.flatMap((terrain) => {
+      const of = (pick: (cell: (typeof cells)[number]) => boolean) => cells.filter((cell) => cell.terrain === terrain && pick(cell)).map((cell) => tileLightness(cell.rect));
+      const playable = of((cell) => cell.glow);
+      const faded = of((cell) => cell.faded);
+      if (playable.length === 0 || faded.length === 0) return [];
+      const average = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+      return [{ terrain, playable: average(playable), faded: average(faded) }];
+    });
+    return { rings, lightness, dpr };
+  }, shot.toString('base64'));
+}

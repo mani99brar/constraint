@@ -80,6 +80,11 @@ export const DIAGRAMS = {
   },
 } as const satisfies Record<string, Diagram>;
 
+/** Whose tiles glow in a diagram: the player to move in its position, whose colour they take (PRD R2). */
+export function diagramMover(diagram: Diagram): Player {
+  return diagramState(diagram).toMove;
+}
+
 /** The state a diagram shows: its takes played on the diagram board. Throws on an illegal take, which the tests rule out. */
 export function diagramState(diagram: Diagram): GameState {
   let state = DIAGRAM_START;

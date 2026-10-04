@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { GameState } from '@okiya/game';
 import type { GameMode } from './mode';
-import { scoreText, type Score } from './score';
 import { resultDetail, resultSummary } from './text';
 
 /**
@@ -21,15 +20,5 @@ export function EndScreen({ state, mode, children }: { state: GameState; mode: G
       </h2>
       <p data-testid="result-detail">{resultDetail(state, mode)}</p>
     </section>
-  );
-}
-
-/** The score of the sitting in one line (PRD P3, U2), between the nameplates, on its own plate. */
-export function SittingScore({ score, mode }: { score: Score; mode: GameMode }) {
-  return (
-    <p className="sitting-score" data-testid="sitting-score" data-a={score.A} data-b={score.B} data-draws={score.draws}>
-      <span className="visually-hidden">Score of this sitting: </span>
-      {scoreText(score, mode)}
-    </p>
   );
 }

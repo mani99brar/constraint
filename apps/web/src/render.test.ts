@@ -29,19 +29,28 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
   const state = afterTakes(4, 4);
   const html = renderMatch(state);
 
-  it('renders the seats, the board, the Match card and a top bar holding only the menu button, and no panel', () => {
-    for (const testId of ['top-bar', 'match-card', 'match-card-terrain', 'match-card-symbol', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'board-frame', 'board', 'toasts', 'announcer', 'sitting-score']) {
+  it('renders the seats, the board, the scoreboard row round the Match card and a top bar holding only the menu button, and no panel', () => {
+    for (const testId of ['top-bar', 'scoreboard', 'score-A', 'score-B', 'score-draws', 'match-card', 'match-card-terrain', 'match-card-symbol', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'board-frame', 'board', 'toasts', 'announcer']) {
       expect(html, testId).toContain(`data-testid="${testId}"`);
     }
-    for (const testId of ['log', 'resolution', 'status', 'legend', 'settings', 'menu-settings', 'menu', 'end-screen', 'turn', 'last-tile', 'token-counts']) {
+    for (const testId of ['log', 'resolution', 'status', 'legend', 'settings', 'menu-settings', 'menu', 'end-screen', 'turn', 'last-tile', 'token-counts', 'sitting-score']) {
       expect(html, testId).not.toContain(`data-testid="${testId}"`);
     }
     const bar = /<header class="top-bar"[\s\S]*?<\/header>/.exec(html)![0];
     expect(bar.match(/<button/g)).toHaveLength(1);
     expect(bar).toContain('data-testid="menu-button"');
     expect(bar).not.toContain('data-testid="match-card"');
-    // The score of the sitting shows once, as one line; the seats have no Wins of their own.
-    expect(html.match(/data-testid="sitting-score"/g)).toHaveLength(1);
+    // The score of the sitting shows once, in the scoreboard row: Player 1's score, the Match card, Player 2's
+    // score, in that order, the draws line kept but hidden at zero; the seats have no Wins of their own.
+    expect(html.match(/data-testid="scoreboard"/g)).toHaveLength(1);
+    const row = /<section class="scoreboard"[\s\S]*?<\/section>/.exec(html)![0];
+    expect(row).toContain('aria-label="You 0, Bot 0"');
+    expect(row.indexOf('data-testid="score-A"')).toBeLessThan(row.indexOf('data-testid="match-card"'));
+    expect(row.indexOf('data-testid="match-card"')).toBeLessThan(row.indexOf('data-testid="score-draws"'));
+    expect(row.indexOf('data-testid="score-draws"')).toBeLessThan(row.indexOf('data-testid="score-B"'));
+    expect(row).toContain('class="score-draws empty"');
+    expect(row).toMatch(/data-testid="score-A"[\s\S]*?data-shape="ring"/);
+    expect(row).toMatch(/data-testid="score-B"[\s\S]*?data-shape="diamond"/);
     expect(html).not.toMatch(/>Wins</);
     expect(html).not.toContain('seat-A-score');
     for (const heading of ['Log', 'Last actions', 'Status', 'Settings', 'Legend']) expect(html).not.toMatch(new RegExp(`<h[1-6][^>]*>${heading}</h`));
@@ -76,8 +85,9 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(html).toContain('data-testid="seat-A-status">Your move</p>');
     expect(html).toContain('data-testid="seat-B-name">Bot · Normal</h2>');
     expect(html).toContain(`data-testid="announcer">${turnAnnouncement(state, normal)}</p>`);
-    expect(html).toContain('data-active="A"');
     expect(html).toContain('data-glow-player="A"');
+    // No whose-turn stripe on the board: the frame carries no side.
+    expect(html).not.toContain('data-active');
   });
 
   it('shows who starts, "Any edge tile" before the opening take, and the bot thinking', () => {
@@ -94,8 +104,13 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(two).toContain('data-testid="seat-B-name">Player 2</h2>');
     expect(two).toContain(`data-testid="seat-B-status">Player 2's move</p>`);
     expect(two).toContain('data-glow-player="B"');
-    expect(two).toContain('data-active="B"');
-    expect(two).toContain('Player 1 2 – 1 Player 2 · 1 draw');
+    expect(two).toContain('aria-label="Player 1 2, Player 2 1, 1 draw"');
+    expect(two).toMatch(/class="score-draws" data-testid="score-draws" aria-hidden="true">1 draw</);
+    // The glowing tiles carry the mover's badge with its token mark, and the pop's order and turn.
+    expect(two).toContain('data-pop-turn="odd"');
+    expect(two.match(/data-testid="move-badge"/g)).toHaveLength(legalTakes(afterTakes(4, 3)).length);
+    expect(two).toMatch(/data-testid="move-badge" data-mark="diamond"/);
+    expect(two).toContain('data-pop-order="0"');
     expect(two).toMatch(/data-testid="seat-A"[^>]*data-score="2"/);
     expect(two).toMatch(/aria-label="[A-D]\d, Player [12]'s token/);
     expect(two).not.toMatch(/your token|bot's token/);
@@ -105,6 +120,7 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(renderMatch(state, { highlights: false })).not.toContain('data-glow="true"');
     expect(renderMatch(state, { highlights: false })).not.toContain('data-faded="true"');
     expect(renderMatch(state, { highlights: false })).not.toContain('data-glow-player');
+    expect(renderMatch(state, { highlights: false })).not.toMatch(/move-badge|data-pop-order|data-pop-turn/);
   });
 
   it.each(Object.entries(endings()))('shows the end screen once after a %s, with the stroke across a winning shape and the faces of the result', (by, finished) => {
@@ -125,7 +141,7 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
         expect(ended.match(/data-end="dim"/g)).toHaveLength(12);
         for (const order of [0, 1, 2, 3]) expect(ended).toContain(`data-lift-order="${order}"`);
       }
-      if (by === 'blockade') expect(ended).toContain('data-testid="match-card-blocked">No tile matches');
+      if (by === 'blockade') expect(ended).toMatch(/data-testid="match-card-blocked"><span class="long-form">No tile matches \w+–\w+<\/span><span class="short-form">No match<\/span>/);
       expect(ended).not.toContain('data-faded="true"');
       expect(ended).not.toContain('data-kind="end"');
       expect(ended.match(/data-winning="true"/g) ?? []).toHaveLength(by === 'line' || by === 'square' ? 4 : 0);

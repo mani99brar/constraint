@@ -14,13 +14,15 @@ export interface CellView {
   /** A legal take for the person to move right now, whether or not it glows. */
   readonly legal: boolean;
   /**
-   * Stands out for the person to move: a legal take with highlights on. It keeps full brightness, lifts
-   * slightly and carries a light wash of the mover's colour (PRD R2).
+   * Stands out for the person to move: a legal take with highlights on. It pops up when the turn starts,
+   * then stays raised with a halo, a ring and a tint of the mover's colour and the mover's badge (PRD R2).
    */
   readonly glow: boolean;
+  /** A glowing tile's place in the pop, 0 for the first in board order; else null. */
+  readonly popOrder: number | null;
   /** Fades back: a free tile that is not a legal take, while a person is to move with highlights on. */
   readonly faded: boolean;
-  /** The latest take, marked until the next one. */
+  /** The latest take, marked until the next one by a ring in its taker's colour (PRD I2). */
   readonly last: boolean;
   /** One of the winning shape's four cells, once the game has ended. */
   readonly winning: boolean;
@@ -42,10 +44,15 @@ export interface BoardModel {
   readonly cells: readonly CellView[];
   /** The glowing cells, in board order: `legalTakes` on a person's turn with highlights on, else none. */
   readonly glowing: readonly CellId[];
-  /** Whose colour the board frame takes: the player to move of a running game, else null. */
-  readonly active: Player | null;
-  /** Whose colour washes the glowing tiles: the person to move while any tile glows, else null. */
-  readonly wash: Player | null;
+  /** Whose colour rings and tints the glowing tiles: the person to move while any tile glows, else null. */
+  readonly mover: Player | null;
+  /** The mark on the glowing tiles' corner badge: the mover's token mark, a ring or a diamond; else null. */
+  readonly badge: TokenMarkShape | null;
+  /**
+   * The turn's parity while any tile glows, which picks one of two identical pop animations, so the pop
+   * restarts on every turn, even for a tile that stays legal across a turn change; else null.
+   */
+  readonly popTurn: 'odd' | 'even' | null;
   /** Whether a tap may take a tile: a person's turn of a running game. */
   readonly acceptsTakes: boolean;
   readonly winningShape: WinningShape | null;
@@ -53,6 +60,13 @@ export interface BoardModel {
   readonly end: EndModel | null;
   /** Whether every tile shows its name on a plate (the Tile names setting, PRD E3). */
   readonly names: boolean;
+}
+
+export type TokenMarkShape = 'ring' | 'diamond';
+
+/** A player's token mark: a ring for Player 1, a diamond for Player 2 (PRD U1). */
+export function markOf(player: Player): TokenMarkShape {
+  return player === 'A' ? 'ring' : 'diamond';
 }
 
 export interface BoardOptions {
@@ -67,8 +81,9 @@ function winningShapeOf(state: GameState): WinningShape | null {
 }
 
 /**
- * The board as the person to move sees it. Nothing fades, lifts or carries a wash while no person is to
- * move (the bot choosing, or the game over), so the board stays still on the bot's turn.
+ * The board as the person to move sees it. Nothing pops, fades, glows or carries a tint or badge while no
+ * person is to move (the bot choosing, or the game over) or with highlights off, so the board stays still
+ * on the bot's turn.
  */
 export function boardModel(state: GameState, { mode, highlights, tileNames = false }: BoardOptions): BoardModel {
   const acceptsTakes = personToMove(state, mode);
@@ -94,6 +109,7 @@ export function boardModel(state: GameState, { mode, highlights, tileNames = fal
       edge: isEdgeCell(cell),
       legal: legal.has(cell),
       glow,
+      popOrder: null,
       faded,
       last: cell === last,
       winning: winning.has(cell),
@@ -103,11 +119,13 @@ export function boardModel(state: GameState, { mode, highlights, tileNames = fal
     };
   });
   const glowing = cells.filter((view) => view.glow).map((view) => view.cell);
+  const mover = glowing.length > 0 ? state.toMove : null;
   return {
-    cells,
+    cells: cells.map((view) => (view.glow ? { ...view, popOrder: glowing.indexOf(view.cell) } : view)),
     glowing,
-    active: state.result ? null : state.toMove,
-    wash: glowing.length > 0 ? state.toMove : null,
+    mover,
+    badge: mover ? markOf(mover) : null,
+    popTurn: mover ? (state.takes.length % 2 === 1 ? 'odd' : 'even') : null,
     acceptsTakes,
     winningShape: shape,
     end,

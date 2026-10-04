@@ -1,5 +1,8 @@
 import { useRef } from 'react';
 import { Dialog } from './Dialog';
+import { paletteAfterKey } from './home';
+import { RadioSwitch } from './RadioSwitch';
+import { PALETTES } from './theme';
 import type { Settings } from './settings';
 
 function Switch({ label, on, hint, onToggle, testId }: { label: string; on: boolean; hint: string; onToggle: () => void; testId: string }) {
@@ -34,8 +37,8 @@ export interface MenuDialogProps {
 }
 
 /**
- * The menu (PRD U4, E3, E5): resume, How to Play, the highlight, tile-name and sound settings, and quit
- * to title; on the home screen, as Settings, it also holds the reset of the results.
+ * The menu (PRD U4, E3, E5, U5): resume, How to Play, the colour theme, the highlight, tile-name and sound
+ * settings, and quit to title; on the home screen, as Settings, it also holds the reset of the results.
  */
 export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
@@ -54,6 +57,20 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
           </button>
         )}
         <section aria-label="Settings" className="menu-settings" data-testid="menu-settings">
+          <div className="setting">
+            <span className="setting-label" id="theme-label" aria-hidden="true">
+              Theme
+            </span>
+            <RadioSwitch
+              label="Theme"
+              testId="setting-palette"
+              options={PALETTES}
+              value={settings.palette}
+              afterKey={paletteAfterKey}
+              onChange={(palette) => onSettings({ ...settings, palette })}
+            />
+            <span className="help">Colours for the table and both players. Each follows your device's light or dark setting.</span>
+          </div>
           <Switch
             label="Highlight legal tiles"
             testId="setting-highlights"

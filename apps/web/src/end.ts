@@ -67,3 +67,14 @@ export function endModel(state: GameState): EndModel | null {
     matchText: kind === 'blockade' && state.lastTile ? `No tile matches ${tileName(state.lastTile)}` : null,
   };
 }
+
+/** The longest the phone's end shrink may be marked as running, past its own ~250 ms transition (PRD U8, U10). */
+export const END_SHRINK_LIMIT_MS = 700;
+
+/**
+ * Whether the phone's board shrink may run now: the game ended on this screen (not shown ended from the
+ * start) and the shrink has not finished. Rotating or resizing after it never animates.
+ */
+export function endShrinking(endedNow: boolean, endedAtStart: boolean, done: boolean): boolean {
+  return endedNow && !endedAtStart && !done;
+}

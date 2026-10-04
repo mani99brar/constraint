@@ -7,6 +7,7 @@ import {
   FADE_MS,
   MAX_VISIBLE,
   nextToastChange,
+  phoneToast,
   refusalToast,
   takeToast,
   tickToasts,
@@ -17,12 +18,15 @@ import {
 
 describe('toasts (PRD U3)', () => {
   it('turns a refusal into an alert and the bot’s take into a notice', () => {
-    expect(refusalToast('Desert–Moon matches neither Forest nor Star')).toEqual({
+    expect(refusalToast('Desert–Moon matches neither Forest nor Star', 'Desert–Moon doesn’t match Forest–Star')).toEqual({
       kind: 'refusal',
       text: 'Desert–Moon matches neither Forest nor Star',
+      short: 'Desert–Moon doesn’t match Forest–Star',
       tone: 'alert',
     });
-    expect(takeToast('Bot took D3, Desert–Star')).toEqual({ kind: 'take', text: 'Bot took D3, Desert–Star', tone: 'info' });
+    expect(takeToast('Bot took D3, Desert–Star', 'Bot took D3')).toEqual({ kind: 'take', text: 'Bot took D3, Desert–Star', short: 'Bot took D3', tone: 'info' });
+    // Without a short form, the phone shows the text itself.
+    expect(takeToast('Bot took D3, Desert–Star').short).toBe('Bot took D3, Desert–Star');
   });
 
   it('drops a refusal when the turn changes, and keeps it while the turn stays', () => {
@@ -42,9 +46,28 @@ describe('toasts (PRD U3)', () => {
   });
 });
 
+describe('the phone’s one toast (PRD U3, U6)', () => {
+  it('shows one toast at a time: a refusal outranks a take, and the newest replaces an older one', () => {
+    expect(phoneToast([])).toBeNull();
+    const took = enqueueToasts(EMPTY_TOASTS, [takeToast('Bot took D3, Desert–Star', 'Bot took D3')], 0);
+    const takeId = visibleToasts(took, 0)[0]!.toast.id;
+    expect(phoneToast(visibleToasts(took, 0))).toBe(takeId);
+    const refused = enqueueToasts(took, [refusalToast('Water–Sun is not an edge tile; the first take must come from the edge.', 'Edge tiles only at the start')], 10);
+    const shown = visibleToasts(refused, 10);
+    expect(shown).toHaveLength(2);
+    const refusalId = shown.find(({ toast }) => toast.kind === 'refusal')!.toast.id;
+    expect(phoneToast(shown)).toBe(refusalId);
+    // A newer take never hides the refusal; once the refusal goes, the take shows again.
+    const newer = enqueueToasts(refused, [takeToast('Bot took A1, Forest–Sun', 'Bot took A1')], 20);
+    expect(phoneToast(visibleToasts(newer, 20))).toBe(refusalId);
+    const cleared = dropRefusals(newer);
+    expect(visibleToasts(cleared, 20).find(({ toast }) => toast.id === phoneToast(visibleToasts(cleared, 20)))!.toast.short).toBe('Bot took A1');
+  });
+});
+
 describe('toast queue', () => {
   // Distinct kinds would replace one another, so the queue's own rules are tested with toasts built by hand.
-  const spec = (text: string): ToastSpec => ({ kind: text as 'take', text, tone: 'info' });
+  const spec = (text: string): ToastSpec => ({ kind: text as 'take', text, short: text, tone: 'info' });
 
   it('shows toasts in order, at most a few at once, and lets the next in when one leaves', () => {
     let queue = enqueueToasts(EMPTY_TOASTS, ['a', 'b', 'c', 'd'].map(spec), 0);

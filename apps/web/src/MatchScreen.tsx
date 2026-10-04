@@ -3,19 +3,21 @@ import type { CellId, GameState } from '@okiya/game';
 import { turnAnnouncement } from './announce';
 import { Board } from './Board';
 import { boardModel } from './boardModel';
-import { EndScreen, SittingScore } from './EndScreen';
+import { EndScreen } from './EndScreen';
+import { endShrinking, END_SHRINK_LIMIT_MS } from './end';
 import { takeFeedback } from './feedback';
 import { MatchCard } from './MatchCard';
 import { matchCardModel } from './matchCard';
 import { MenuDialog } from './MenuDialog';
 import type { GameMode } from './mode';
 import { lastEvent, type RefusalMark } from './reactions';
-import type { Score } from './score';
+import { scoreboardModel, type Score } from './score';
+import { Scoreboard } from './Scoreboard';
 import { Seat } from './Seat';
 import { seatModels } from './seats';
 import type { Settings } from './settings';
 import type { SoundPlayer } from './sound';
-import { describeRefusal } from './text';
+import { describeRefusal, shortRefusal } from './text';
 import { refusalToast } from './toasts';
 import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
@@ -42,9 +44,10 @@ export interface MatchScreenProps {
 
 /**
  * The table (PRD U1–U3, U9, U10, §5.8): the board with a slim nameplate for each player beside it, the
- * score of the sitting in one line between them, the Match card, a top bar with the menu button, a fixed
- * toast slot outside the board and, at the end, the result card beside the board (below it on a phone).
- * Every change of turn is announced through an `aria-live` region.
+ * scoreboard row above it (each seat's score either side of the Match card, the draws under it), a top bar
+ * with the menu button, toasts outside the board and, at the end, the result card beside the board (below
+ * it on a phone, where the board shrinks to make room while the end sequence plays). Every change of turn
+ * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
   const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave } = props;
@@ -55,6 +58,17 @@ export function MatchScreen(props: MatchScreenProps) {
   // The takes on screen when the game was shown: a new or resumed game starts with no event (PRD U9).
   const [shownAtTakes] = useState(initialState.takes.length);
   const [refusal, setRefusal] = useState<RefusalMark | null>(null);
+  // The phone's end shrink may run only while the end sequence plays, never for a game shown ended or after it.
+  const [endedAtStart] = useState(initialState.result !== null);
+  const [shrinkDone, setShrinkDone] = useState(false);
+  const ended = state.result !== null;
+  const shrinking = endShrinking(ended, endedAtStart, shrinkDone);
+
+  useEffect(() => {
+    if (!shrinking) return;
+    const timer = setTimeout(() => setShrinkDone(true), END_SHRINK_LIMIT_MS);
+    return () => clearTimeout(timer);
+  }, [shrinking]);
 
   useEffect(() => {
     // One sound per new take and the bot's take toast; a resumed game starts quiet.
@@ -73,7 +87,7 @@ export function MatchScreen(props: MatchScreenProps) {
     const refused = attempt(cell);
     if (refused) {
       setRefusal((previous) => ({ by: state.toMove, atTakes: state.takes.length, count: (previous?.count ?? 0) + 1 }));
-      push([refusalToast(describeRefusal(refused, state))]);
+      push([refusalToast(describeRefusal(refused, state), shortRefusal(refused))]);
       sound.play('refuse');
     }
   }
@@ -87,18 +101,23 @@ export function MatchScreen(props: MatchScreenProps) {
       data-starter={state.starter}
       data-takes={state.takes.length}
       data-accepts-takes={board.acceptsTakes}
-      data-ended={state.result !== null}
+      data-ended={ended}
+      data-end-shrinking={shrinking || undefined}
+      onTransitionEnd={(event) => {
+        if (event.target === event.currentTarget && event.propertyName === '--board-size') setShrinkDone(true);
+      }}
     >
       <h1 className="visually-hidden">Game</h1>
       <p className="visually-hidden" aria-live="polite" aria-atomic="true" data-testid="announcer">
         {turnAnnouncement(state, mode)}
       </p>
+      <Scoreboard model={scoreboardModel(score, mode)}>
+        <MatchCard model={matchCardModel(state)} />
+      </Scoreboard>
       <TopBar onMenu={(opener) => setMenu({ opener })} />
       <div className="side side-a">
         <Seat view={one} />
-        <MatchCard model={matchCardModel(state)} />
       </div>
-      <SittingScore score={score} mode={mode} />
       <div className="board-area" data-testid="table">
         <Board model={board} onCellClick={tapCell} />
       </div>

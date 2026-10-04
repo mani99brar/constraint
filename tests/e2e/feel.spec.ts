@@ -27,9 +27,11 @@ import {
   toasts,
   toastsOverCells,
   waitForHumanTurn,
+  continueSaved,
   type PageCell,
   type SeatLook,
 } from './helpers';
+import { newGame } from '@okiya/game';
 import { FADE_MS, TOAST_MS } from '../../apps/web/src/toasts';
 
 // The game's feel (PRD U1, U3, U9): the avatars' reactions, the table's materials and toasts that never
@@ -338,30 +340,85 @@ async function frameBox(page: Page) {
   return (await page.getByTestId('board-frame').boundingBox())!;
 }
 
+/** The toasts a phone shows: each one's kind, short text, whether it is one line, where it sits, and what it overlaps. */
+async function phoneToasts(page: Page) {
+  return page.evaluate(() => {
+    const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+    const frame = box('[data-testid="board-frame"]');
+    const plate = box('[data-testid="seat-A"]');
+    const solid = [...document.querySelectorAll('[data-testid="board"] [data-cell], [data-testid="seat-A"], [data-testid="seat-B"]')];
+    return [...document.querySelectorAll('[data-testid="toast"]')]
+      .filter((toast) => getComputedStyle(toast).display !== 'none')
+      .map((toast) => {
+        const rect = toast.getBoundingClientRect();
+        return {
+          kind: toast.getAttribute('data-kind'),
+          shown: getComputedStyle(toast, '::after').content.replace(/^"|"(\s*\/.*)?$/g, ''),
+          full: toast.textContent,
+          oneLine: rect.height <= 34 && toast.scrollWidth <= toast.clientWidth,
+          inGap: rect.top >= frame.bottom && rect.bottom <= plate.top,
+          inside: rect.left >= 0 && rect.right <= window.innerWidth,
+          overlaps: solid
+            .filter((other) => {
+              const o = other.getBoundingClientRect();
+              return rect.left < o.right && o.left < rect.right && rect.top < o.bottom && o.top < rect.bottom;
+            })
+            .map((other) => other.getAttribute('data-cell') ?? other.getAttribute('data-testid')),
+        };
+      });
+  });
+}
+
+/** On a phone: exactly one toast shows, of the given kind, in its short form on one line, in the gap under the board, over nothing. */
+async function expectOnePhoneToast(page: Page, kind: 'refusal' | 'take', short: string | RegExp) {
+  const shown = await phoneToasts(page);
+  expect(shown, JSON.stringify(shown)).toHaveLength(1);
+  const [toast] = shown as [Awaited<ReturnType<typeof phoneToasts>>[number]];
+  expect(toast.kind).toBe(kind);
+  expect(toast.shown).toMatch(short);
+  expect(toast).toMatchObject({ oneLine: true, inGap: true, inside: true, overlaps: [] });
+  // The full text stays in the page for screen readers.
+  expect(toast.full!.length).toBeGreaterThan(0);
+}
+
 /** With a take toast and a refusal shown, no toast covers a cell and the frame has not moved; the refusal clears on the next take. */
-async function checkToastsBesideBoard(page: Page, viewport: string, shoot?: () => Promise<void>) {
+async function checkToastsBesideBoard(page: Page, viewport: 'wide' | 'phone', shoot?: () => Promise<void>) {
   await waitForHumanTurn(page);
   // No toast is up: wait for any from earlier to leave, then note where the frame sits.
   await expect(toasts(page)).toHaveCount(0, { timeout: TOAST_MS + FADE_MS + 1_000 });
   const before = await frameBox(page);
 
-  // Your take, then the bot's take with its toast, then a refusal: both toasts show together.
+  // Your take, then the bot's take with its toast, then a refusal: both toasts are up together.
   await takeGlowing(page);
   await waitForHumanTurn(page);
-  await expect(takeToast(page)).toBeVisible();
+  await expect(takeToast(page)).toHaveCount(1);
+  const botCell = (await readBoard(page)).find((cell) => cell.last)!;
+  if (viewport === 'phone') await expectOnePhoneToast(page, 'take', `Bot took ${botCell.cell}`);
   const { illegal } = await legalFromPage(page);
   await cellAt(page, illegal[0]!.cell).click();
   await expect(refusalToast(page)).toBeVisible();
-  await expect(takeToast(page)).toBeVisible();
+  await expect(takeToast(page)).toHaveCount(1);
   expect(await toastsOverCells(page), viewport).toEqual([]);
   expect(await frameBox(page), viewport).toEqual(before);
   await shoot?.();
-  // Each toast lies wholly inside its fixed slot.
-  const slot = (await page.getByTestId('toasts').boundingBox())!;
-  for (const toast of await toasts(page).all()) {
-    const box = (await toast.boundingBox())!;
-    expect(box.y, viewport).toBeGreaterThanOrEqual(slot.y - 0.5);
-    expect(box.y + box.height, viewport).toBeLessThanOrEqual(slot.y + slot.height + 0.5);
+  if (viewport === 'wide') {
+    // Each toast lies wholly inside its fixed room, both shown.
+    await expect(takeToast(page)).toBeVisible();
+    const slot = (await page.getByTestId('toasts').boundingBox())!;
+    for (const toast of await toasts(page).all()) {
+      const box = (await toast.boundingBox())!;
+      expect(box.y, viewport).toBeGreaterThanOrEqual(slot.y - 0.5);
+      expect(box.y + box.height, viewport).toBeLessThanOrEqual(slot.y + slot.height + 0.5);
+    }
+  } else {
+    // One at a time: the refusal outranks the take, in its short form naming both tiles.
+    await expect(takeToast(page)).toBeHidden();
+    await expectOnePhoneToast(page, 'refusal', new RegExp(`^${illegal[0]!.terrain}–${illegal[0]!.symbol} doesn't match ${botCell.terrain}–${botCell.symbol}$`));
+    // A tap on a taken cell: its own short form replaces the refusal before it.
+    await cellAt(page, botCell.cell).click();
+    await expect(refusalToast(page)).toHaveText(new RegExp(`at ${botCell.cell} was already taken`));
+    await expectOnePhoneToast(page, 'refusal', `${botCell.cell} is already taken`);
+    expect(await frameBox(page), viewport).toEqual(before);
   }
 
   // The refusal clears once the turn changes; the frame stays put as the toasts leave.
@@ -374,7 +431,7 @@ async function checkToastsBesideBoard(page: Page, viewport: string, shoot?: () =
   expect(await frameBox(page), viewport).toEqual(before);
 }
 
-test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never overlap a board cell, wide and at 390 × 844, the board never moves, and the refusal still clears when the turn changes', async ({ page }, testInfo) => {
+test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never overlap a board cell, wide and at 390 × 844, where one toast shows at a time in a one-line short form in the gap under the board over no cell or nameplate; the board never moves, and the refusal still clears when the turn changes', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await startGame(page, { seed: HUMAN_STARTS, difficulty: 'Easy' });
   await checkToastsBesideBoard(page, 'wide', () => attachScreenshot(page, testInfo, 'toasts-clear-board'));
@@ -385,8 +442,16 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   await page.getByRole('button', { name: /^Quit to title/ }).click();
   await playButton(page).click();
   await expect(match(page)).toHaveAttribute('data-takes', /^[01]$/);
-  await checkToastsBesideBoard(page, '390 × 844');
+  await checkToastsBesideBoard(page, 'phone');
   // Nothing on the phone layout scrolls to fit them.
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
   await expect(glowing(page).first()).toBeVisible();
+
+  // The opening's refusal, in a two-player game Player 1 opens: "Edge tiles only at the start", one line.
+  await continueSaved(page, newGame({ seed: 5, starter: 'A' }), 'two-player');
+  const before = await frameBox(page);
+  await cellAt(page, 'B2').click();
+  await expect(refusalToast(page)).toContainText('is not an edge tile');
+  await expectOnePhoneToast(page, 'refusal', 'Edge tiles only at the start');
+  expect(await frameBox(page)).toEqual(before);
 });

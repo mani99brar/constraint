@@ -16,6 +16,12 @@ export function takeText(state: GameState, mode: GameMode): string | null {
   return `${shortName(mode, taker)} took ${cell}, ${tileName(tileAt(state, cell))}`;
 }
 
+/** The newest take in a few words, for a phone's toast: "Bot took D3"; null before the first. */
+export function takeShortText(state: GameState, mode: GameMode): string | null {
+  const cell = state.takes[state.takes.length - 1];
+  return cell ? `${shortName(mode, otherPlayer(state.toMove))} took ${cell}` : null;
+}
+
 function starterLine(state: GameState, mode: GameMode): string {
   if (mode.kind === 'two-player') return `${shortName(mode, state.starter)} starts`;
   return state.starter === HUMAN ? 'You start' : 'The bot starts';

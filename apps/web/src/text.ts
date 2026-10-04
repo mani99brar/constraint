@@ -33,6 +33,28 @@ export function describeRefusal(refusal: TakeRefusal, state: GameState): string 
   }
 }
 
+/**
+ * A refusal in one short line for a phone's toast (PRD R3, U6), chosen by its kind: "Edge tiles only at
+ * the start", "D3 is already taken" or "Desert–Moon doesn't match Forest–Star". The full reason stays in
+ * the announcement.
+ */
+export function shortRefusal(refusal: TakeRefusal): string {
+  switch (refusal.code) {
+    case 'game-over':
+      return 'The game is over';
+    case 'unknown-cell':
+      return `${refusal.cell} is not a cell`;
+    case 'cell-taken':
+      return `${refusal.cell} is already taken`;
+    case 'not-edge':
+      return 'Edge tiles only at the start';
+    case 'no-match':
+      return `${tileName(refusal.tile)} doesn't match ${tileName(refusal.lastTile)}`;
+    default:
+      return 'Not allowed';
+  }
+}
+
 const SHAPE_WORDS = { line: 'a line', square: 'a square', blockade: 'blockade' } as const;
 
 /** Who won, as the subject of a sentence: "You win", "The bot wins" or "Player 2 wins". */

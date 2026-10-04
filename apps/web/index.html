@@ -11,6 +11,20 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='2' y='2' width='60' height='60' rx='12' fill='%23f4f1ea' stroke='%231d1d1f' stroke-width='4'/%3E%3Crect x='10' y='10' width='20' height='20' rx='4' fill='%2386c06c'/%3E%3Crect x='34' y='10' width='20' height='20' rx='4' fill='%236aaee0'/%3E%3Crect x='10' y='34' width='20' height='20' rx='4' fill='%23a8a096'/%3E%3Crect x='34' y='34' width='20' height='20' rx='4' fill='%23e8c860'/%3E%3Ccircle cx='20' cy='20' r='5' fill='%231d4ed8'/%3E%3Ccircle cx='44' cy='20' r='5' fill='%231d4ed8'/%3E%3Ccircle cx='20' cy='44' r='5' fill='%231d4ed8'/%3E%3Ccircle cx='44' cy='44' r='5' fill='%231d4ed8'/%3E%3C/svg%3E"
     />
     <title>%GAME_TITLE%</title>
+    <script>
+      // The colour theme before the first paint (PRD U5): read from the stored settings, so no other theme flashes first.
+      (function () {
+        var palettes = ['walnut', 'seaglass', 'clear'];
+        var palette = palettes[0];
+        try {
+          var stored = JSON.parse(window.localStorage.getItem('okiya.settings'));
+          if (stored && palettes.indexOf(stored.palette) >= 0) palette = stored.palette;
+        } catch (error) {
+          // No storage or a malformed value: the default theme.
+        }
+        document.documentElement.setAttribute('data-palette', palette);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

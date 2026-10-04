@@ -16,7 +16,7 @@ import { TWO_PLAYERS, versusBot } from './mode';
 import { afterTakes, endings } from './playouts.test-helper';
 import { emptyResults } from './results';
 import { NO_SCORE } from './score';
-import { DEFAULT_SETTINGS } from './settings';
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from './settings';
 import type { KeyValueStorage } from './storage';
 import { TITLE, TITLE_PLACEHOLDER, withTitle } from './title';
 
@@ -121,7 +121,12 @@ describe('the published title (PRD §1, E6)', () => {
     expect(html).toContain(`<title>${TITLE_PLACEHOLDER}</title>`);
     expect(withTitle(html)).toContain(`<title>${TITLE}</title>`);
     expect(withTitle(html)).not.toContain(TITLE_PLACEHOLDER);
-    expect(html).not.toMatch(/okiya/i);
+    // The one exception: the inline theme script reads the settings under their storage key, written once,
+    // as that exact literal. Nothing else on the page names the internal package.
+    const key = `'${SETTINGS_KEY}'`;
+    expect(html.split(key)).toHaveLength(2);
+    expect(html.replace(key, '')).not.toMatch(/okiya/i);
+    expect(html.replace("'okiya.settings'", "'okiya.other'").replace(key, '')).toMatch(/okiya/i);
     // The home screen's wordmark is real text in the h1, drawn in the materials by CSS (PRD E1).
     expect(screens.app).toContain(`<h1 class="wordmark" data-testid="title">${TITLE}</h1>`);
     for (const html of Object.values(screens)) expect(html).not.toMatch(/okiya/i);

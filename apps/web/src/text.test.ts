@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CELLS, EDGE_CELLS, newGame, take, tileAt, validateTake, type CellId, type GameResult, type GameState, type TakeRefusal } from '@okiya/game';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { afterTakes, endings } from './playouts.test-helper';
-import { describeRefusal, resultDetail, resultSummary, tileName } from './text';
+import { describeRefusal, resultDetail, resultSummary, shortRefusal, tileName } from './text';
 
 /** Every refusal code of `@okiya/game`, each produced by the engine itself; a new code fails to typecheck here. */
 function refusals(): Record<TakeRefusal['code'], { readonly state: GameState; readonly refusal: TakeRefusal }> {
@@ -52,6 +52,18 @@ describe('refusal texts (PRD R3)', () => {
     expect(describeRefusal(taken.refusal, taken.state)).toMatch(/^\w+–\w+ at [A-D][1-4] was already taken; a token stands there now\.$/);
     expect(describeRefusal(all['unknown-cell'].refusal, all['unknown-cell'].state)).toBe('Z9 is not a cell of the board.');
     expect(describeRefusal(all['game-over'].refusal, all['game-over'].state)).toBe('The game is over: no more tiles can be taken.');
+  });
+
+  it('has a one-line phone form for every refusal kind, chosen by the kind and naming the tiles briefly', () => {
+    const forms = Object.fromEntries(Object.entries(all).map(([code, { refusal }]) => [code, shortRefusal(refusal)]));
+    expect(forms['not-edge']).toBe('Edge tiles only at the start');
+    expect(forms['cell-taken']).toBe(`${(all['cell-taken'].refusal as { cell: CellId }).cell} is already taken`);
+    expect(forms['unknown-cell']).toBe('Z9 is not a cell');
+    expect(forms['game-over']).toBe('The game is over');
+    expect(shortRefusal({ code: 'no-match', cell: 'B2', tile: { terrain: 'Desert', symbol: 'Moon' }, lastTile: { terrain: 'Forest', symbol: 'Star' } })).toBe("Desert–Moon doesn't match Forest–Star");
+    // Each fits one phone line: the longest tile names together stay under 42 characters.
+    expect(shortRefusal({ code: 'no-match', cell: 'B2', tile: { terrain: 'Mountain', symbol: 'Wave' }, lastTile: { terrain: 'Mountain', symbol: 'Star' } }).length).toBeLessThanOrEqual(42);
+    for (const form of Object.values(forms)) expect(form.length).toBeLessThanOrEqual(42);
   });
 
   it('refuses through `take` with the same reasons', () => {

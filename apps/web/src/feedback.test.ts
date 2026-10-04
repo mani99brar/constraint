@@ -20,7 +20,7 @@ describe('take feedback (PRD U3, E4)', () => {
     const feedback = takeFeedback(botTook, 1, easy);
     expect(feedback.sound).toBe('bot');
     expect(feedback.turnChanged).toBe(true);
-    expect(feedback.toasts).toEqual([{ kind: 'take', tone: 'info', text: expect.stringMatching(new RegExp(`^Bot took ${botTook.takes[1]}, \\w+–\\w+$`)) }]);
+    expect(feedback.toasts).toEqual([{ kind: 'take', tone: 'info', text: expect.stringMatching(new RegExp(`^Bot took ${botTook.takes[1]}, \\w+–\\w+$`)), short: `Bot took ${botTook.takes[1]}` }]);
   });
 
   it('makes no take toast in a two-player game, for either seat', () => {
@@ -42,7 +42,7 @@ describe('take feedback (PRD U3, E4)', () => {
       expect(bot.sound).toBe(result.kind === 'draw' ? 'draw' : result.winner === 'A' ? 'win' : 'loss');
       const last = state.takes[state.takes.length - 1]!;
       expect(bot.toasts).toEqual(
-        otherPlayer(state.toMove) === 'B' ? [{ kind: 'take', tone: 'info', text: expect.stringMatching(new RegExp(`^Bot took ${last}, \\w+–\\w+$`)) }] : [],
+        otherPlayer(state.toMove) === 'B' ? [{ kind: 'take', tone: 'info', text: expect.stringMatching(new RegExp(`^Bot took ${last}, \\w+–\\w+$`)), short: `Bot took ${last}` }] : [],
       );
       const pair = takeFeedback(state, state.takes.length - 1, TWO_PLAYERS);
       expect(pair.sound).toBe(result.kind === 'draw' ? 'draw' : 'win');
