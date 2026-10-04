@@ -97,6 +97,38 @@ async function expectStatusOnOneLine(page: Page) {
   }
 }
 
+/**
+ * On wide layouts each nameplate has two rows: the name and the tokens on top, the status under them,
+ * beside the avatar. At the narrowest wide layout the avatar shrinks to about 40 px.
+ */
+async function expectTwoRowPlates(page: Page, narrow: boolean) {
+  for (const player of ['A', 'B'] as const) {
+    const layout = await page.getByTestId(`seat-${player}-status`).evaluate((status, who) => {
+      const text = status.textContent;
+      const wasEmpty = status.classList.contains('empty');
+      status.textContent = "Player 2's move";
+      status.classList.remove('empty');
+      const box = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+      const [name, tokens, avatar, plate] = [`seat-${who}-name`, `seat-${who}-tokens`, `avatar-${who}`, `seat-${who}`].map(box) as [DOMRect, DOMRect, DOMRect, DOMRect];
+      const line = status.getBoundingClientRect();
+      status.textContent = text;
+      if (wasEmpty) status.classList.add('empty');
+      return {
+        topRow: Math.abs(name.top + name.height / 2 - (tokens.top + tokens.height / 2)) <= 6,
+        statusBelow: line.top >= Math.max(name.bottom, tokens.bottom) - 1,
+        besideAvatar: line.left >= avatar.right - 1 && line.top < avatar.bottom,
+        insidePlate: line.right <= plate.right && line.bottom <= plate.bottom,
+        avatar: Math.round(avatar.width),
+      };
+    }, player);
+    expect(layout, `${player}: two rows`).toMatchObject({ topRow: true, statusBelow: true, besideAvatar: true, insidePlate: true });
+    if (narrow) {
+      expect(layout.avatar, `${player}: the avatar shrinks at the narrowest wide layout`).toBeGreaterThanOrEqual(36);
+      expect(layout.avatar).toBeLessThanOrEqual(44);
+    }
+  }
+}
+
 /** The home screen's layout: the wordmark on one line over the hero board, flanked by the avatars. */
 async function expectHero(page: Page) {
   const wordmark = page.getByRole('heading', { level: 1 });
@@ -334,8 +366,10 @@ test('[scenario:match-screen] the game is the board, a slim nameplate for each p
   expect(await score.locator('[data-testid="match-card"]').count()).toBe(1);
   // Each nameplate's status stays on one line, never wrapped or clipped, at 1280 px and at the narrowest wide layout.
   await expectStatusOnOneLine(page);
+  await expectTwoRowPlates(page, false);
   await page.setViewportSize({ width: 761, height: 720 });
   await expectStatusOnOneLine(page);
+  await expectTwoRowPlates(page, true);
   await page.setViewportSize({ width: 1280, height: 720 });
   // On a wide screen You sit left of the board and the bot right of it.
   await expectSeatsBeside(page);

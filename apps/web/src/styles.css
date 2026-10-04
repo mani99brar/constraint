@@ -369,6 +369,14 @@ button:disabled {
   initial-value: 0px;
 }
 
+/* The space above Player 1's nameplate on a phone: it eases with --board-size at the end, so the
+   nameplate follows the shrinking board's bottom edge instead of snapping up first. */
+@property --seat-gap {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 .match {
   --seat: clamp(200px, 21vw, 270px);
   --toast-room: 88px;
@@ -376,6 +384,7 @@ button:disabled {
   --chrome: calc(var(--toast-room) + var(--score-row) + 40px);
   --board-size: min(100vw - 2 * var(--seat) - 72px, 100dvh - var(--chrome), 640px);
   --board: var(--board-size);
+  --seat-gap: 0px;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -1520,8 +1529,15 @@ button:disabled {
     --end-card: 128px;
     /* The smallest board whose tiles stay 44 px: four tiles, five gaps of 12%, the band and the border. */
     --min-board: calc(44px * 4.6 + 2 * 18px + 6px);
-    --board-mid: min(100vw - 20px, 640px, 100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - 30px);
-    --spacer: max(6px, (100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - var(--board-mid)) / 5);
+    /* The gap under the board holds the one-line toast, so it never drops below the toast's height. */
+    --toast-line: 32px;
+    --board-mid: min(100vw - 20px, 640px, 100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - 4 * 6px - var(--toast-line));
+    /* The spare height: five even spacers, unless the gap under the board needs its toast-line floor,
+       in which case the other four share what is left. */
+    --free: calc(100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - var(--board-mid));
+    --spacer: max(6px, min(var(--free) / 5, (var(--free) - var(--toast-line)) / 4));
+    --toast-gap: max(var(--toast-line), var(--spacer));
+    --seat-gap: var(--toast-gap);
     --board-end: clamp(
       var(--min-board),
       100dvh - 2 * var(--pad) - 3 * var(--spacer) - var(--score-row) - 2 * var(--plate) - 3 * var(--end-gap) - var(--end-card),
@@ -1546,6 +1562,7 @@ button:disabled {
      so no scrollbar ever flashes; afterwards a very short phone may scroll to the result card. */
   .match.ended {
     --board-size: var(--board-end);
+    --seat-gap: var(--end-gap);
   }
 
   .match.ended[data-end-shrinking] {
@@ -1626,6 +1643,7 @@ button:disabled {
 
   .seat-p1 {
     grid-area: seatA;
+    margin-top: var(--seat-gap);
   }
 
   .seat-p2 {
@@ -1653,10 +1671,6 @@ button:disabled {
     --band: 18px;
   }
 
-  .match.ended .seat-p1 {
-    margin-top: var(--end-gap);
-  }
-
   /* One toast at a time, its short form on one line, in the gap between the board and Player 1's
      nameplate; the full text stays in the page for screen readers. */
   .toasts {
@@ -1665,7 +1679,7 @@ button:disabled {
     right: 10px;
     top: calc(var(--pad) + 3 * var(--spacer) + var(--score-row) + var(--plate) + var(--board-mid));
     width: auto;
-    height: var(--spacer);
+    height: var(--toast-gap);
     justify-content: center;
   }
 
@@ -1674,10 +1688,10 @@ button:disabled {
   }
 
   .toast {
-    height: min(32px, var(--spacer));
+    height: var(--toast-line);
     padding: 0 12px;
     font-size: 0.85rem;
-    line-height: min(32px, var(--spacer));
+    line-height: var(--toast-line);
     white-space: nowrap;
   }
 
@@ -1724,7 +1738,9 @@ button:disabled {
    with motion allowed, so Play again, rotation and resizing change the board's size at once. */
 @media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
   .match.ended[data-end-shrinking] {
-    transition: --board-size 250ms ease-out;
+    transition:
+      --board-size 250ms ease-out,
+      --seat-gap 250ms ease-out;
   }
 }
 

@@ -278,12 +278,18 @@ describe('the phone’s end shrink (PRD U6, U8, U10)', () => {
     const phone = /@media \(max-width: 760px\) \{([\s\S]*?)\n\}/.exec(css)![1]!;
     const block = /\.match \{([^}]*)\}/.exec(phone)![1]!;
     expect(block).toMatch(/--board-size:\s*var\(--board-mid\)/);
-    expect(block).toMatch(/--spacer:[^;]*var\(--board-mid\)/);
-    expect(block).not.toMatch(/--spacer:[^;]*var\(--board-size\)/);
+    // The spacers come from the static mid-game board, never the animated size.
+    expect(block).toMatch(/--free:[^;]*var\(--board-mid\)/);
+    expect(block).toMatch(/--spacer:[^;]*var\(--free\)/);
+    expect(block).not.toMatch(/--(spacer|free):[^;]*var\(--board-size\)/);
+    // The gap under the board never drops below the one-line toast's height (short phones).
+    expect(block).toMatch(/--toast-gap:\s*max\(var\(--toast-line\),\s*var\(--spacer\)\)/);
+    expect(block).toMatch(/--seat-gap:\s*var\(--toast-gap\)/);
     expect(block).toMatch(/--board-end:\s*clamp\(\s*var\(--min-board\),[\s\S]*var\(--end-card\),\s*var\(--board-mid\)\s*\)/);
     expect(block).toMatch(/--min-board:\s*calc\(44px \* 4\.6/);
     const ended = /\.match\.ended \{([^}]*)\}/.exec(phone)![1]!;
     expect(ended).toMatch(/--board-size:\s*var\(--board-end\)/);
+    expect(ended).toMatch(/--seat-gap:\s*var\(--end-gap\)/);
     expect(ended).not.toMatch(/transition|overflow/);
     // Clipped to the screen only while the shrink runs; a very short phone may scroll to the card after it.
     const shrinking = /\.match\.ended\[data-end-shrinking\] \{([^}]*)\}/.exec(phone)![1]!;
@@ -299,6 +305,11 @@ describe('the phone’s end shrink (PRD U6, U8, U10)', () => {
     expect(scoped![1]).toMatch(/^--board-size \d+ms/);
     expect(times(scoped![1]!)[0]).toBeLessThanOrEqual(300);
     expect(times(scoped![1]!)[0]).toBeGreaterThanOrEqual(200);
+    // Player 1's gap eases with the board, on the same timing, so the nameplate never snaps.
+    expect(scoped![1]).toMatch(/--seat-gap \d+ms/);
+    const [board, gap] = times(scoped![1]!);
+    expect(gap).toBe(board);
+    expect(css).toMatch(/@property --seat-gap \{\s*syntax: '<length>';\s*inherits: true;/);
     for (const { selector, body } of rules) expect(/transition[^:]*:[^;]*\b(width|height)\b/.test(body), selector).toBe(false);
   });
 });

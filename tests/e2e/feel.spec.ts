@@ -356,6 +356,8 @@ async function phoneToasts(page: Page) {
           shown: getComputedStyle(toast, '::after').content.replace(/^"|"(\s*\/.*)?$/g, ''),
           full: toast.textContent,
           oneLine: rect.height <= 34 && toast.scrollWidth <= toast.clientWidth,
+          // Tall enough to read: a toast squeezed into a thin strip is clipped, not shown.
+          readable: rect.height >= 28 && toast.scrollHeight <= toast.clientHeight + 1,
           inGap: rect.top >= frame.bottom && rect.bottom <= plate.top,
           inside: rect.left >= 0 && rect.right <= window.innerWidth,
           overlaps: solid
@@ -376,7 +378,7 @@ async function expectOnePhoneToast(page: Page, kind: 'refusal' | 'take', short: 
   const [toast] = shown as [Awaited<ReturnType<typeof phoneToasts>>[number]];
   expect(toast.kind).toBe(kind);
   expect(toast.shown).toMatch(short);
-  expect(toast).toMatchObject({ oneLine: true, inGap: true, inside: true, overlaps: [] });
+  expect(toast).toMatchObject({ oneLine: true, readable: true, inGap: true, inside: true, overlaps: [] });
   // The full text stays in the page for screen readers.
   expect(toast.full!.length).toBeGreaterThan(0);
 }
@@ -454,4 +456,20 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   await expect(refusalToast(page)).toContainText('is not an edge tile');
   await expectOnePhoneToast(page, 'refusal', 'Edge tiles only at the start');
   expect(await frameBox(page)).toEqual(before);
+
+  // On a short phone (375 × 667, an iPhone SE, or Safari with its toolbars showing) the gap under the
+  // board still holds a readable one-line toast, over no cell or nameplate, with nothing scrolling.
+  await page.setViewportSize({ width: 375, height: 667 });
+  await continueSaved(page, newGame({ seed: 5, starter: 'A' }), 'two-player');
+  const short = await frameBox(page);
+  await cellAt(page, 'B2').click();
+  await expect(refusalToast(page)).toContainText('is not an edge tile');
+  await expectOnePhoneToast(page, 'refusal', 'Edge tiles only at the start');
+  expect(await frameBox(page)).toEqual(short);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
+  // Every tile stays at least 44 px there.
+  for (const cell of await page.locator('[data-testid="board"] [data-cell]').all()) {
+    const box = (await cell.boundingBox())!;
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);
+  }
 });
