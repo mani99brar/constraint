@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CELLS, EDGE_CELLS, newGame, take, tileAt, validateTake, type CellId, type GameResult, type GameState, type TakeRefusal } from '@okiya/game';
+import { TWO_PLAYERS, versusBot } from './mode';
 import { afterTakes, endings } from './playouts.test-helper';
 import { describeRefusal, resultDetail, resultSummary, tileName } from './text';
 
@@ -62,26 +63,49 @@ describe('refusal texts (PRD R3)', () => {
 
 describe('end texts (PRD R4)', () => {
   const forest = { terrain: 'Forest', symbol: 'Star' } as const;
-  const cases: readonly [GameResult, string, string][] = [
-    [{ kind: 'win', winner: 'A', by: 'line', cells: ['A1', 'B2', 'C3', 'D4'] }, 'You win with a line', 'Your tokens on A1, B2, C3 and D4 make a line.'],
-    [{ kind: 'win', winner: 'A', by: 'square', cells: ['B2', 'B3', 'C2', 'C3'] }, 'You win with a square', 'Your tokens on B2, B3, C2 and C3 fill a 2×2 square.'],
-    [{ kind: 'win', winner: 'A', by: 'blockade' }, 'You win by blockade', 'No tile left on the board matches Forest–Star, so the bot cannot take one and loses.'],
-    [{ kind: 'win', winner: 'B', by: 'line', cells: ['C1', 'C2', 'C3', 'C4'] }, 'The bot wins with a line', "The bot's tokens on C1, C2, C3 and C4 make a line."],
-    [{ kind: 'win', winner: 'B', by: 'square', cells: ['A3', 'A4', 'B3', 'B4'] }, 'The bot wins with a square', "The bot's tokens on A3, A4, B3 and B4 fill a 2×2 square."],
-    [{ kind: 'win', winner: 'B', by: 'blockade' }, 'The bot wins by blockade', 'No tile left on the board matches Forest–Star, so you cannot take one and lose.'],
-    [{ kind: 'draw', by: 'full-board' }, 'Draw: the board is full', 'All 16 cells hold tokens and nobody made a line or a square.'],
+  const bot = versusBot('normal');
+  const line = (winner: 'A' | 'B') => ({ kind: 'win', winner, by: 'line', cells: ['A1', 'B2', 'C3', 'D4'] }) as const;
+  const square = (winner: 'A' | 'B') => ({ kind: 'win', winner, by: 'square', cells: ['B2', 'B3', 'C2', 'C3'] }) as const;
+  const blockade = (winner: 'A' | 'B') => ({ kind: 'win', winner, by: 'blockade' }) as const;
+  const draw = { kind: 'draw', by: 'full-board' } as const;
+
+  const botCases: readonly [GameResult, string, string][] = [
+    [line('A'), 'You win by a line', 'Your tokens on A1, B2, C3 and D4 make a line.'],
+    [square('A'), 'You win by a square', 'Your tokens on B2, B3, C2 and C3 fill a 2×2 square.'],
+    [blockade('A'), 'You win by blockade', 'No tile left on the board matches Forest–Star, so the bot cannot take one and loses.'],
+    [line('B'), 'The bot wins by a line', "The bot's tokens on A1, B2, C3 and D4 make a line."],
+    [square('B'), 'The bot wins by a square', "The bot's tokens on B2, B3, C2 and C3 fill a 2×2 square."],
+    [blockade('B'), 'The bot wins by blockade', 'No tile left on the board matches Forest–Star, so you cannot take one and lose.'],
+    [draw, 'Draw: the board is full', 'All 16 cells hold tokens and nobody made a line or a square.'],
   ];
 
-  it.each(cases)('names the result and how it happened: %j', (result, summary, detail) => {
-    expect(resultSummary(result, 'A')).toBe(summary);
-    expect(resultDetail({ result, lastTile: forest }, 'A')).toBe(detail);
+  it.each(botCases)('names the result of a bot game and how it happened: %j', (result, summary, detail) => {
+    expect(resultSummary(result, bot)).toBe(summary);
+    expect(resultDetail({ result, lastTile: forest }, bot)).toBe(detail);
   });
 
-  it('describes real finished games of every ending', () => {
+  const pairCases: readonly [GameResult, string, string][] = [
+    [line('A'), 'Player 1 wins by a line', "Player 1's tokens on A1, B2, C3 and D4 make a line."],
+    [square('A'), 'Player 1 wins by a square', "Player 1's tokens on B2, B3, C2 and C3 fill a 2×2 square."],
+    [blockade('A'), 'Player 1 wins by blockade', 'No tile left on the board matches Forest–Star, so Player 2 cannot take one and loses.'],
+    [line('B'), 'Player 2 wins by a line', "Player 2's tokens on A1, B2, C3 and D4 make a line."],
+    [square('B'), 'Player 2 wins by a square', "Player 2's tokens on B2, B3, C2 and C3 fill a 2×2 square."],
+    [blockade('B'), 'Player 2 wins by blockade', 'No tile left on the board matches Forest–Star, so Player 1 cannot take one and loses.'],
+    [draw, 'Draw: the board is full', 'All 16 cells hold tokens and nobody made a line or a square.'],
+  ];
+
+  it.each(pairCases)('names the winning seat of a two-player game and how it happened: %j', (result, summary, detail) => {
+    expect(resultSummary(result, TWO_PLAYERS)).toBe(summary);
+    expect(resultDetail({ result, lastTile: forest }, TWO_PLAYERS)).toBe(detail);
+  });
+
+  it('describes real finished games of every ending, in both modes', () => {
     for (const state of Object.values(endings())) {
-      expect(resultSummary(state.result!, 'A')).toMatch(/^(You win|The bot wins) (with a line|with a square|by blockade)$|^Draw: the board is full$/);
-      expect(resultDetail(state, 'A').length).toBeGreaterThan(20);
+      expect(resultSummary(state.result!, bot)).toMatch(/^(You win|The bot wins) by (a line|a square|blockade)$|^Draw: the board is full$/);
+      expect(resultSummary(state.result!, TWO_PLAYERS)).toMatch(/^Player [12] wins by (a line|a square|blockade)$|^Draw: the board is full$/);
+      expect(resultDetail(state, bot).length).toBeGreaterThan(20);
+      expect(resultDetail(state, TWO_PLAYERS)).not.toMatch(/\b(you|bot)\b/i);
     }
-    expect(resultDetail({ result: null, lastTile: null }, 'A')).toBe('');
+    expect(resultDetail({ result: null, lastTile: null }, bot)).toBe('');
   });
 });

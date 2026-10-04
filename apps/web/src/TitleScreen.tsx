@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Logo } from './art';
-import { DIFFICULTY_OPTIONS, difficultyLabel, type Difficulty } from './difficulty';
+import { DIFFICULTY_OPTIONS } from './difficulty';
+import { modeLabel, type GameMode } from './mode';
 import { MenuDialog } from './MenuDialog';
 import type { Results } from './results';
 import type { Settings } from './settings';
 import { TAGLINE, TITLE } from './title';
 
 export interface TitleScreenProps {
-  /** The saved unfinished game, if any: its difficulty and how many tiles were taken. */
-  readonly saved: { readonly difficulty: Difficulty; readonly takes: number } | null;
+  /** The saved unfinished game, if any: its mode and how many tiles were taken. */
+  readonly saved: { readonly mode: GameMode; readonly takes: number } | null;
   readonly results: Results;
   readonly settings: Settings;
   readonly onContinue: () => void;
@@ -37,7 +38,7 @@ export function TitleScreen({ saved, results, settings, onContinue, onNewGame, o
           <button type="button" className="primary" data-testid="continue" onClick={onContinue}>
             Continue
             <span className="menu-note">
-              {difficultyLabel(saved.difficulty)} bot, {saved.takes} {saved.takes === 1 ? 'tile' : 'tiles'} taken
+              {modeLabel(saved.mode)}, {saved.takes} {saved.takes === 1 ? 'tile' : 'tiles'} taken
             </span>
           </button>
         )}
@@ -54,7 +55,7 @@ export function TitleScreen({ saved, results, settings, onContinue, onNewGame, o
       </nav>
 
       <section aria-labelledby="results-title" data-testid="results" className="card results">
-        <h2 id="results-title">Your results</h2>
+        <h2 id="results-title">Your results against the bot</h2>
         <table>
           <thead>
             <tr>
@@ -75,7 +76,7 @@ export function TitleScreen({ saved, results, settings, onContinue, onNewGame, o
             ))}
           </tbody>
         </table>
-        <p className="help">Kept in this browser only.</p>
+        <p className="help">Kept in this browser only. Two-player games are not counted.</p>
         <button type="button" data-testid="reset-results" disabled={!played} onClick={onResetResults}>
           Reset results
         </button>

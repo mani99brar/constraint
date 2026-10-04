@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { EMPTY_TOASTS, enqueueToasts, nextToastChange, tickToasts, visibleToasts, type ToastSpec } from './toasts';
+import { applyTakeToasts, EMPTY_TOASTS, enqueueToasts, nextToastChange, tickToasts, visibleToasts, type ToastSpec } from './toasts';
 
 /** The toast queue on a clock: toasts show in order, fade and leave on their own, never blocking input. */
 export function useToasts() {
@@ -24,5 +24,13 @@ export function useToasts() {
     setQueue((current) => enqueueToasts(current, specs, time));
   }, []);
 
-  return { toasts: visibleToasts(queue, now), push };
+  /** A new take: refusals clear when the turn changes, then the take's own toasts show. */
+  const afterTake = useCallback((change: { readonly turnChanged: boolean; readonly toasts: readonly ToastSpec[] }) => {
+    if (!change.turnChanged && change.toasts.length === 0) return;
+    const time = Date.now();
+    setNow(time);
+    setQueue((current) => applyTakeToasts(current, change, time));
+  }, []);
+
+  return { toasts: visibleToasts(queue, now), push, afterTake };
 }

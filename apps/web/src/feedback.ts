@@ -1,25 +1,34 @@
-import type { GameState, Player } from '@okiya/game';
-import { outcomeOf } from './results';
+import { HUMAN } from './match';
+import type { GameState } from '@okiya/game';
+import { takeText } from './announce';
+import type { GameMode } from './mode';
 import type { SoundEffect } from './sound';
-import { resultSummary } from './text';
-import { endToast, type ToastSpec } from './toasts';
+import { takeToast, type ToastSpec } from './toasts';
 
-/** What the newest take is heard and shown as: one sound, and a toast when it ended the game. */
+/** What the newest take is heard and shown as: one sound, the bot's take toast, and whether the turn changed. */
 export interface TakeFeedback {
   readonly sound: SoundEffect | null;
   readonly toasts: readonly ToastSpec[];
+  /** A take was made, so the turn has moved on and a refusal from before it is out of date. */
+  readonly turnChanged: boolean;
 }
+
+const QUIET: TakeFeedback = { sound: null, toasts: [], turnChanged: false };
 
 /**
  * The feedback of the takes made since `heardTakes`; a resumed game starts quiet, so a state with no
- * new take gives none. The result's sound replaces the take's, and its toast names the result.
+ * new take gives none. The result's sound replaces the take's, and no toast names the result: the end
+ * screen and the seats show it once (PRD U3). Only the bot's takes get a toast.
  */
-export function takeFeedback(state: GameState, heardTakes: number, human: Player): TakeFeedback {
-  if (state.takes.length <= heardTakes) return { sound: null, toasts: [] };
-  if (state.result) {
-    const outcome = outcomeOf(state.result, human);
-    return { sound: outcome, toasts: [endToast(resultSummary(state.result, human), outcome)] };
+export function takeFeedback(state: GameState, heardTakes: number, mode: GameMode): TakeFeedback {
+  if (state.takes.length <= heardTakes) return QUIET;
+  const { result } = state;
+  if (result) {
+    const sound: SoundEffect = result.kind === 'draw' ? 'draw' : mode.kind === 'bot' && result.winner !== HUMAN ? 'loss' : 'win';
+    return { sound, toasts: [], turnChanged: true };
   }
-  // The player to move did not make the newest take.
-  return { sound: state.toMove === human ? 'bot' : 'place', toasts: [] };
+  // The player to move did not make the newest take. Player 2's takes, the bot's included, sound lower.
+  const byPlayerTwo = state.toMove === 'A';
+  const botTook = mode.kind === 'bot' && byPlayerTwo;
+  return { sound: byPlayerTwo ? 'bot' : 'place', toasts: botTook ? [takeToast(takeText(state, mode)!)] : [], turnChanged: true };
 }

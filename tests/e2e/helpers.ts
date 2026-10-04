@@ -76,39 +76,61 @@ export async function openTitle(page: Page, seed: number = HUMAN_STARTS) {
   await expect(page.getByTestId('title-screen')).toBeVisible();
 }
 
-/** From the title screen: New game, then a difficulty (never Hard in tests); the board appears. */
+/** From the title screen: New game, Versus bot, then a difficulty (never Hard in tests); the board appears. */
 export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal' = 'Easy') {
   await page.getByRole('button', { name: /^New game/ }).click();
+  await page.getByRole('button', { name: /^Versus bot/ }).click();
   await page.getByRole('button', { name: new RegExp(`^${difficulty}\\b`) }).click();
   await expect(board(page)).toBeVisible();
 }
 
-/** Opens the title screen and starts a game, by default with the human starting against Easy. */
+/** From the title screen: New game, then Two players; the board appears at once. */
+export async function chooseTwoPlayers(page: Page) {
+  await page.getByRole('button', { name: /^New game/ }).click();
+  await page.getByRole('button', { name: /^Two players/ }).click();
+  await expect(board(page)).toBeVisible();
+  await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');
+}
+
+/** Opens the title screen and starts a bot game, by default with the human starting against Easy. */
 export async function startGame(page: Page, { seed = HUMAN_STARTS, difficulty = 'Easy' }: { seed?: number; difficulty?: 'Easy' | 'Normal' } = {}) {
   await openTitle(page, seed);
   await chooseDifficulty(page, difficulty);
 }
 
+/** Opens the title screen and starts a two-player game, by default with Player 1 starting. */
+export async function startTwoPlayerGame(page: Page, { seed = HUMAN_STARTS }: { seed?: number } = {}) {
+  await openTitle(page, seed);
+  await chooseTwoPlayers(page);
+}
+
 export const isEdge = (cell: string) => /^[AD]/.test(cell) || /[14]$/.test(cell);
 
+export const match = (page: Page) => page.getByTestId('match-screen');
 export const board = (page: Page) => page.getByTestId('board');
+export const seat = (page: Page, player: 'A' | 'B') => page.getByTestId(`seat-${player}`);
+export const seatStatus = (page: Page, player: 'A' | 'B') => page.getByTestId(`seat-${player}-status`);
+export const matchCard = (page: Page) => page.getByTestId('match-card');
 export const cellAt = (page: Page, cell: string) => page.locator(`[data-testid="board"] [data-cell="${cell}"]`);
 export const glowing = (page: Page) => page.locator('[data-testid="board"] [data-cell][data-glow="true"]');
 export const refusalToast = (page: Page) => page.locator('[data-testid="toast"][data-kind="refusal"]');
+export const takeToast = (page: Page) => page.locator('[data-testid="toast"][data-kind="take"]');
 export const toasts = (page: Page) => page.getByTestId('toast');
 
-/** The number of takes so far, from the top bar's turn element. */
+/** The number of takes so far, from the match screen. */
 export async function takeCount(page: Page): Promise<number> {
-  return Number(await page.getByTestId('turn').getAttribute('data-takes'));
+  return Number(await match(page).getAttribute('data-takes'));
 }
 
-/** Waits until the human may take again, or the game has ended; the bot's reply may take up to 10 s. */
+/** The player to move, from the match screen. */
+export async function toMove(page: Page): Promise<'A' | 'B'> {
+  return (await match(page).getAttribute('data-to-move')) as 'A' | 'B';
+}
+
+/** Waits until a person may take, or the game has ended; the bot's reply may take up to 10 s. */
 export async function waitForHumanTurn(page: Page) {
   await expect
-    .poll(
-      async () => (await page.getByTestId('turn').getAttribute('data-human-turn')) === 'true' || (await page.getByTestId('end-screen').count()) > 0,
-      { timeout: BOT_REPLY_MS },
-    )
+    .poll(async () => (await match(page).getAttribute('data-accepts-takes')) === 'true' || (await page.getByTestId('end-screen').count()) > 0, { timeout: BOT_REPLY_MS })
     .toBe(true);
 }
 
@@ -117,6 +139,7 @@ export interface PageCell {
   readonly cell: string;
   readonly terrain: string;
   readonly symbol: string;
+  /** The token's player, A or B, or null while the tile is on the board. */
   readonly owner: string | null;
   readonly glow: boolean;
   readonly last: boolean;
@@ -144,11 +167,10 @@ export async function readBoard(page: Page): Promise<PageCell[]> {
     );
 }
 
-/** The last tile from the top bar, or null at the opening. */
+/** The tile to match from the Match card, or null at the opening. */
 export async function readLastTile(page: Page): Promise<{ terrain: string; symbol: string } | null> {
-  const lastTile = page.getByTestId('last-tile');
-  const terrain = await lastTile.getAttribute('data-terrain');
-  const symbol = await lastTile.getAttribute('data-symbol');
+  const terrain = await matchCard(page).getAttribute('data-terrain');
+  const symbol = await matchCard(page).getAttribute('data-symbol');
   return terrain && symbol ? { terrain, symbol } : null;
 }
 
@@ -164,19 +186,23 @@ export async function legalFromPage(page: Page): Promise<{ legal: string[]; ille
   return { legal: free.filter(isLegal).map((cell) => cell.cell), illegal: free.filter((cell) => !isLegal(cell)), cells };
 }
 
-/** Takes the first glowing tile and waits until the take is made; returns its cell. */
+/** Takes the first glowing tile for the player to move and waits until the take is made; returns its cell. */
 export async function takeGlowing(page: Page): Promise<string> {
   const target = glowing(page).first();
   await expect(target).toBeVisible();
   const cell = (await target.getAttribute('data-cell'))!;
+  const player = await toMove(page);
   const before = await takeCount(page);
   await target.click();
   await expect.poll(() => takeCount(page)).toBeGreaterThan(before);
-  await expect(cellAt(page, cell)).toHaveAttribute('data-owner', 'you');
+  await expect(cellAt(page, cell)).toHaveAttribute('data-owner', player);
   return cell;
 }
 
-/** Plays glowing takes, with the bot's replies, until the end screen shows; fails after `maxTakes` takes in all. */
+/**
+ * Plays glowing takes until the end screen shows: in a bot game for the human with the bot's replies,
+ * in a two-player game for both seats. Fails after `maxTakes` takes in all.
+ */
 export async function playToEnd(page: Page, maxTakes = 20) {
   const end = page.getByTestId('end-screen');
   for (;;) {
@@ -188,42 +214,69 @@ export async function playToEnd(page: Page, maxTakes = 20) {
   }
 }
 
-/** Everything the board and the top bar show, for comparing two moments of a game. */
+/** Everything the board, the seats and the Match card show, for comparing two moments of a game. */
 export async function gameSnapshot(page: Page) {
   const cells = await readBoard(page);
   return page.evaluate((boardCells) => {
     const attr = (selector: string, name: string) => document.querySelector(selector)?.getAttribute(name) ?? null;
+    const text = (selector: string) => document.querySelector(selector)?.textContent ?? null;
+    const seat = (player: string) => ({
+      name: text(`[data-testid="seat-${player}-name"]`),
+      status: text(`[data-testid="seat-${player}-status"]`),
+      lit: attr(`[data-testid="seat-${player}"]`, 'data-lit'),
+      tokensLeft: attr(`[data-testid="seat-${player}"]`, 'data-tokens-left'),
+      score: attr(`[data-testid="seat-${player}"]`, 'data-score'),
+    });
     return {
       cells: boardCells,
       tokens: document.querySelectorAll('[data-testid="board"] [data-testid="token"]').length,
-      lastTile: `${attr('[data-testid="last-tile"]', 'data-terrain')}-${attr('[data-testid="last-tile"]', 'data-symbol')}`,
-      lastTileText: document.querySelector('[data-testid="last-tile"]')?.textContent ?? null,
-      turn: document.querySelector('[data-testid="turn"]')?.textContent ?? null,
-      toMove: attr('[data-testid="turn"]', 'data-to-move'),
-      takes: attr('[data-testid="turn"]', 'data-takes'),
-      counts: `${attr('[data-testid="tokens-you"]', 'data-left')}/${attr('[data-testid="tokens-bot"]', 'data-left')}`,
+      matchCard: `${attr('[data-testid="match-card"]', 'data-terrain')}-${attr('[data-testid="match-card"]', 'data-symbol')}`,
+      matchCardText: text('[data-testid="match-card"]'),
+      mode: attr('[data-testid="match-screen"]', 'data-mode'),
+      toMove: attr('[data-testid="match-screen"]', 'data-to-move'),
+      takes: attr('[data-testid="match-screen"]', 'data-takes'),
+      seats: [seat('A'), seat('B')],
+      score: text('[data-testid="sitting-score"]'),
     };
   }, cells);
 }
 
-/** Every visible text element whose contrast against its effective background is below 4.5:1. */
+/**
+ * Every visible text element whose contrast against its effective background is below 4.5:1. The
+ * background is composited from every translucent layer up the tree, and text under any opacity
+ * below 1 counts as failing, so dimming by opacity can never pass unseen.
+ */
 export async function lowContrastText(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const parse = (value: string) => {
       const parts = value.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
-      return { r: parts[0]!, g: parts[1]!, b: parts[2]!, a: parts.length > 3 ? parts[3]! : 1 };
+      // color(srgb r g b / a) gives channels from 0 to 1.
+      const scale = value.startsWith('color(') ? 255 : 1;
+      return { r: parts[0]! * scale, g: parts[1]! * scale, b: parts[2]! * scale, a: parts.length > 3 ? parts[3]! : 1 };
     };
     const channel = (c: number) => {
       const v = c / 255;
       return v <= 0.039_28 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     const luminance = ({ r, g, b }: { r: number; g: number; b: number }) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    /** The background behind an element: every ancestor's colour composited from the root down onto white. */
     const background = (element: Element | null) => {
+      const layers: { r: number; g: number; b: number; a: number }[] = [];
       for (let node = element; node; node = node.parentElement) {
         const color = parse(getComputedStyle(node).backgroundColor);
-        if (color.a > 0) return color;
+        if (color.a > 0) layers.push(color);
+        if (color.a >= 1) break;
       }
-      return { r: 255, g: 255, b: 255, a: 1 };
+      let result = { r: 255, g: 255, b: 255 };
+      for (const layer of layers.reverse()) {
+        result = { r: layer.r * layer.a + result.r * (1 - layer.a), g: layer.g * layer.a + result.g * (1 - layer.a), b: layer.b * layer.a + result.b * (1 - layer.a) };
+      }
+      return result;
+    };
+    const opacity = (element: Element) => {
+      let value = 1;
+      for (let node: Element | null = element; node; node = node.parentElement) value *= Number(getComputedStyle(node).opacity);
+      return value;
     };
     const failures: string[] = [];
     for (const element of document.body.querySelectorAll('*')) {
@@ -231,11 +284,19 @@ export async function lowContrastText(page: Page): Promise<string[]> {
       if (!ownText) continue;
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
-      if (style.visibility === 'hidden' || rect.width === 0 || rect.height === 0) continue;
-      const fg = luminance(parse(style.color));
+      if (style.visibility === 'hidden' || rect.width <= 1 || rect.height <= 1) continue;
+      const label = `${element.tagName}.${element.className} "${element.textContent!.trim().slice(0, 30)}"`;
+      const seen = opacity(element);
+      if (seen === 0) continue;
+      const color = parse(style.color);
+      if (seen < 1 || color.a < 1) {
+        failures.push(`${label}: translucent (${(seen * color.a).toFixed(2)})`);
+        continue;
+      }
+      const fg = luminance(color);
       const bg = luminance(background(element));
       const ratio = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
-      if (ratio < 4.5) failures.push(`${element.tagName}.${element.className} "${element.textContent!.trim().slice(0, 30)}": ${ratio.toFixed(2)}`);
+      if (ratio < 4.5) failures.push(`${label}: ${ratio.toFixed(2)}`);
     }
     return failures;
   });

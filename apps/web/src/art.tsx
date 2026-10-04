@@ -1,4 +1,4 @@
-import type { Terrain, TileSymbol } from '@okiya/game';
+import type { Player, Terrain, TileSymbol } from '@okiya/game';
 
 // All art is drawn in code (PRD U1): a small scene per terrain, an emblem per symbol and a mark per
 // player's token, each with its own shape, so colour is never the only signal. Colours are theme tokens.
@@ -123,16 +123,28 @@ export function SymbolEmblem({ symbol }: { symbol: TileSymbol }) {
   );
 }
 
-/** The mark on a player's token: a ring on yours, a diamond on the bot's. */
-export function TokenMark({ owner }: { owner: 'you' | 'bot' }) {
+/** The mark on a player's token: a ring on Player 1's, a diamond on Player 2's (the bot's in a bot game). */
+export function TokenMark({ player }: { player: Player }) {
   return (
-    <svg {...glyph} className="token-mark" data-shape={owner === 'you' ? 'ring' : 'diamond'}>
-      {owner === 'you' ? (
+    <svg {...glyph} className="token-mark" data-shape={player === 'A' ? 'ring' : 'diamond'}>
+      {player === 'A' ? (
         <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="3" />
       ) : (
         <path d="M12 4.5 19.5 12 12 19.5 4.5 12z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
       )}
     </svg>
+  );
+}
+
+/** A whole tile as the board draws it: its terrain scene and its symbol emblem, at any size. */
+export function TileArt({ terrain, symbol, className = '' }: { terrain: Terrain; symbol: TileSymbol; className?: string }) {
+  return (
+    <span className={`tile-art terrain-${terrain.toLowerCase()} ${className}`.trim()} data-terrain={terrain} data-symbol={symbol} aria-hidden="true">
+      <TerrainScene terrain={terrain} />
+      <span className="tile-symbol">
+        <SymbolEmblem symbol={symbol} />
+      </span>
+    </span>
   );
 }
 
@@ -159,7 +171,7 @@ export function Logo({ size = 72 }: { size?: number }) {
         [19.5, 44.5],
         [44.5, 44.5],
       ].map(([x, y]) => (
-        <circle key={`${x}-${y}`} cx={x} cy={y} r="6.5" fill="var(--own)" stroke="var(--own-rim)" strokeWidth="2" />
+        <circle key={`${x}-${y}`} cx={x} cy={y} r="6.5" fill="var(--p1)" stroke="var(--p1-rim)" strokeWidth="2" />
       ))}
     </svg>
   );

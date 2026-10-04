@@ -21,7 +21,7 @@ describe('theme tokens (PRD U5)', () => {
   it('keeps the four terrains, both sides and the three board marks distinct in both sets', () => {
     for (const theme of [LIGHT, DARK]) {
       expect(new Set([theme.forest, theme.water, theme.mountain, theme.desert]).size).toBe(4);
-      expect(theme.own).not.toBe(theme.enemy);
+      expect(theme.p1).not.toBe(theme.p2);
       expect(new Set([theme.legal, theme.recent, theme.win]).size).toBe(3);
     }
   });

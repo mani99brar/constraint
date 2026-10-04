@@ -1,5 +1,5 @@
 // Test helper, not shipped: real games of the engine that end in each way, found by deterministic playouts.
-import { legalTakes, newGame, take, type GameState } from '@okiya/game';
+import { ALL_CELLS, legalTakes, newGame, take, type GameResult, type GameState, type Player } from '@okiya/game';
 
 /** Plays a game from `seed` with a fixed pick among the legal takes at every turn, until it ends. */
 export function playout(seed: number, pick: (legal: number, turn: number) => number): GameState {
@@ -38,4 +38,19 @@ export function afterTakes(seed: number, count: number, starter: 'A' | 'B' = 'A'
     state = taken.state;
   }
   return state;
+}
+
+/**
+ * A hand-built state on the board of `newGame({ seed: 11 })`: the given tokens on the first cells in
+ * board order, the last tile, the player to move and the starter. Takes list the token cells.
+ */
+export function handBuilt(
+  tokens: readonly (Player | null)[],
+  toMove: Player,
+  lastTile: GameState['lastTile'],
+  { starter = 'A', result = null }: { starter?: Player; result?: GameResult | null } = {},
+): GameState {
+  const base = newGame({ seed: 11, starter });
+  const padded = [...tokens, ...Array<Player | null>(16 - tokens.length).fill(null)];
+  return { ...base, tokens: padded, toMove, starter, lastTile, takes: ALL_CELLS.filter((_, i) => padded[i] !== null), result };
 }

@@ -1,5 +1,6 @@
 import type { GameResult, Player } from '@okiya/game';
 import { DIFFICULTY_OPTIONS, type Difficulty } from './difficulty';
+import type { GameMode } from './mode';
 import { isRecord, readJson, writeJson, type KeyValueStorage } from './storage';
 
 /** Wins, losses and draws against one difficulty (PRD E5). */
@@ -53,6 +54,15 @@ export function recordResult(storage: KeyValueStorage | null, difficulty: Diffic
   };
   writeJson(storage, RESULTS_KEY, next);
   return next;
+}
+
+/**
+ * Counts a finished game in the results of its difficulty (PRD E5): a bot game, from the human's
+ * side. A two-player game is never counted, and the results come back unchanged.
+ */
+export function recordFinishedGame(storage: KeyValueStorage | null, mode: GameMode, result: GameResult, human: Player): Results {
+  if (mode.kind !== 'bot') return loadResults(storage);
+  return recordResult(storage, mode.difficulty, outcomeOf(result, human));
 }
 
 /** Sets every difficulty back to zero. */

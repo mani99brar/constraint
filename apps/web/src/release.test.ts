@@ -11,8 +11,11 @@ import { DifficultyScreen } from './DifficultyScreen';
 import { HowToPlay } from './HowToPlay';
 import { MatchScreen } from './MatchScreen';
 import { MenuDialog } from './MenuDialog';
+import { TWO_PLAYERS, versusBot } from './mode';
+import { ModeScreen } from './ModeScreen';
 import { afterTakes, endings } from './playouts.test-helper';
 import { emptyResults } from './results';
+import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS } from './settings';
 import type { KeyValueStorage } from './storage';
 import { TITLE, TITLE_PLACEHOLDER, withTitle } from './title';
@@ -33,7 +36,7 @@ const screens: Record<string, string> = {
   app: render(createElement(App, { storage: memory() })),
   title: render(
     createElement(TitleScreen, {
-      saved: { difficulty: 'hard', takes: 7 },
+      saved: { mode: versusBot('hard'), takes: 7 },
       results: emptyResults(),
       settings: DEFAULT_SETTINGS,
       onContinue: noop,
@@ -43,12 +46,14 @@ const screens: Record<string, string> = {
       onSettings: noop,
     }),
   ),
+  mode: render(createElement(ModeScreen, { onVersusBot: noop, onTwoPlayers: noop, onBack: noop })),
   difficulty: render(createElement(DifficultyScreen, { onChoose: noop, onBack: noop })),
-  match: render(createElement(MatchScreen, { initialState: running, difficulty: 'normal', settings: DEFAULT_SETTINGS, onLeave: noop })),
+  match: render(createElement(MatchScreen, { initialState: running, mode: versusBot('normal'), score: NO_SCORE, settings: DEFAULT_SETTINGS, onLeave: noop })),
+  'two-player match': render(createElement(MatchScreen, { initialState: running, mode: TWO_PLAYERS, score: NO_SCORE, settings: DEFAULT_SETTINGS, onLeave: noop })),
   ...Object.fromEntries(
     Object.entries(endings()).map(([by, state]) => [
       `end by ${by}`,
-      render(createElement(MatchScreen, { initialState: state, difficulty: 'easy', settings: DEFAULT_SETTINGS, onPlayAgain: noop, onLeave: noop })),
+      render(createElement(MatchScreen, { initialState: state, mode: versusBot('easy'), score: NO_SCORE, settings: DEFAULT_SETTINGS, onPlayAgain: noop, onLeave: noop })),
     ]),
   ),
   menu: render(

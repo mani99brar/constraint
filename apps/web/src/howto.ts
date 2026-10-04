@@ -1,4 +1,4 @@
-import { EDGE_CELLS, type CellId, type Tile } from '@okiya/game';
+import { ALL_CELLS, legalTakes, take, type CellId, type GameState, type Player, type Terrain, type Tile, type TileSymbol } from '@okiya/game';
 import { readText, writeJson, type KeyValueStorage } from './storage';
 import { TITLE } from './title';
 
@@ -17,112 +17,138 @@ export function rememberHowToSeen(storage: KeyValueStorage | null): boolean {
   return writeJson(storage, HOWTO_SEEN_KEY, true);
 }
 
-/** How a cell of a small board diagram is drawn: a token, a mark, or both. */
+const T = (terrain: Terrain, symbol: TileSymbol): Tile => ({ terrain, symbol });
+
+/**
+ * The board every diagram is drawn on: one tile of each terrain and symbol, laid out once by hand,
+ * row A first. The diagrams are real games on it, so they always agree with the rules.
+ */
+export const DIAGRAM_BOARD: readonly Tile[] = [
+  T('Forest', 'Sun'), T('Water', 'Moon'), T('Mountain', 'Star'), T('Desert', 'Wave'),
+  T('Mountain', 'Wave'), T('Desert', 'Star'), T('Forest', 'Moon'), T('Water', 'Sun'),
+  T('Water', 'Star'), T('Forest', 'Wave'), T('Desert', 'Sun'), T('Mountain', 'Moon'),
+  T('Desert', 'Moon'), T('Mountain', 'Sun'), T('Water', 'Wave'), T('Forest', 'Star'),
+];
+
+/** The empty diagram board with Player 1 to start. */
+export const DIAGRAM_START: GameState = {
+  seed: 0,
+  board: DIAGRAM_BOARD,
+  tokens: ALL_CELLS.map(() => null),
+  starter: 'A',
+  toMove: 'A',
+  lastTile: null,
+  takes: [],
+  result: null,
+};
+
+/** How a cell of a small board diagram is drawn: its tile, or a token, with a mark. */
 export interface DiagramCell {
-  readonly token?: 'you' | 'bot';
-  /** `glow` a tile you may take, `shape` part of a winning shape, `last` the last take, `dead` a tile that does not match. */
-  readonly mark?: 'glow' | 'shape' | 'last' | 'dead';
+  readonly cell: CellId;
+  readonly tile: Tile;
+  readonly token: Player | null;
+  /** `glow` a tile that may be taken, `shape` part of a winning shape, `last` the last take, `dead` a tile that does not match. */
+  readonly mark: 'glow' | 'shape' | 'last' | 'dead' | null;
 }
 
 export interface Diagram {
-  readonly id: string;
+  readonly id: 'matching' | 'opening' | 'line' | 'square' | 'blockade' | 'draw';
   readonly caption: string;
-  readonly cells: Readonly<Partial<Record<CellId, DiagramCell>>>;
+  /** The takes of a real game on `DIAGRAM_BOARD`, Player 1 starting. */
+  readonly takes: readonly CellId[];
 }
 
-export interface HowToSection {
+/** The small board diagrams of How to Play; `howto.test.ts` replays each with the engine. */
+export const DIAGRAMS = {
+  matching: {
+    id: 'matching',
+    caption: 'The last take was Forest–Star. The glowing tiles share Forest or Star; the others cannot be taken.',
+    takes: ['A1', 'B3', 'D4'],
+  },
+  opening: { id: 'opening', caption: 'The first take: any of the 12 edge tiles.', takes: [] },
+  line: { id: 'line', caption: 'A line: a row, a column or a long diagonal, like this one.', takes: ['A1', 'B3', 'D4', 'A3', 'B2', 'A4', 'C3'] },
+  square: { id: 'square', caption: 'A square: any 2×2 block of the board.', takes: ['A1', 'B3', 'A2', 'C1', 'B2', 'A3', 'B1'] },
+  blockade: {
+    id: 'blockade',
+    caption: 'Player 1 took Forest–Wave at C2. None of the three tiles left matches it, so Player 2 cannot take one and Player 1 wins.',
+    takes: ['A1', 'B3', 'C4', 'A2', 'D1', 'A4', 'B2', 'C1', 'D3', 'B1', 'A3', 'D4', 'C2'],
+  },
+  draw: {
+    id: 'draw',
+    caption: 'A full board with no line and no square: a draw.',
+    takes: ['A1', 'C2', 'D3', 'A4', 'B1', 'C4', 'A2', 'D1', 'B3', 'D4', 'C1', 'B2', 'A3', 'D2', 'B4', 'C3'],
+  },
+} as const satisfies Record<string, Diagram>;
+
+/** The state a diagram shows: its takes played on the diagram board. Throws on an illegal take, which the tests rule out. */
+export function diagramState(diagram: Diagram): GameState {
+  let state = DIAGRAM_START;
+  for (const cell of diagram.takes) {
+    const taken = take(state, cell);
+    if (!taken.ok) throw new Error(`diagram ${diagram.id}: ${cell} is refused (${taken.refusal.code})`);
+    state = taken.state;
+  }
+  return state;
+}
+
+/** Every cell of a diagram as drawn: the tile or token, the glowing legal takes, the winning shape, the last take and dead tiles. */
+export function diagramCells(diagram: Diagram): DiagramCell[] {
+  const state = diagramState(diagram);
+  const legal = new Set(legalTakes(state));
+  const { result } = state;
+  const shape = new Set(result?.kind === 'win' && result.by !== 'blockade' ? result.cells : []);
+  const blockade = result?.kind === 'win' && result.by === 'blockade';
+  const last = state.takes[state.takes.length - 1];
+  return ALL_CELLS.map((cell, index) => {
+    const token = state.tokens[index] ?? null;
+    let mark: DiagramCell['mark'] = null;
+    if (shape.has(cell)) mark = 'shape';
+    else if (legal.has(cell)) mark = 'glow';
+    else if (token === null && (blockade || diagram.id === 'matching')) mark = 'dead';
+    else if (blockade && cell === last) mark = 'last';
+    return { cell, tile: DIAGRAM_BOARD[index]!, token, mark };
+  });
+}
+
+export interface HowToPage {
   readonly id: 'taking' | 'opening' | 'shapes' | 'blockade' | 'draw';
   readonly title: string;
   readonly paragraphs: readonly string[];
   readonly diagrams: readonly Diagram[];
 }
 
-const you: DiagramCell = { token: 'you' };
-const bot: DiagramCell = { token: 'bot' };
-const shape: DiagramCell = { token: 'you', mark: 'shape' };
-const dead: DiagramCell = { mark: 'dead' };
-
-function cells(entries: Record<string, DiagramCell>): Partial<Record<CellId, DiagramCell>> {
-  return entries as Partial<Record<CellId, DiagramCell>>;
-}
-
-/** The small board diagrams of How to Play; `howto.test.ts` checks them against the rules. */
-export const DIAGRAMS = {
-  opening: {
-    id: 'opening',
-    caption: 'The first take: any of the 12 edge tiles.',
-    cells: Object.fromEntries(EDGE_CELLS.map((cell) => [cell, { mark: 'glow' } satisfies DiagramCell])),
-  },
-  line: {
-    id: 'line',
-    caption: 'A line: a row, a column or a long diagonal, like this one.',
-    cells: cells({ A1: shape, B2: shape, C3: shape, D4: shape, A2: bot, B3: bot, C1: bot }),
-  },
-  square: {
-    id: 'square',
-    caption: 'A square: any 2×2 block of the board.',
-    cells: cells({ B2: shape, B3: shape, C2: shape, C3: shape, A2: bot, C4: bot, D1: bot }),
-  },
-  blockade: {
-    id: 'blockade',
-    caption: 'You took C2 last. None of the three tiles left matches it, so the bot cannot take and you win.',
-    cells: cells({
-      A1: you, A3: you, B2: you, C4: you, D1: you, D3: you,
-      C2: { token: 'you', mark: 'last' },
-      A2: bot, A4: bot, B1: bot, B3: bot, C1: bot, D2: bot,
-      B4: dead, C3: dead, D4: dead,
-    }),
-  },
-  draw: {
-    id: 'draw',
-    caption: 'A full board with no line and no square: a draw.',
-    cells: cells({
-      A1: you, A2: you, A3: bot, A4: bot,
-      B1: bot, B2: bot, B3: you, B4: you,
-      C1: you, C2: you, C3: bot, C4: bot,
-      D1: bot, D2: bot, D3: you, D4: you,
-    }),
-  },
-} as const satisfies Record<string, Diagram>;
-
 /**
- * How to Play (PRD E2): taking a matching tile, the edge opening, the line and square shapes, the
- * blockade and the full-board draw, each with a small board diagram.
+ * How to Play (PRD E2): short pages on taking a matching tile, the edge opening, the line and square
+ * shapes, the blockade and the full-board draw, each with diagrams drawn with the tile art. The
+ * wording fits a game against the bot and a game between two players alike.
  */
-export function howToSections(): HowToSection[] {
+export function howToPages(): HowToPage[] {
   return [
     {
       id: 'taking',
       title: 'Take a matching tile',
       paragraphs: [
-        `${TITLE} is played against a bot on a 4×4 board of 16 tiles. Every tile shows a terrain (Forest, Water, Mountain or Desert) and a symbol (Sun, Moon, Star or Wave).`,
-        'On your turn, take one tile: one of your tokens goes on its cell. The tile you took becomes the last tile, shown in the top bar, and the next take must match it, with the same terrain or the same symbol; one is enough. It may come from anywhere on the board.',
-        'Tap a tile, or move to it with the arrow keys and press Enter. With highlights on, the tiles you may take glow. A tile that does not match is refused with the reason.',
+        `${TITLE} is played by two sides on a 4×4 board of 16 tiles, each showing a terrain and a symbol. Take turns taking one tile; a token of yours goes on its cell.`,
+        'The tile just taken is shown in the Match card. The next take must have the same terrain or the same symbol, from anywhere on the board. With highlights on, the tiles you may take glow in your colour.',
       ],
-      diagrams: [],
+      diagrams: [DIAGRAMS.matching],
     },
     {
       id: 'opening',
       title: 'The first take',
-      paragraphs: [
-        'There is no last tile yet, so the first take of a game may be any tile on the edge of the board. The first game’s starter is chosen at random; Play again lets the other player start.',
-      ],
+      paragraphs: ['There is nothing to match yet, so the first take may be any tile on the edge of the board. The first game’s starter is chosen at random; after that, the starter alternates.'],
       diagrams: [DIAGRAMS.opening],
     },
     {
       id: 'shapes',
       title: 'Lines and squares',
-      paragraphs: [
-        'Each of you has 8 tokens. You win at once when four of your tokens make a line, a full row, a full column or one of the two long diagonals, or fill a 2×2 square.',
-      ],
+      paragraphs: ['Each side has 8 tokens. Four of yours in a row, a column or a long diagonal, or filling a 2×2 square, win at once.'],
       diagrams: [DIAGRAMS.line, DIAGRAMS.square],
     },
     {
       id: 'blockade',
       title: 'Blockade',
-      paragraphs: [
-        'When no tile left on the board matches the last tile, the next player cannot take one and loses: whoever took last wins. Steering the bot into such a dead end is the heart of the game.',
-      ],
+      paragraphs: ['When no tile left on the board matches the last tile, the next side cannot take one and loses. Leaving your opponent without a matching tile is the heart of the game.'],
       diagrams: [DIAGRAMS.blockade],
     },
     {

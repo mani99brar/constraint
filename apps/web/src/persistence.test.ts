@@ -4,8 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { gameLogOf } from '@okiya/game';
 import { App } from './App';
 import { afterTakes, endings } from './playouts.test-helper';
-import { emptyResults, loadResults, outcomeOf, recordResult, resetResults, RESULTS_KEY } from './results';
+import { TWO_PLAYERS, versusBot } from './mode';
+import { emptyResults, loadResults, outcomeOf, recordFinishedGame, recordResult, resetResults, RESULTS_KEY } from './results';
 import { clearSavedGame, loadSavedGame, restoreSavedGame, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
+import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from './settings';
 import type { KeyValueStorage } from './storage';
 
@@ -33,57 +35,84 @@ const throwing: KeyValueStorage = {
 
 describe('saved game (PRD L2)', () => {
   const state = afterTakes(12, 5);
+  const hard = versusBot('hard');
+  const score = { A: 2, B: 1, draws: 1 };
 
-  it('round-trips through storage as its game log and difficulty, to the same state', () => {
+  it('round-trips a bot game through storage as its game log, mode, difficulty and score, to the same state', () => {
     expect(state.takes).toHaveLength(5);
     const storage = memoryStorage();
-    expect(saveGame(storage, state, 'hard')).toBe(true);
-    expect(JSON.parse(storage.data.get(SAVE_KEY)!)).toEqual({ version: SAVE_VERSION, difficulty: 'hard', log: gameLogOf(state) });
+    expect(saveGame(storage, state, hard, score)).toBe(true);
+    expect(JSON.parse(storage.data.get(SAVE_KEY)!)).toEqual({ version: SAVE_VERSION, mode: 'bot', difficulty: 'hard', score, log: gameLogOf(state) });
     const saved = loadSavedGame(storage);
-    expect(saved?.difficulty).toBe('hard');
+    expect(saved?.mode).toEqual(hard);
+    expect(saved?.score).toEqual(score);
     expect(saved?.state).toEqual(state);
+  });
+
+  it('round-trips a two-player game with its mode and score, and no difficulty', () => {
+    const storage = memoryStorage();
+    expect(saveGame(storage, state, TWO_PLAYERS, { A: 0, B: 3, draws: 0 })).toBe(true);
+    expect(JSON.parse(storage.data.get(SAVE_KEY)!)).toEqual({ version: SAVE_VERSION, mode: 'two-player', score: { A: 0, B: 3, draws: 0 }, log: gameLogOf(state) });
+    const saved = loadSavedGame(storage);
+    expect(saved).toEqual({ state, mode: TWO_PLAYERS, score: { A: 0, B: 3, draws: 0 } });
+  });
+
+  it('loads a save of the previous build (a game log and a difficulty) as a bot game with a 0–0 score', () => {
+    const storage = memoryStorage();
+    storage.data.set(SAVE_KEY, JSON.stringify({ version: 2, difficulty: 'normal', log: gameLogOf(state) }));
+    expect(loadSavedGame(storage)).toEqual({ state, mode: versusBot('normal'), score: NO_SCORE });
   });
 
   it('round-trips a game before its first take, whoever starts', () => {
     for (const starter of ['A', 'B'] as const) {
       const fresh = afterTakes(3, 0, starter);
-      const storage = memoryStorage();
-      saveGame(storage, fresh, 'easy');
-      expect(loadSavedGame(storage)?.state).toEqual(fresh);
+      for (const mode of [versusBot('easy'), TWO_PLAYERS]) {
+        const storage = memoryStorage();
+        saveGame(storage, fresh, mode, NO_SCORE);
+        expect(loadSavedGame(storage)?.state).toEqual(fresh);
+      }
     }
   });
 
   it('removes the save once the game is finished, and on request', () => {
     const storage = memoryStorage();
-    saveGame(storage, state, 'easy');
-    saveGame(storage, endings().blockade, 'easy');
+    saveGame(storage, state, versusBot('easy'), NO_SCORE);
+    saveGame(storage, endings().blockade, versusBot('easy'), NO_SCORE);
     expect(storage.data.has(SAVE_KEY)).toBe(false);
-    saveGame(storage, state, 'easy');
+    saveGame(storage, state, TWO_PLAYERS, score);
     clearSavedGame(storage);
     expect(loadSavedGame(storage)).toBeNull();
   });
 
   const log = gameLogOf(state);
-  const good = JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log });
+  const v3 = (fields: Record<string, unknown>) => JSON.stringify({ version: SAVE_VERSION, mode: 'bot', difficulty: 'normal', score: NO_SCORE, log, ...fields });
+  const good = v3({});
   const finished = endings().line;
   const corrupt: Record<string, string> = {
     'not JSON': '{"version":2,',
     truncated: good.slice(0, Math.floor(good.length / 2)),
-    'an unknown save version': JSON.stringify({ version: SAVE_VERSION + 1, difficulty: 'normal', log }),
+    'an unknown save version': v3({ version: SAVE_VERSION + 1 }),
+    'an unknown mode': v3({ mode: 'online' }),
+    'a bot game without a difficulty': v3({ difficulty: undefined }),
+    'a missing score': v3({ score: undefined }),
+    'a negative score': v3({ score: { A: -1, B: 0, draws: 0 } }),
+    'a score that is not a number': v3({ score: { A: 'one', B: 0, draws: 0 } }),
+    'a previous-build save with an unknown difficulty': JSON.stringify({ version: 2, difficulty: 'extreme', log }),
+    'a previous-build save with an illegal take': JSON.stringify({ version: 2, difficulty: 'normal', log: { ...log, takes: ['B2'] } }),
     'a fighter-game save': JSON.stringify({
       version: 1,
       depth: 'normal',
       log: { formatVersion: 1, seed: 7, preset: { id: 'spec-v0.2', version: 1 }, scenario: null, setups: {}, actions: [{ kind: 'deploy', fighter: 'A:Pusher', cell: 'A1' }] },
     }),
-    'an unknown log format': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, formatVersion: 99 } }),
-    'an unknown difficulty': JSON.stringify({ version: SAVE_VERSION, difficulty: 'extreme', log }),
-    'an illegal take': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, takes: [...log.takes, log.takes[0]] } }),
-    'a cell that does not exist': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, takes: ['Z9'] } }),
-    'an inner opening take': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, takes: ['B2'] } }),
-    'a bad seed': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, seed: -1 } }),
-    'a bad starter': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: { ...log, starter: 'C' } }),
-    'a finished game': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: gameLogOf(finished) }),
-    'a null log': JSON.stringify({ version: SAVE_VERSION, difficulty: 'normal', log: null }),
+    'an unknown log format': v3({ log: { ...log, formatVersion: 99 } }),
+    'an unknown difficulty': v3({ difficulty: 'extreme' }),
+    'an illegal take': v3({ mode: 'two-player', log: { ...log, takes: [...log.takes, log.takes[0]] } }),
+    'a cell that does not exist': v3({ log: { ...log, takes: ['Z9'] } }),
+    'an inner opening take': v3({ mode: 'two-player', log: { ...log, takes: ['B2'] } }),
+    'a bad seed': v3({ log: { ...log, seed: -1 } }),
+    'a bad starter': v3({ log: { ...log, starter: 'C' } }),
+    'a finished game': v3({ log: gameLogOf(finished) }),
+    'a null log': v3({ log: null }),
     'a bare number': '42',
     'null': 'null',
   };
@@ -98,7 +127,7 @@ describe('saved game (PRD L2)', () => {
   });
 
   it('keeps the game playable when storage throws', () => {
-    expect(saveGame(throwing, state, 'normal')).toBe(false);
+    expect(saveGame(throwing, state, versusBot('normal'), NO_SCORE)).toBe(false);
     expect(loadSavedGame(throwing)).toBeNull();
     expect(clearSavedGame(throwing)).toBe(false);
     expect(loadSavedGame(null)).toBeNull();
@@ -111,10 +140,12 @@ describe('saved game (PRD L2)', () => {
 
   it('offers Continue on the title screen when a save restores', () => {
     const storage = memoryStorage();
-    saveGame(storage, state, 'hard');
+    saveGame(storage, state, versusBot('hard'), NO_SCORE);
     const html = renderToStaticMarkup(createElement(App, { storage }));
     expect(html).toContain('data-testid="continue"');
     expect(html).toContain('Hard bot, 5 tiles taken');
+    saveGame(storage, state, TWO_PLAYERS, NO_SCORE);
+    expect(renderToStaticMarkup(createElement(App, { storage }))).toContain('Two players, 5 tiles taken');
   });
 });
 
@@ -140,6 +171,22 @@ describe('results by difficulty (PRD E5)', () => {
     storage.data.set(RESULTS_KEY, JSON.stringify({ easy: { wins: 3, losses: 1, draws: 0 }, normal: { wins: 0, losses: 2, draws: 1 }, hard: { wins: 0, losses: 4, draws: 0 } }));
     expect(recordResult(storage, 'normal', 'draw').normal).toEqual({ wins: 0, losses: 2, draws: 2 });
     expect(loadResults(storage).easy).toEqual({ wins: 3, losses: 1, draws: 0 });
+  });
+
+  it('counts a finished bot game in its difficulty and never a two-player game', () => {
+    const storage = memoryStorage();
+    for (const state of Object.values(endings())) {
+      const before = loadResults(storage);
+      expect(recordFinishedGame(storage, TWO_PLAYERS, state.result!, 'A')).toEqual(before);
+      expect(loadResults(storage)).toEqual(before);
+      const after = recordFinishedGame(storage, versusBot('normal'), state.result!, 'A');
+      const outcome = outcomeOf(state.result!, 'A');
+      const key = outcome === 'win' ? 'wins' : outcome === 'loss' ? 'losses' : 'draws';
+      expect(after.normal[key]).toBe(before.normal[key] + 1);
+      expect(after.easy).toEqual(before.easy);
+      expect(loadResults(storage)).toEqual(after);
+    }
+    expect(storage.data.has(RESULTS_KEY)).toBe(true);
   });
 
   it('reads the human’s outcome from the result', () => {

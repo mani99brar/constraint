@@ -85,7 +85,7 @@ button {
   font: inherit;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease, translate 150ms ease;
 }
 
 button:hover:not(:disabled):not([aria-disabled='true']):not(.cell) {
@@ -108,8 +108,11 @@ button[aria-disabled='true'] {
   cursor: default;
 }
 
+/* Disabled buttons fade by solid colours checked for contrast, never by opacity. */
 button:disabled {
-  opacity: 0.6;
+  border-style: dashed;
+  background: var(--surface-2);
+  color: var(--muted);
 }
 
 .button-row {
@@ -240,129 +243,203 @@ button:disabled {
   padding: 12px 16px;
 }
 
-/* The game: a tabletop that fills the screen (PRD U1). */
+/* The game: a table for one or two that fills the screen (PRD U1, U2, §5.8). On wide screens Player 1
+   sits left of the board and Player 2 right, with the Match card above the board; on a phone the
+   Match card and the menu share the top row, Player 2 sits above the board and Player 1 below. */
 
 .match {
-  --chrome: 170px;
-  --board: min(100vw - 24px, 100dvh - var(--chrome), 680px);
-  display: flex;
-  flex-direction: column;
+  --seat: clamp(150px, 17vw, 230px);
+  --chrome: 150px;
+  --board: min(100vw - 2 * var(--seat) - 64px, 100dvh - var(--chrome), 680px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto;
+  grid-template-areas:
+    '.     card  menu'
+    'seatA board seatB'
+    '.     score .'
+    '.     end   .';
+  align-items: center;
+  justify-items: center;
+  gap: 8px 16px;
   min-height: 100dvh;
+  padding: 10px 14px 14px;
   background: var(--table);
 }
 
-.table {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 10px 12px 14px;
+.match.ended {
+  --chrome: 300px;
 }
 
-/* Top bar (PRD U2) */
-
+/* On wide screens the top bar lets its children into the grid: the card above the board, the menu in the corner. */
 .top-bar {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  grid-template-areas: 'turn last counts menu';
-  align-items: center;
-  gap: 6px 16px;
-  padding: 8px 14px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  display: contents;
 }
 
-.turn-area {
-  grid-area: turn;
-  display: grid;
-  min-width: 9.5em;
+.match-card {
+  grid-area: card;
 }
 
-.turn {
-  display: flex;
+.menu-button {
+  grid-area: menu;
+  justify-self: end;
+  align-self: start;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.seat-p1 {
+  grid-area: seatA;
+  justify-self: end;
+}
+
+.seat-p2 {
+  grid-area: seatB;
+  justify-self: start;
+}
+
+.board-area {
+  grid-area: board;
+  position: relative;
+}
+
+.sitting-score {
+  grid-area: score;
   margin: 0;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.turn.yours::before {
-  content: '';
-  width: 12px;
-  height: 12px;
+.end-screen {
+  grid-area: end;
+}
+
+/* Seats (PRD U2, I3): lit in the colour of the player to move, the other dimmed, by solid colours only. */
+
+.seat {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: var(--seat);
+  padding: 14px 12px;
+  border-radius: 18px;
+  border: 3px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: center;
+  transition: border-color 250ms ease, box-shadow 250ms ease, background-color 250ms ease;
+}
+
+.seat.lit {
+  background: var(--surface);
+}
+
+.seat-p1.lit {
+  border-color: var(--p1);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--p1) 35%, transparent);
+}
+
+.seat-p2.lit {
+  border-color: var(--p2);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--p2) 35%, transparent);
+}
+
+.avatar {
+  width: min(100%, 104px);
+  height: auto;
+  aspect-ratio: 1;
   border-radius: 50%;
-  background: var(--own);
-  box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--own);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  transition: border-color 250ms ease;
 }
 
-.starter {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 600;
+.seat-p1.lit .avatar {
+  border-color: var(--p1);
 }
 
-.spinner {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 3px solid var(--enemy);
-  border-right-color: transparent;
-  animation: spin 380ms linear infinite;
+.seat-p2.lit .avatar {
+  border-color: var(--p2);
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* The avatar's face changes once per new expression, under 400 ms (PRD U8); nothing loops. */
+.face {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: face-in 240ms ease-out;
+}
+
+@keyframes face-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
   }
 }
 
-.last-tile {
-  grid-area: last;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.seat-info {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
-.last-tile-emblem,
-.last-tile-opening {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 4px 10px 4px 6px;
+.seat-name {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.seat-status {
+  min-height: 1.9em;
+  margin: 0;
+  padding: 3px 10px;
   border-radius: 999px;
-  background: var(--surface-2);
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--muted);
 }
 
-.last-tile-opening {
-  padding: 4px 12px;
+.seat-status.empty {
+  visibility: hidden;
 }
 
-.last-tile-emblem .glyph,
-.last-tile-emblem .emblem-svg {
-  width: 26px;
-  height: 26px;
+.seat-p1.lit .seat-status,
+.seat-p1[data-expression='won'] .seat-status {
+  background: var(--p1);
+  color: var(--on-p1);
 }
 
-.token-counts {
-  grid-area: counts;
+.seat-p2.lit .seat-status,
+.seat-p2[data-expression='won'] .seat-status {
+  background: var(--p2);
+  color: var(--on-p2);
+}
+
+.seat-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
-}
-
-.token-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px 14px;
+  margin: 0;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.seat-stats > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.seat-stats dt,
+.seat-stats dd {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+}
+
+.seat-score dt {
+  font-weight: 600;
 }
 
 .count-token {
@@ -371,15 +448,15 @@ button:disabled {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 2px solid var(--own-rim);
-  background: var(--own);
-  color: var(--on-own);
+  border: 2px solid var(--p1-rim);
+  background: var(--p1);
+  color: var(--on-p1);
 }
 
-.count-token.bot {
-  border: 2px dashed var(--enemy-rim);
-  background: var(--enemy);
-  color: var(--on-enemy);
+.count-token.p2 {
+  border: 2px dashed var(--p2-rim);
+  background: var(--p2);
+  color: var(--on-p2);
 }
 
 .count-token .token-mark {
@@ -387,62 +464,224 @@ button:disabled {
   height: 70%;
 }
 
-.menu-button {
-  grid-area: menu;
-  justify-self: end;
-  display: inline-flex;
+/* The Match card (PRD I1): the tile to match with its scene, emblem and names. */
+
+.match-card {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 2px solid var(--border);
 }
 
-@media (max-width: 860px) {
+.match-tile-slot {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 64px;
+  flex: none;
+}
+
+.match-tile {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid color-mix(in srgb, var(--frame-edge) 55%, transparent);
+}
+
+.match-tile.opening {
+  border: 3px dashed var(--border);
+  background: var(--surface-2);
+}
+
+/* The taken tile flies from its cell into the card (PRD U8): under 400 ms, started by a class. */
+.match-tile.arriving {
+  animation: tile-arrive 320ms ease-out;
+}
+
+@keyframes tile-arrive {
+  from {
+    transform: translate(var(--from-x, 0), var(--from-y, 0)) scale(var(--from-scale, 1));
+  }
+}
+
+.match-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.match-heading {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.match-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-weight: 700;
+}
+
+.match-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.match-name .glyph,
+.match-name .emblem-svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* A tile drawn anywhere outside the board: the Match card, How to Play. */
+
+.tile-art {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tile-art.terrain-forest {
+  background: var(--forest);
+}
+
+.tile-art.terrain-water {
+  background: var(--water);
+}
+
+.tile-art.terrain-mountain {
+  background: var(--mountain);
+}
+
+.tile-art.terrain-desert {
+  background: var(--desert);
+}
+
+.menu-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Phone and narrow screens: the card and the menu on top, Player 2 above the board, Player 1 below. */
+
+@media (max-width: 760px) {
   .match {
-    --chrome: 210px;
+    --chrome: 330px;
+    --board: min(100vw - 20px, 100dvh - var(--chrome), 680px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(min-content, 1fr) auto minmax(min-content, 1fr) auto auto;
+    grid-template-areas:
+      'bar'
+      'seatB'
+      'board'
+      'seatA'
+      'score'
+      'end';
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 10px 10px;
   }
 
   .top-bar {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      'turn menu'
-      'last counts';
-    padding: 6px 10px;
+    grid-area: bar;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
   }
 
-  .token-counts {
-    flex-direction: column;
-    align-items: flex-end;
-    justify-self: end;
-  }
-
-  .turn-area {
+  .match-card {
+    flex: 1;
     min-width: 0;
+    gap: 10px;
+    padding: 4px 10px 4px 4px;
   }
 
-  .turn {
-    font-size: 1rem;
+  .match-tile-slot {
+    width: 48px;
+    height: 48px;
+  }
+
+  .match-names {
+    gap: 0 10px;
+    font-size: 0.95rem;
+  }
+
+  .match-name .glyph,
+  .match-name .emblem-svg {
+    width: 20px;
+    height: 20px;
   }
 
   .menu-button {
+    align-self: center;
     padding: 6px 10px;
   }
 
-  .menu-text {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+  .seat {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: start;
+    justify-self: stretch;
+    width: auto;
+    padding: 8px 12px;
+    text-align: left;
   }
 
-  .last-tile-emblem {
-    padding-right: 8px;
-    gap: 4px;
-    font-size: 0.9rem;
+  .seat-p1,
+  .seat-p2 {
+    height: 100%;
+    max-height: 150px;
   }
 
-  .last-tile-opening {
-    font-size: 0.85rem;
+  .seat-p1 {
+    align-self: start;
+  }
+
+  .seat-p2 {
+    align-self: end;
+  }
+
+  .avatar {
+    width: clamp(56px, 9dvh, 84px);
+  }
+
+  .seat-info {
+    justify-items: start;
+  }
+
+  .seat-stats {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .board-area {
+    justify-self: center;
+  }
+
+  .sitting-score {
+    justify-self: center;
+  }
+
+  .end-screen {
+    justify-self: center;
   }
 }
 
@@ -513,23 +752,19 @@ button:disabled {
   color: var(--text);
 }
 
-.cell.terrain-forest,
-.example-tile.terrain-forest {
+.cell.terrain-forest {
   background: var(--forest);
 }
 
-.cell.terrain-water,
-.example-tile.terrain-water {
+.cell.terrain-water {
   background: var(--water);
 }
 
-.cell.terrain-mountain,
-.example-tile.terrain-mountain {
+.cell.terrain-mountain {
   background: var(--mountain);
 }
 
-.cell.terrain-desert,
-.example-tile.terrain-desert {
+.cell.terrain-desert {
   background: var(--desert);
 }
 
@@ -579,24 +814,27 @@ button:disabled {
   }
 }
 
-/* Glowing cells: a ring and a centre dot, so colour is never the only signal (PRD R2, U1). */
+/* Glowing cells (PRD R2): a thick ring and a halo in the colour of the player to move, and a slight
+   lift, with nothing drawn over the tile art. The cell's name says "legal take" too. */
 
-.cell.glow {
-  box-shadow:
-    inset 0 0 0 4px var(--legal),
-    0 0 0 2px var(--legal);
+.board {
+  --glow: var(--legal);
 }
 
-.glow-dot {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 28%;
-  aspect-ratio: 1;
-  translate: -50% -50%;
-  border-radius: 50%;
-  border: 4px solid var(--legal);
-  background: color-mix(in srgb, var(--legal) 25%, transparent);
+.board[data-glow-player='A'] {
+  --glow: var(--p1);
+}
+
+.board[data-glow-player='B'] {
+  --glow: var(--p2);
+}
+
+.cell.glow {
+  translate: 0 -2px;
+  box-shadow:
+    inset 0 0 0 4px var(--glow),
+    0 0 0 3px var(--glow),
+    0 4px 12px color-mix(in srgb, var(--glow) 55%, transparent);
 }
 
 /* A taken cell shows the taker's token on a bare slot instead of its tile (PRD U1). */
@@ -640,7 +878,81 @@ button:disabled {
   border-top: 20px solid var(--win);
 }
 
-/* Tokens: round, in two colours, a solid rim and a ring for yours, a notched rim and a diamond for the bot's (PRD U1). */
+/* The stroke across the winning shape's four cells (PRD R4), drawn in under 400 ms (PRD U8). */
+
+.board {
+  position: relative;
+}
+
+.win-stroke {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.win-stroke path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: stroke-draw 360ms ease-out;
+}
+
+.win-stroke-under {
+  stroke: var(--surface);
+  stroke-width: 5.5;
+}
+
+.win-stroke-line {
+  stroke: var(--win);
+  stroke-width: 3;
+}
+
+@keyframes stroke-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* The frame takes the colour of the player to move on that player's side: left for Player 1 and right
+   for Player 2 on wide screens, below and above on a phone (PRD I3). */
+
+.board-frame[data-active='A'] {
+  box-shadow:
+    inset 8px 0 0 var(--p1),
+    inset 0 0 0 4px color-mix(in srgb, var(--frame-edge) 40%, transparent),
+    0 6px 18px color-mix(in srgb, var(--frame-edge) 35%, transparent);
+}
+
+.board-frame[data-active='B'] {
+  box-shadow:
+    inset -8px 0 0 var(--p2),
+    inset 0 0 0 4px color-mix(in srgb, var(--frame-edge) 40%, transparent),
+    0 6px 18px color-mix(in srgb, var(--frame-edge) 35%, transparent);
+}
+
+@media (max-width: 760px) {
+  .board-frame[data-active='A'] {
+    box-shadow:
+      inset 0 -8px 0 var(--p1),
+    inset 0 0 0 4px color-mix(in srgb, var(--frame-edge) 40%, transparent),
+      0 6px 18px color-mix(in srgb, var(--frame-edge) 35%, transparent);
+  }
+
+  .board-frame[data-active='B'] {
+    box-shadow:
+      inset 0 8px 0 var(--p2),
+    inset 0 0 0 4px color-mix(in srgb, var(--frame-edge) 40%, transparent),
+      0 6px 18px color-mix(in srgb, var(--frame-edge) 35%, transparent);
+  }
+}
+
+/* Tokens: round, in two colours, a solid rim and a ring for Player 1, a notched rim and a diamond for Player 2 (PRD U1). */
 
 .token {
   position: absolute;
@@ -653,16 +965,24 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 4px solid var(--own-rim);
-  background: var(--own);
-  color: var(--on-own);
+  border: 4px solid var(--p1-rim);
+  background: var(--p1);
+  color: var(--on-p1);
   box-shadow: 0 3px 6px color-mix(in srgb, var(--frame-edge) 45%, transparent);
+  animation: token-in 200ms ease-out;
 }
 
-.token.bot {
-  border: 4px dashed var(--enemy-rim);
-  background: var(--enemy);
-  color: var(--on-enemy);
+.token.p2 {
+  border: 4px dashed var(--p2-rim);
+  background: var(--p2);
+  color: var(--on-p2);
+}
+
+@keyframes token-in {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
 }
 
 .token-mark {
@@ -714,10 +1034,6 @@ button:disabled {
 
 /* End of the game: a card under the board, which keeps the winning shape in view (PRD R4). */
 
-.match.ended {
-  --chrome: 330px;
-}
-
 .end-screen {
   width: min(100%, 560px);
   padding: 14px 18px;
@@ -745,7 +1061,7 @@ button:disabled {
 .dialog {
   display: flex;
   flex-direction: column;
-  width: min(100%, 640px);
+  width: min(100%, 700px);
   max-height: calc(100dvh - 24px);
   border-radius: 18px;
   background: var(--surface);
@@ -829,9 +1145,21 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.howto-example {
+  margin: 0;
+}
+
+.howto-example figcaption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
 .howto-example ul {
   display: grid;
   gap: 6px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -840,16 +1168,48 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 10px;
+  gap: 4px 10px;
   color: var(--text);
 }
 
-.example-part {
-  display: inline-flex;
+.example-art {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 8px;
+  border: 2px solid color-mix(in srgb, var(--frame-edge) 55%, transparent);
+}
+
+.example-name {
+  font-weight: 600;
+  min-width: 8em;
+}
+
+.verdict {
+  font-size: 0.9rem;
+}
+
+.howto-page {
+  min-height: min(56dvh, 400px);
+}
+
+.howto-page p {
+  max-width: 62ch;
+}
+
+.howto-page h3 {
+  font-size: 1.15rem;
+}
+
+.howto-foot {
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.page-count {
+  margin: 0;
+  color: var(--muted);
   font-weight: 600;
 }
 
@@ -857,12 +1217,13 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
+  margin-top: 6px;
 }
 
 .diagram {
   display: grid;
   gap: 6px;
-  width: 180px;
+  width: 200px;
   margin: 0;
 }
 
@@ -885,12 +1246,29 @@ button:disabled {
   display: grid;
   place-items: center;
   aspect-ratio: 1;
-  border-radius: 4px;
-  background: var(--surface-2);
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--slot);
+}
+
+.mini-cell .tile-art {
+  position: absolute;
+  inset: 0;
+}
+
+.mini-cell .tile-symbol {
+  width: 46%;
 }
 
 .mini-cell.glow {
-  box-shadow: inset 0 0 0 3px var(--legal);
+  box-shadow: inset 0 0 0 3px var(--p1);
+}
+
+.mini-cell.glow .tile-art {
+  inset: 3px;
+  width: auto;
+  height: auto;
+  border-radius: 3px;
 }
 
 .mini-cell.shape {
@@ -902,26 +1280,26 @@ button:disabled {
   outline-offset: -3px;
 }
 
-.mini-cell.dead {
-  color: var(--text);
-  font-weight: 800;
+.mini-cell.dead .tile-art {
+  filter: grayscale(0.85);
 }
 
 .mini-token {
+  position: relative;
   display: grid;
   place-items: center;
   width: 70%;
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid var(--own-rim);
-  background: var(--own);
-  color: var(--on-own);
+  border: 2px solid var(--p1-rim);
+  background: var(--p1);
+  color: var(--on-p1);
 }
 
-.mini-token.bot {
-  border: 2px dashed var(--enemy-rim);
-  background: var(--enemy);
-  color: var(--on-enemy);
+.mini-token.p2 {
+  border: 2px dashed var(--p2-rim);
+  background: var(--p2);
+  color: var(--on-p2);
 }
 
 .mini-token .token-mark {

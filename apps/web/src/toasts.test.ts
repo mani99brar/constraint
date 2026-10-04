@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyTakeToasts,
+  dropRefusals,
   EMPTY_TOASTS,
-  endToast,
   enqueueToasts,
   FADE_MS,
   MAX_VISIBLE,
   nextToastChange,
   refusalToast,
+  takeToast,
   tickToasts,
   TOAST_MS,
   visibleToasts,
@@ -14,20 +16,35 @@ import {
 } from './toasts';
 
 describe('toasts (PRD U3)', () => {
-  it('turns a refusal into an alert and the end of the game into a notice, an alert only for a loss', () => {
+  it('turns a refusal into an alert and the bot’s take into a notice', () => {
     expect(refusalToast('Desert–Moon matches neither Forest nor Star')).toEqual({
       kind: 'refusal',
       text: 'Desert–Moon matches neither Forest nor Star',
       tone: 'alert',
     });
-    expect(endToast('You win with a line', 'win')).toEqual({ kind: 'end', text: 'You win with a line', tone: 'info' });
-    expect(endToast('The bot wins by blockade', 'loss').tone).toBe('alert');
-    expect(endToast('Draw: the board is full', 'draw').tone).toBe('info');
+    expect(takeToast('Bot took D3, Desert–Star')).toEqual({ kind: 'take', text: 'Bot took D3, Desert–Star', tone: 'info' });
+  });
+
+  it('drops a refusal when the turn changes, and keeps it while the turn stays', () => {
+    const refused = enqueueToasts(EMPTY_TOASTS, [refusalToast('Desert–Moon matches neither Forest nor Star')], 0);
+    expect(applyTakeToasts(refused, { turnChanged: false, toasts: [] }, 10)).toBe(refused);
+    const changed = applyTakeToasts(refused, { turnChanged: true, toasts: [] }, 10);
+    expect(visibleToasts(changed, 10)).toEqual([]);
+    const botTook = applyTakeToasts(refused, { turnChanged: true, toasts: [takeToast('Bot took D3, Desert–Star')] }, 10);
+    expect(visibleToasts(botTook, 10).map(({ toast }) => [toast.kind, toast.text])).toEqual([['take', 'Bot took D3, Desert–Star']]);
+    expect(dropRefusals(botTook)).toBe(botTook);
+  });
+
+  it('keeps only the newest take toast', () => {
+    let queue = enqueueToasts(EMPTY_TOASTS, [takeToast('Bot took D3, Desert–Star')], 0);
+    queue = enqueueToasts(queue, [takeToast('Bot took A1, Forest–Sun')], 50);
+    expect(visibleToasts(queue, 50).map(({ toast }) => toast.text)).toEqual(['Bot took A1, Forest–Sun']);
   });
 });
 
 describe('toast queue', () => {
-  const spec = (text: string): ToastSpec => ({ kind: 'end', text, tone: 'info' });
+  // Distinct kinds would replace one another, so the queue's own rules are tested with toasts built by hand.
+  const spec = (text: string): ToastSpec => ({ kind: text as 'take', text, tone: 'info' });
 
   it('shows toasts in order, at most a few at once, and lets the next in when one leaves', () => {
     let queue = enqueueToasts(EMPTY_TOASTS, ['a', 'b', 'c', 'd'].map(spec), 0);

@@ -1,8 +1,7 @@
-import { useRef } from 'react';
-import { ALL_CELLS } from '@okiya/game';
-import { SymbolEmblem, TerrainGlyph, TokenMark } from './art';
+import { useRef, useState } from 'react';
+import { TileArt, TokenMark } from './art';
 import { Dialog } from './Dialog';
-import { howToSections, MATCHING_EXAMPLE, type Diagram } from './howto';
+import { diagramCells, howToPages, MATCHING_EXAMPLE, type Diagram } from './howto';
 import { tileName } from './text';
 
 export interface HowToPlayProps {
@@ -11,25 +10,22 @@ export interface HowToPlayProps {
   readonly returnFocusTo: HTMLElement | null;
 }
 
-/** The matching illustration: one last tile and three tiles, each saying whether it matches and why. */
+/** The matching illustration: the last tile and three tiles, each drawn with its art and saying whether it matches and why. */
 function MatchingExample() {
   const { lastTile, tiles } = MATCHING_EXAMPLE;
   return (
     <figure className="howto-example" data-testid="matching-example">
       <figcaption>
-        Last tile: <strong>{tileName(lastTile)}</strong>
+        <TileArt terrain={lastTile.terrain} symbol={lastTile.symbol} className="example-art" />
+        <span>
+          To match: <strong>{tileName(lastTile)}</strong>
+        </span>
       </figcaption>
       <ul>
         {tiles.map((tile) => (
-          <li key={tileName(tile)} className={`example-tile terrain-${tile.terrain.toLowerCase()}`}>
-            <span className="example-part">
-              <TerrainGlyph terrain={tile.terrain} />
-              {tile.terrain}
-            </span>
-            <span className="example-part">
-              <SymbolEmblem symbol={tile.symbol} />
-              {tile.symbol}
-            </span>
+          <li key={tileName(tile)} className="example-tile">
+            <TileArt terrain={tile.terrain} symbol={tile.symbol} className="example-art" />
+            <span className="example-name">{tileName(tile)}</span>
             <strong className="verdict">{tile.matches ? `✓ matches (${tile.why})` : `✗ no match (${tile.why})`}</strong>
           </li>
         ))}
@@ -38,24 +34,22 @@ function MatchingExample() {
   );
 }
 
-/** A small 4×4 board: tokens, glowing edge tiles, a winning shape, the last take or tiles that do not match. */
+/** A small 4×4 board of a real game, drawn with the tile art: tokens, glowing tiles, a winning shape, the last take or tiles that do not match. */
 function MiniBoard({ diagram }: { diagram: Diagram }) {
   return (
     <figure className="diagram" data-testid={`diagram-${diagram.id}`}>
       <div className="mini-board" role="img" aria-label={diagram.caption}>
-        {ALL_CELLS.map((cell) => {
-          const view = diagram.cells[cell];
-          return (
-            <span key={cell} className={`mini-cell${view?.mark ? ` ${view.mark}` : ''}`} data-cell={cell} data-mark={view?.mark} data-token={view?.token}>
-              {view?.token && (
-                <span className={`mini-token ${view.token === 'you' ? 'own' : 'bot'}`}>
-                  <TokenMark owner={view.token} />
-                </span>
-              )}
-              {view?.mark === 'dead' && <span className="mini-cross">×</span>}
-            </span>
-          );
-        })}
+        {diagramCells(diagram).map(({ cell, tile, token, mark }) => (
+          <span key={cell} className={`mini-cell${mark ? ` ${mark}` : ''}`} data-cell={cell} data-mark={mark ?? undefined} data-token={token ?? undefined}>
+            {token ? (
+              <span className={`mini-token p${token === 'A' ? 1 : 2}`}>
+                <TokenMark player={token} />
+              </span>
+            ) : (
+              <TileArt terrain={tile.terrain} symbol={tile.symbol} />
+            )}
+          </span>
+        ))}
       </div>
       <figcaption>{diagram.caption}</figcaption>
     </figure>
@@ -63,11 +57,15 @@ function MiniBoard({ diagram }: { diagram: Diagram }) {
 }
 
 /**
- * How to Play (PRD E2): a modal dialog that keeps focus inside while open, closes with Escape or
- * its close button, and returns focus to the button that opened it.
+ * How to Play (PRD E2): a modal dialog of short pages, with Back and Next, that keeps focus inside
+ * while open, closes with Escape or its close button, and returns focus to the button that opened it.
  */
 export function HowToPlay({ onClose, returnFocusTo }: HowToPlayProps) {
   const close = useRef<HTMLButtonElement>(null);
+  const pages = howToPages();
+  const [index, setIndex] = useState(0);
+  const page = pages[index]!;
+  const lastPage = index === pages.length - 1;
   return (
     <Dialog titleId="howto-title" className="howto" testId="how-to-play" onClose={onClose} returnFocusTo={returnFocusTo} initialFocus={close}>
       <header className="dialog-head">
@@ -76,28 +74,34 @@ export function HowToPlay({ onClose, returnFocusTo }: HowToPlayProps) {
           Close
         </button>
       </header>
-      <div className="dialog-body" tabIndex={0}>
-        {howToSections().map((part) => (
-          <section key={part.id} data-section={part.id} aria-labelledby={`howto-${part.id}`}>
-            <h3 id={`howto-${part.id}`}>{part.title}</h3>
-            {part.paragraphs.map((text) => (
-              <p key={text}>{text}</p>
-            ))}
-            {part.id === 'taking' && <MatchingExample />}
-            {part.diagrams.length > 0 && (
-              <div className="diagrams">
-                {part.diagrams.map((diagram) => (
-                  <MiniBoard key={diagram.id} diagram={diagram} />
-                ))}
-              </div>
-            )}
-          </section>
+      <section key={page.id} className="dialog-body howto-page" tabIndex={0} data-section={page.id} data-page={index + 1} aria-labelledby={`howto-${page.id}`}>
+        <h3 id={`howto-${page.id}`}>{page.title}</h3>
+        {page.paragraphs.map((text) => (
+          <p key={text}>{text}</p>
         ))}
-      </div>
-      <footer className="dialog-foot">
-        <button type="button" className="primary" onClick={onClose}>
-          Got it
+        <div className="diagrams">
+          {page.id === 'taking' && <MatchingExample />}
+          {page.diagrams.map((diagram) => (
+            <MiniBoard key={diagram.id} diagram={diagram} />
+          ))}
+        </div>
+      </section>
+      <footer className="dialog-foot howto-foot">
+        <button type="button" data-testid="howto-back" disabled={index === 0} onClick={() => setIndex(index - 1)}>
+          Back
         </button>
+        <p className="page-count" data-testid="howto-page" aria-live="polite">
+          Page {index + 1} of {pages.length}
+        </p>
+        {lastPage ? (
+          <button type="button" className="primary" data-testid="howto-done" onClick={onClose}>
+            Got it
+          </button>
+        ) : (
+          <button type="button" className="primary" data-testid="howto-next" onClick={() => setIndex(index + 1)}>
+            Next
+          </button>
+        )}
       </footer>
     </Dialog>
   );

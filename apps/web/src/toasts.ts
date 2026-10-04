@@ -1,8 +1,8 @@
 /**
- * Short, non-blocking notices (PRD U3): a refused take with its reason, and the end of the game.
- * Everything else a take does is visible on the board and in the top bar.
+ * Short, non-blocking notices (PRD U3): a refused take with its reason, and in a bot game the bot's
+ * take. The end of the game is shown by the end screen and the seats, never by a toast.
  */
-export type ToastKind = 'refusal' | 'end';
+export type ToastKind = 'refusal' | 'take';
 
 export interface ToastSpec {
   readonly kind: ToastKind;
@@ -15,9 +15,9 @@ export function refusalToast(reason: string): ToastSpec {
   return { kind: 'refusal', text: reason, tone: 'alert' };
 }
 
-/** The end of the game; a loss is an alert. */
-export function endToast(text: string, outcome: 'win' | 'loss' | 'draw'): ToastSpec {
-  return { kind: 'end', text, tone: outcome === 'loss' ? 'alert' : 'info' };
+/** The other side's take, for example "Bot took D3, Desert–Star". */
+export function takeToast(text: string): ToastSpec {
+  return { kind: 'take', text, tone: 'info' };
 }
 
 /** How long a toast stays, the fade at its end (under 400 ms, PRD U8) and how many show at once. */
@@ -54,16 +54,27 @@ export function tickToasts(queue: ToastQueue, now: number): ToastQueue {
 const isImmediate = (spec: ToastSpec) => spec.kind === 'refusal';
 
 /**
- * Adds toasts at the end of the queue; a new refusal replaces an older one, which is out of date,
- * and shows straight away even when other toasts fill the screen.
+ * Adds toasts at the end of the queue. A new toast replaces an older one of its kind, which is out
+ * of date; a refusal shows straight away even when other toasts fill the screen.
  */
 export function enqueueToasts(queue: ToastQueue, specs: readonly ToastSpec[], now: number): ToastQueue {
   if (specs.length === 0) return queue;
-  const replacesRefusal = specs.some(isImmediate);
-  const items = queue.items.filter((item) => !(replacesRefusal && isImmediate(item)));
+  const kinds = new Set(specs.map((spec) => spec.kind));
+  const items = queue.items.filter((item) => !kinds.has(item.kind));
   // A refusal answers the tap just made, so it shows at once, never behind waiting toasts.
   const added = specs.map((spec, index) => ({ ...spec, id: queue.nextId + index, shownAt: isImmediate(spec) ? now : null }));
   return tickToasts({ items: [...items, ...added], nextId: queue.nextId + specs.length }, now);
+}
+
+/** Drops every refusal: once the turn changes, the reason no longer applies (PRD U3). */
+export function dropRefusals(queue: ToastQueue): ToastQueue {
+  const items = queue.items.filter((item) => item.kind !== 'refusal');
+  return items.length === queue.items.length ? queue : { ...queue, items };
+}
+
+/** What a new take does to the queue: refusals go when the turn changes, then its own toasts come. */
+export function applyTakeToasts(queue: ToastQueue, change: { readonly turnChanged: boolean; readonly toasts: readonly ToastSpec[] }, now: number): ToastQueue {
+  return enqueueToasts(change.turnChanged ? tickToasts(dropRefusals(queue), now) : queue, change.toasts, now);
 }
 
 /** The toasts on screen, oldest first, each marked while it fades out. */

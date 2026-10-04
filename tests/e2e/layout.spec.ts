@@ -5,12 +5,14 @@ import {
   attachScreenshot,
   board,
   cellAt,
-  chooseDifficulty,
+  chooseTwoPlayers,
   glowing,
   lowContrastText,
   openTitle,
   readBoard,
   refusalToast,
+  seat,
+  seatStatus,
   takeCount,
   takeGlowing,
   waitForHumanTurn,
@@ -19,7 +21,7 @@ import {
 test.describe('dark colour scheme', () => {
   test.use({ colorScheme: 'dark' });
 
-  test('[scenario:dark-theme] the board, tiles, emblems and both players’ tokens stay distinguishable and all text is readable in dark', async ({ page }, testInfo) => {
+  test('[scenario:dark-theme] the board, tiles, emblems, both players’ tokens, both avatars and the lit and dimmed seats stay distinguishable and all text is readable in dark', async ({ page }, testInfo) => {
     await openTitle(page);
     expect(await lowContrastText(page)).toEqual([]);
     await page.getByTestId('title-screen').getByRole('button', { name: 'How to play' }).click();
@@ -31,6 +33,8 @@ test.describe('dark colour scheme', () => {
     await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: /^New game/ }).click();
+    expect(await lowContrastText(page)).toEqual([]);
+    await page.getByRole('button', { name: /^Versus bot/ }).click();
     expect(await lowContrastText(page)).toEqual([]);
     await page.getByRole('button', { name: /^Easy\b/ }).click();
     await expect(board(page)).toBeVisible();
@@ -68,7 +72,7 @@ test.describe('dark colour scheme', () => {
     }
     expect(new Set(tiles.map((cell) => cell.emblem)).size).toBe(4);
 
-    // Your token and the bot's differ in colour, rim and mark, and stand out from the tiles and the bare slot.
+    // Player 1's token and Player 2's (the bot's) differ in colour, rim and mark, and stand out from the tiles and the bare slot.
     const tokens = await board(page)
       .getByTestId('token')
       .evaluateAll((elements) =>
@@ -81,8 +85,8 @@ test.describe('dark colour scheme', () => {
           label: token.closest('[data-cell]')!.getAttribute('aria-label')!,
         })),
       );
-    const own = tokens.find((token) => token.owner === 'you')!;
-    const bot = tokens.find((token) => token.owner === 'bot')!;
+    const own = tokens.find((token) => token.owner === 'A')!;
+    const bot = tokens.find((token) => token.owner === 'B')!;
     expect(own.rim).not.toBe(bot.rim);
     expect(own.colour).not.toBe(bot.colour);
     expect(own.mark).not.toBe(bot.mark);
@@ -93,13 +97,46 @@ test.describe('dark colour scheme', () => {
       expect([...byTerrain.values()].map((cell) => cell.colour)).not.toContain(token.colour);
     }
 
-    // All text meets 4.5:1 with a refusal toast shown, and in the menu.
-    await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'bot')!.cell).click();
+    // The two avatars differ in figure and colour; the lit seat differs from the dimmed one in border and background.
+    const looks = await page.evaluate(() =>
+      ['A', 'B'].map((player) => {
+        const seatElement = document.querySelector(`[data-testid="seat-${player}"]`)!;
+        const avatar = seatElement.querySelector('svg.avatar')!;
+        return {
+          figure: avatar.getAttribute('data-avatar'),
+          paint: getComputedStyle(avatar.querySelector('path')!).fill,
+          border: getComputedStyle(seatElement).borderTopColor,
+          background: getComputedStyle(seatElement).backgroundColor,
+          lit: seatElement.getAttribute('data-lit'),
+        };
+      }),
+    );
+    expect(looks.map((look) => look.lit)).toEqual(['true', 'false']);
+    expect(looks[0]!.figure).not.toBe(looks[1]!.figure);
+    expect(looks[0]!.paint).not.toBe(looks[1]!.paint);
+    expect(looks[0]!.border).not.toBe(looks[1]!.border);
+    expect(looks[0]!.background).not.toBe(looks[1]!.background);
+
+    // All text meets 4.5:1 with a take toast and a refusal toast shown, and in the menu.
+    await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'B')!.cell).click();
     await expect(refusalToast(page)).toBeVisible();
     expect(await lowContrastText(page)).toEqual([]);
     await attachScreenshot(page, testInfo, 'dark-theme');
     await page.getByTestId('menu-button').click();
     await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
+    expect(await lowContrastText(page)).toEqual([]);
+
+    // A two-player game with Player 2's seat lit, and its end screen, are readable too.
+    await page.getByRole('button', { name: /^Quit to title/ }).click();
+    await chooseTwoPlayers(page);
+    // New game alternates the starter, so Player 1 or Player 2 opens; take until Player 2 is to move.
+    do await takeGlowing(page);
+    while ((await page.getByTestId('match-screen').getAttribute('data-to-move')) !== 'B');
+    await expect(seat(page, 'B')).toHaveAttribute('data-lit', 'true');
+    await expect(seatStatus(page, 'B')).toHaveText("Player 2's move");
+    expect(await lowContrastText(page)).toEqual([]);
+    for (let i = 0; i < 20 && (await page.getByTestId('end-screen').count()) === 0; i += 1) await takeGlowing(page);
+    await expect(page.getByTestId('end-screen')).toBeVisible();
     expect(await lowContrastText(page)).toEqual([]);
   });
 });
@@ -137,7 +174,7 @@ async function expectInside(page: Page, testIds: readonly string[]) {
 test.describe('phone viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('[scenario:phone-layout] at 390 px the board, the token counts and the top bar fit without scrolling, and every tile and button is at least 44 px', async ({ page }, testInfo) => {
+  test('[scenario:phone-layout] at 390 px the board, both seats above and below it, the Match card and the menu button fit without scrolling, and every tile and button is at least 44 px', async ({ page }, testInfo) => {
     await openTitle(page);
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
@@ -150,23 +187,40 @@ test.describe('phone viewport', () => {
     await page.getByRole('button', { name: /^New game/ }).tap();
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
+    await page.getByRole('button', { name: /^Versus bot/ }).tap();
+    expect((await overflow(page)).x).toBeLessThanOrEqual(0);
+    expect(await smallTargets(page)).toEqual([]);
     await page.getByRole('button', { name: /^Easy\b/ }).tap();
     await expect(board(page)).toBeVisible();
 
-    // At the start: the whole tabletop fits with no scrolling in either direction.
-    const fits = ['top-bar', 'board-frame', 'token-counts', 'tokens-you', 'tokens-bot', 'turn', 'last-tile', 'menu-button'];
+    // At the start: the whole table fits with no scrolling in either direction.
+    const fits = ['top-bar', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'board-frame', 'sitting-score'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
     await expectInside(page, fits);
     expect(await smallTargets(page)).toEqual([]);
+
+    // The Match card shares the top row with the menu button; Player 2 sits above the board and Player 1 below.
+    const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
+    const [card, menu, frame, top, bottom] = await Promise.all(['match-card', 'menu-button', 'board-frame', 'seat-B', 'seat-A'].map(box));
+    expect(Math.abs(card!.y + card!.height / 2 - (menu!.y + menu!.height / 2))).toBeLessThan(8);
+    expect(card!.x + card!.width).toBeLessThanOrEqual(menu!.x);
+    expect(top!.y + top!.height).toBeLessThanOrEqual(frame!.y);
+    expect(bottom!.y).toBeGreaterThanOrEqual(frame!.y + frame!.height);
+    expect(card!.y + card!.height).toBeLessThanOrEqual(top!.y);
+    // No empty band: the table runs from the top row to the bottom of the screen.
+    const score = await box('sitting-score');
+    expect(844 - (score.y + score.height)).toBeLessThan(40);
+    // The seats' text reads the same way up.
+    for (const testId of ['seat-A', 'seat-B']) expect(await page.getByTestId(testId).evaluate((element) => getComputedStyle(element).transform)).toBe('none');
 
     // Take a tile by touch so the last tile shows its emblems; the bot replies.
     const before = await takeCount(page);
     await glowing(page).first().tap();
     await expect.poll(() => takeCount(page)).toBeGreaterThan(before);
     await waitForHumanTurn(page);
-    await expect(page.getByTestId('last-tile-terrain')).toBeVisible();
+    await expect(page.getByTestId('match-card-terrain')).toBeVisible();
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
-    await expectInside(page, [...fits, 'last-tile-terrain', 'last-tile-symbol']);
+    await expectInside(page, [...fits, 'match-card-terrain', 'match-card-symbol']);
     expect(await smallTargets(page)).toEqual([]);
     await attachScreenshot(page, testInfo, 'phone-layout');
 
@@ -199,7 +253,7 @@ async function arrowTo(page: Page, cell: string) {
   expect(await focusedCell(page)).toBe(cell);
 }
 
-test('[scenario:keyboard-play] with the keyboard only, the player starts a game, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
+test('[scenario:keyboard-play] with the keyboard only, the player starts a game in each mode, opens and closes the menu and How to Play, and takes legal tiles', async ({ page }, testInfo) => {
   await openTitle(page);
 
   // How to Play from the title screen opens with Enter and closes with Escape.
@@ -210,13 +264,15 @@ test('[scenario:keyboard-play] with the keyboard only, the player starts a game,
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByTestId('open-how-to-play')).toBeFocused();
 
-  // Start a game: New game, then Easy.
+  // Start a bot game: New game, Versus bot, then Easy.
   await tabTo(page, '[data-testid="new-game"]', true);
+  await page.keyboard.press('Enter');
+  await tabTo(page, 'button[data-mode="bot"]');
   await page.keyboard.press('Enter');
   await tabTo(page, 'button[data-difficulty="easy"]');
   await page.keyboard.press('Enter');
   await expect(board(page)).toBeVisible();
-  await expect(page.getByTestId('turn')).toHaveText('Your turn');
+  await expect(seatStatus(page, 'A')).toHaveText('Your move');
 
   // The menu opens with Enter and closes with Escape, and focus comes back to its button.
   await tabTo(page, '[data-testid="menu-button"]');
@@ -257,7 +313,7 @@ test('[scenario:keyboard-play] with the keyboard only, the player starts a game,
   const target = lit[lit.length - 1]!;
   await arrowTo(page, target);
   await page.keyboard.press('Enter');
-  await expect(cellAt(page, target)).toHaveAttribute('data-owner', 'you');
+  await expect(cellAt(page, target)).toHaveAttribute('data-owner', 'A');
   expect(await takeCount(page)).toBe(1);
   await waitForHumanTurn(page);
   await attachScreenshot(page, testInfo, 'keyboard-play');
@@ -267,6 +323,33 @@ test('[scenario:keyboard-play] with the keyboard only, the player starts a game,
   const next = (await readBoard(page)).find((cell) => cell.glow)!.cell;
   await arrowTo(page, next);
   await page.keyboard.press('Space');
-  await expect(cellAt(page, next)).toHaveAttribute('data-owner', 'you');
+  await expect(cellAt(page, next)).toHaveAttribute('data-owner', 'A');
   expect(await takeCount(page)).toBeGreaterThanOrEqual(3);
+
+  // Back to the title through the menu, then a two-player game, where the keyboard takes for both seats.
+  await tabTo(page, '[data-testid="menu-button"]', true);
+  await page.keyboard.press('Enter');
+  await tabTo(page, '[data-testid="menu-quit"]');
+  await page.keyboard.press('Enter');
+  await tabTo(page, '[data-testid="new-game"]');
+  await page.keyboard.press('Enter');
+  await tabTo(page, 'button[data-mode="two-player"]');
+  await page.keyboard.press('Enter');
+  await expect(board(page)).toBeVisible();
+  for (const player of ['A', 'B'] as const) {
+    const number = player === 'A' ? 1 : 2;
+    if ((await page.getByTestId('match-screen').getAttribute('data-to-move')) !== player) continue;
+    await expect(seatStatus(page, player)).toHaveText(`Player ${number}'s move`);
+  }
+  const seatsTaking = [];
+  for (let i = 0; i < 2; i += 1) {
+    const mover = (await page.getByTestId('match-screen').getAttribute('data-to-move'))!;
+    await tabTo(page, '[data-testid="board"] [data-cell]');
+    const cell = (await readBoard(page)).find((candidate) => candidate.glow)!.cell;
+    await arrowTo(page, cell);
+    await page.keyboard.press('Enter');
+    await expect(cellAt(page, cell)).toHaveAttribute('data-owner', mover);
+    seatsTaking.push(mover);
+  }
+  expect(new Set(seatsTaking).size).toBe(2);
 });
