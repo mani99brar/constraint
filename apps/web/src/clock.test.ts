@@ -3,6 +3,9 @@ import { outOfTime, tokenAt, ALL_CELLS } from '@okiya/game';
 import {
   CLOCK_CHOICES,
   CLOCK_OPTIONS,
+  clockChoiceAt,
+  clockChoiceWords,
+  clockMinutes,
   clockSetup,
   clockText,
   clockWords,
@@ -36,6 +39,16 @@ describe('clock choices (two-player games)', () => {
     expect(CLOCK_CHOICES).toEqual(['off', '1', '2', '3', '4', '5']);
     expect(CLOCK_OPTIONS.map((option) => option.label)).toEqual(['Off', '1 min', '2 min', '3 min', '4 min', '5 min']);
     expect(MAX_CLOCK_MS).toBe(300_000);
+  });
+
+  it('maps the slider: off at 0, then whole minutes up to five, clamped and rounded, and says it in words', () => {
+    expect(CLOCK_CHOICES.map(clockMinutes)).toEqual([0, 1, 2, 3, 4, 5]);
+    for (const choice of CLOCK_CHOICES) expect(clockChoiceAt(clockMinutes(choice))).toBe(choice);
+    expect(clockChoiceAt(-3)).toBe('off');
+    expect(clockChoiceAt(9)).toBe('5');
+    expect(clockChoiceAt(2.4)).toBe('2');
+    expect(clockChoiceAt(Number.NaN)).toBe('off');
+    expect(['off', '1', '3'].map((choice) => clockChoiceWords(choice as 'off' | '1' | '3'))).toEqual(['Off', '1 minute', '3 minutes']);
   });
 
   it('gives each player their own starting time, or no clock, and none at all when both are off', () => {

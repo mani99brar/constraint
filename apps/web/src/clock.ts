@@ -19,6 +19,23 @@ export const MAX_CLOCK_MS = 5 * 60_000;
 /** Under this, a clock shows as running low. */
 export const LOW_CLOCK_MS = 10_000;
 
+/** A choice as the slider's position: 0 for off, else its minutes. */
+export function clockMinutes(choice: ClockChoice): number {
+  return choice === 'off' ? 0 : Number(choice);
+}
+
+/** The choice at a slider position, clamped to off..five minutes and rounded to a whole minute. */
+export function clockChoiceAt(minutes: number): ClockChoice {
+  const whole = Math.min(5, Math.max(0, Math.round(Number.isFinite(minutes) ? minutes : 0)));
+  return CLOCK_CHOICES[whole]!;
+}
+
+/** A choice in words, for the slider's screen-reader value: "Off", "1 minute", "3 minutes". */
+export function clockChoiceWords(choice: ClockChoice): string {
+  if (choice === 'off') return 'Off';
+  return `${choice} minute${choice === '1' ? '' : 's'}`;
+}
+
 export function isClockChoice(value: unknown): value is ClockChoice {
   return (CLOCK_CHOICES as readonly unknown[]).includes(value);
 }

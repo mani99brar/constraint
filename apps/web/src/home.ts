@@ -1,4 +1,4 @@
-import { CLOCK_CHOICES, clockSetup, clockText, type ClockChoice } from './clock';
+import { clockSetup, clockText, type ClockChoice } from './clock';
 import { DIFFICULTY_OPTIONS, difficultyLabel, type Difficulty } from './difficulty';
 import { modeLabel, twoPlayers, versusBot, type GameMode } from './mode';
 import type { Results } from './results';
@@ -122,11 +122,6 @@ export function opponentAfterKey(current: Opponent, key: string): Opponent | nul
     current,
     key,
   );
-}
-
-/** The clock choice an arrow key moves a player's clock switch to. */
-export function clockAfterKey(current: ClockChoice, key: string): ClockChoice | null {
-  return optionAfterKey(CLOCK_CHOICES, current, key);
 }
 
 /** The colour theme an arrow key moves the menu's Theme switch to. */

@@ -3,8 +3,9 @@ import { TILES, type Player } from '@okiya/game';
 import { TileArt, TokenMark } from './art';
 import { Avatar } from './Avatar';
 import { DIFFICULTY_OPTIONS, type Difficulty } from './difficulty';
-import { CLOCK_OPTIONS, type ClockChoice } from './clock';
-import { clockAfterKey, difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
+import type { ClockChoice } from './clock';
+import { ClockSlider } from './ClockSlider';
+import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
 import { MenuDialog } from './MenuDialog';
 import { RadioSwitch } from './RadioSwitch';
 import { OPPONENTS, type Opponent, type Settings } from './settings';
@@ -98,14 +99,7 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
               <span className="panel-label" aria-hidden="true">
                 Player {player === 'A' ? 1 : 2} clock
               </span>
-              <RadioSwitch
-                label={`Player ${player === 'A' ? 1 : 2} clock`}
-                testId={`clock-switch-${player}`}
-                options={CLOCK_OPTIONS}
-                value={player === 'A' ? model.clockA : model.clockB}
-                afterKey={clockAfterKey}
-                onChange={(choice) => onClock(player, choice)}
-              />
+              <ClockSlider player={player} value={player === 'A' ? model.clockA : model.clockB} onChange={(choice) => onClock(player, choice)} />
             </div>
           ))}
         {model.replacesSaved && (
