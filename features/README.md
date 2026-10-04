@@ -24,6 +24,7 @@ Each directory with a `feature.json` is a workflow feature (see the operator not
 | `two-player-table` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | PRD v1.1: two players on one device, seats and avatars, the Match card and the score of a sitting, on the unchanged `@okiya/game` and `chooseTake` |
 | `game-feel` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | PRD v1.2: one home screen, the tabletop-materials finish, avatar reactions, toasts and phone seats that leave the board clear |
 | `calm-table` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | PRD v1.3: spaced tiles on a calm ground, legal tiles by brightness and wash, no tile flight, a brief end sequence, a one-panel home, each piece of information once |
+| `final-polish` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | PRD v1.4: pop-and-glow move highlights with measured visibility, three colour themes with a menu switch, a scoreboard row, the phone fit |
 
 Core and abilities share one lane because trap, lock and ability resolution are entangled (skeleton design challenge, attempt 1). `packages/rules/src/api` and `package-lock.json` belong to no parallel lane: change them in a small feature on `main` first.
 

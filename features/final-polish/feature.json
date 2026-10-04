@@ -1,0 +1,29 @@
+{
+  "version": "2.3.0",
+  "name": "Final polish: playable tiles pop and glow in the mover's colour with measured visibility, three coherent colour themes with a menu switch (Walnut and parchment by default), a scoreboard row beside the Match card, and a phone layout without an empty band (PRD v1.4)",
+  "branch_prefix": "feature/final-polish",
+  "prd": "docs/prd.md",
+  "policy": "policy.json",
+  "workers": [
+    {
+      "node_id": "web",
+      "task": "web-task.md"
+    }
+  ],
+  "reviewers": [
+    {
+      "reviewer_id": "general",
+      "prompt": "builtin:general"
+    },
+    {
+      "reviewer_id": "coverage",
+      "prompt": "builtin:coverage"
+    }
+  ],
+  "sidecar": {
+    "prompt": "builtin:senior-review",
+    "cadence_seconds": 300,
+    "pass_timeout_seconds": 300,
+    "max_passes": 48
+  }
+}
