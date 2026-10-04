@@ -1,0 +1,29 @@
+{
+  "version": "2.3.0",
+  "name": "Calm table: spaced tiles on a quiet ground, legal tiles shown by brightness and a wash of the mover's colour, no tile flight, a brief end sequence on the board, a one-panel home and each piece of information once (PRD v1.3)",
+  "branch_prefix": "feature/calm-table",
+  "prd": "docs/prd.md",
+  "policy": "policy.json",
+  "workers": [
+    {
+      "node_id": "web",
+      "task": "web-task.md"
+    }
+  ],
+  "reviewers": [
+    {
+      "reviewer_id": "general",
+      "prompt": "builtin:general"
+    },
+    {
+      "reviewer_id": "coverage",
+      "prompt": "builtin:coverage"
+    }
+  ],
+  "sidecar": {
+    "prompt": "builtin:senior-review",
+    "cadence_seconds": 300,
+    "pass_timeout_seconds": 300,
+    "max_passes": 48
+  }
+}

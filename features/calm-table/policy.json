@@ -1,0 +1,178 @@
+{
+  "version": "1.2.0",
+  "feature": "Constraint calm table",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "tests/e2e"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 900,
+          "scenarios": [
+            {
+              "id": "home-screen",
+              "description": "At the wide viewport and at 390 x 844 the home screen shows the wordmark on one line over the board with both avatars, Continue only when a game is saved, one play panel (an Opponent switch Bot | Friend, the difficulty switch only while Bot is chosen, one Play button labelled with the choice), one line of results by difficulty, How to Play and Settings; there is no tagline box and no second Play button, and at 390 x 844 it fits without scrolling."
+            },
+            {
+              "id": "start-from-home",
+              "description": "Play starts the chosen setup at once: Bot at the chosen difficulty with seats You and Bot at that difficulty, or Friend with seats Player 1 and Player 2; the opponent and the difficulty are still chosen after a reload, and with a saved game the panel says that Play replaces it."
+            },
+            {
+              "id": "match-screen",
+              "description": "During a game the screen shows the board, a slim nameplate per player (avatar, name, token mark, tokens left out of 8), the score of the sitting once as one line between them, the Match card and a top bar holding only the menu button; there is no corner score pill, no per-seat Wins, and no log, status panel, legend or settings panel."
+            },
+            {
+              "id": "seats-turn",
+              "description": "In a two-player game the seat to move is lit and labelled with its player's move while the other seat is dimmed, the board frame and the glowing tiles take the colour of the player to move, and after a take the lit seat, its label and the aria-live announcement switch to the other player. Player 1 sits left of the board and Player 2 right of it at the wide viewport; with motion on the flying Match tile never takes a tap."
+            },
+            {
+              "id": "opening-take",
+              "description": "With the page's randomness fixed so the player starts, only the 12 edge tiles are legal and stand out; tapping an inner tile is refused with its reason, tapping an edge tile places the player's token there and the Match card shows that tile, changing in place with no tile flying from the board."
+            },
+            {
+              "id": "legal-turn",
+              "description": "After the bot's take its cell is marked as the last move and a toast names the bot's take, exactly the tiles matching the last tile glow, a non-matching tile is refused with a reason naming both tiles, that refusal clears once the turn changes, and a matching take hands the turn back to the bot. With motion on, a tap right after the bot's take lands on the board."
+            },
+            {
+              "id": "legal-tiles",
+              "description": "At the wide viewport and at 390 x 844, with highlights on, the legal tiles keep full brightness, lift and carry a light wash of the mover's colour with no outline, the other free tiles fade, taken cells do not fade, and the last take is marked by one warm tint with no dashed box; in a two-player game the wash follows the mover, Player 1's blue and Player 2's red."
+            },
+            {
+              "id": "tile-names",
+              "description": "Tile names are not drawn on the tiles by default; hovering or focusing a tile, or a long press on it, shows its name on a solid plate without taking it, a normal tap still takes it, every cell's accessible name includes the tile name, and the Tile names setting shows names on every tile and survives a reload."
+            },
+            {
+              "id": "highlight-toggle",
+              "description": "With highlights turned off in the menu, no tile fades, lifts or carries a wash, a legal take still works and an illegal one is still refused with its reason; the setting survives a reload."
+            },
+            {
+              "id": "how-to-play",
+              "description": "The How to Play dialog opens from the home screen and from the match menu, shows its pages (taking a matching tile, the opening, lines and squares, blockade and the full-board draw) with diagrams drawn with the tile art, closes with Escape or its close button, and returns focus to the button that opened it."
+            },
+            {
+              "id": "resume-match",
+              "description": "After a few takes the page is reloaded; Continue restores the same board, tokens, Match card, turn, mode and score of the sitting."
+            },
+            {
+              "id": "full-match",
+              "description": "The test plays glowing takes in a bot game until it ends; the end screen names the result once (line, square, blockade or draw) with no end toast, the winning shape's cells are marked on the board, the seats show the won and lost expressions, and the results for that difficulty count one more game."
+            },
+            {
+              "id": "end-sequence",
+              "description": "With motion on, for a line or square win and for a blockade reached through a seeded save and Continue: the winning tokens lift in order and the other cells dim (or, for a blockade, the Match card says no tile matches and the free tiles grey out), the result card with Play again and Home appears at once beside the board (below it at 390 x 844) without overlapping any cell, Play again takes a tap during the sequence, a tap skips the sequence to its final frame, the whole sequence ends within 700 ms, and Play again and Home sit in the same places in every ending."
+            },
+            {
+              "id": "two-player-match",
+              "description": "The test drives both seats of a two-player game with glowing takes until it ends; the end screen names the winning seat or the draw and how it happened, the score of the sitting counts it, and the results by difficulty are unchanged."
+            },
+            {
+              "id": "sitting-score",
+              "description": "After a finished game the one-line score of the sitting shows it; Play again keeps the score and swaps the starter, a second finished game adds to it, a reload with Continue in mid-game restores it, and leaving to the home screen and starting a game from it resets it to zero."
+            },
+            {
+              "id": "starter-alternates",
+              "description": "Play again after a finished game starts a new game in the same mode whose starting player is the other player."
+            },
+            {
+              "id": "sound-toggle",
+              "description": "Sound starts only after a user action, the mute setting in the menu survives a reload, and while muted no audio is played."
+            },
+            {
+              "id": "dark-theme",
+              "description": "With the dark colour scheme emulated, on the home screen and in a game, the slate ground, the board, tiles, emblems, both players' tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the result card and the one-line score included, meets a 4.5:1 contrast ratio against the worst colour behind it."
+            },
+            {
+              "id": "light-theme",
+              "description": "With the light colour scheme emulated, on the home screen and in a game, all text on the paper ground, the play panel, the nameplates, the name plates and the result card included, meets a 4.5:1 contrast ratio against the worst colour behind it, and both players' tokens and avatars stay distinguishable."
+            },
+            {
+              "id": "phone-layout",
+              "description": "At 390 x 844 the home screen fits without scrolling, and the game (the board with its gaps, both nameplates with Player 2 above and Player 1 below, the one-line score, the Match card and the menu button) fits without scrolling mid-game and with the end card shown, with no empty band at the bottom; every tile and button is at least 44 px in both dimensions."
+            },
+            {
+              "id": "keyboard-play",
+              "description": "Using the keyboard only, the player switches the opponent and the difficulty, starts a game in each mode from the home screen, sees a focused tile's name, opens and closes the menu and How to Play, and takes a legal tile."
+            },
+            {
+              "id": "avatar-reactions",
+              "description": "With motion on, the avatars react to what just happened: the player to move is ready, the bot is thinking while it chooses, a player who takes nods, a refused tap makes that player wince, the waiting player glances at the other's take, and at the end the winner shows won with a bounce and the other lost; each reaction is read from data-reaction, and taps on the board still land while a reaction plays."
+            },
+            {
+              "id": "table-materials",
+              "description": "At the wide viewport and at 390 x 844 the board shows separate raised tiles with a gap of 10 to 14 percent of a tile between them and the same padding inside the board frame, bevelled tokens with their ring and diamond marks and shaded avatars, over a calm ground (paper or slate with a soft glow behind the board) with no felt or repeating pattern; no element uses a blur filter or backdrop filter, and the page has no duplicate id attributes."
+            },
+            {
+              "id": "toasts-clear-board",
+              "description": "At the wide viewport and at 390 x 844, the bot's take toast and a refusal toast never overlap any board cell, and both still clear as before (the refusal when the turn changes)."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

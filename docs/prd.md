@@ -1,6 +1,6 @@
-# Constraint: product requirements v1.2
+# Constraint: product requirements v1.3
 
-Status: v1.2 of 2026-10-04. It replaces the title, mode and difficulty screens with one home screen, gives the art a tabletop-materials finish and makes the avatars react to what just happened. v1.1 of the same day added two-player play on one device, the seats around the board, two drawn avatars and the score of a sitting to v1.0 of 2026-10-02, which replaced v0.3 and its fighter game of rules v0.2. The rules are unchanged. Companion document: `game-spec.md` v1.0, the rules. `paper-simulation.md` and `paper-test-01.md` document the retired fighter game and are kept as history only.
+Status: v1.3 of 2026-10-04. It calms the table after the first deployed build: tiles get room between them, the felt gives way to a warm, quiet ground, legal tiles stand out by brightness and a light wash of the mover's colour instead of outlines, the end of a game plays briefly on the board, the home screen has one play panel, and the game screen shows each piece of information once. v1.2 of the same day replaced the title, mode and difficulty screens with one home screen, gives the art a tabletop-materials finish and makes the avatars react to what just happened. v1.1 of the same day added two-player play on one device, the seats around the board, two drawn avatars and the score of a sitting to v1.0 of 2026-10-02, which replaced v0.3 and its fighter game of rules v0.2. The rules are unchanged. Companion document: `game-spec.md` v1.0, the rules. `paper-simulation.md` and `paper-test-01.md` document the retired fighter game and are kept as history only.
 
 ## 1. Authority
 
@@ -18,6 +18,7 @@ Goals:
 - A bot at three strengths, whose Hard level plays perfectly.
 - Two people at one screen always see whose move it is and how their sitting stands.
 - It feels like a physical game on a table: materials, light and small reactions, never callouts or hints.
+- It is calm: room between the pieces, a quiet ground, brief motion, and each piece of information shown once.
 - Reproducible games: a seed, the starting player and the takes replay any game.
 
 Non-goals for v1: online play, rounds or a match to a target score, a lasting head-to-head record, player names or a choice of avatar, achievements, streaks or unlockables, callouts or reactions that hint at threats on the board, Okiya's optional variants, accounts, analytics, artist-made images and recorded audio.
@@ -32,8 +33,8 @@ Non-goals for v1: online play, rounds or a match to a target score, a lasting he
 | Play mode | Versus bot, or two players on one device | No server; everything runs in the browser. A two-player game has no bot and no hand-off screen, because nothing is hidden. |
 | Seats | One seat per player beside the board on wide screens, above and below it on a phone, in both modes | The seats replace the top bar's turn text and token counts. All text reads the same way up; there is no face-to-face orientation. |
 | Avatars | Two fixed avatars, one for Player 1 and one for Player 2, drawn in code, reacting to what just happened | No avatar choice and no names. In a bot game the human sits in Player 1's seat and the bot takes Player 2's avatar. A reaction never depends on the position, so it never hints at a threat. |
-| Home | One home screen holds Continue, Versus bot with its difficulty and Two players | One tap starts a game; there is no separate mode or difficulty screen. |
-| Look | A tabletop-materials finish on the existing theme: one light source, soft shadows, wood, felt and bevelled pieces | The terrains, emblems, tray, avatars and palette stay; the art gains depth, not a new style. |
+| Home | One home screen holds Continue and one play panel: an Opponent switch (Bot or Friend), the bot's difficulty and one Play button | One tap starts a game; there is no separate mode or difficulty screen and no second Play button. |
+| Look | A tabletop-materials finish on the existing theme over a calm ground: one light source, soft shadows, a wooden board frame, bevelled pieces, and warm paper (light) or slate ink (dark) behind them | The terrains, emblems, board frame and avatars stay; there is no felt or repeating pattern behind the board. |
 | Bot | Easy, Normal and Hard; Hard plays perfectly after the opening | Hard is unbeatable whenever it can force a win or a draw. |
 | Devices | Desktop first, responsive | Mouse and keyboard on desktop; the layout and tap targets also work on a phone. |
 | Rendering | DOM and SVG with React | The board is readable by browser tests and screen readers. |
@@ -46,20 +47,20 @@ Players who know Okiya or are learning it, alone against the bot or two at one s
 
 ### 5.1 Starting a game
 
-- **S1.** The home screen offers two ways to play: Versus bot, with an Easy, Normal or Hard switch that remembers the last choice (Normal at first), and Two players. Either starts the board at once: 16 tiles from a seeded shuffle (spec §2). The seed is generated and never shown.
+- **S1.** The home screen has one play panel: an Opponent switch, Bot or Friend (two players on this device), an Easy, Normal or Hard switch shown only while Bot is chosen, and one Play button labelled with the choice ("Play · Normal bot", "Play · with a friend"). Both choices are remembered (Bot and Normal at first). Play starts the board at once: 16 tiles from a seeded shuffle (spec §2). The seed is generated and never shown.
 - **S2.** The first game's starter is random; Play again after a finished game starts a new game in the same mode with the other player starting (spec §5) and keeps the score of the sitting.
 
 ### 5.2 Turns and rules
 
 - **R1.** The rules engine implements spec §1–§4 completely: the edge opening, matching, the line and square shapes, the full-board draw, the blockade and their order.
-- **R2.** On a human player's turn, only legal takes are possible. With highlights on, the legal tiles glow in the colour of the player to move.
+- **R2.** On a human player's turn, only legal takes are possible. With highlights on, the legal tiles stand out: they keep full brightness, lift slightly and carry a light wash (about 15%) of the mover's colour, while the other free tiles fade back. No outline marks them, so neither colour reads as an error. Brightness and lift carry the meaning; colour only adds whose turn it is.
 - **R3.** An illegal take is refused with its reason, naming the tile and the last tile (for example "Desert–Moon matches neither Forest nor Star"), and does not end the turn.
 - **R4.** The game ends on a line, a square, a blockade or a full board. The end screen says which and who won, naming the seat in a two-player game ("Player 2 wins by a square"), and the board marks the winning shape's four cells.
 
 ### 5.3 Information shown
 
-- **I1.** Always visible: every tile with its terrain and symbol, every token with its owner, the last tile in a Match card next to the board, with its art and its two emblem names ("Any edge tile" at the opening), whose move it is, each player's remaining tokens out of 8 and the score of the sitting.
-- **I2.** The last take stays marked on the board until the next one. No log or history panel exists.
+- **I1.** Always visible: every tile with its terrain scene and symbol emblem, every token with its owner, the last tile in a Match card next to the board, with its art and its two emblem names ("Any edge tile" at the opening), whose move it is, each player's remaining tokens out of 8 and the score of the sitting, each shown once. A tile's name ("Water–Moon") shows on hover, on keyboard focus and on a long press, and is always part of its accessible name; the Tile names setting (E3) shows it on every tile.
+- **I2.** The last take stays marked on the board until the next one, by one quiet warm tint on its cell. No log or history panel exists.
 - **I3.** Whose move it is never rests on colour alone: the seat to move is lit in its player's colour and labelled ("Your move", "Bot is thinking", "Player 1's move"), the other seat is dimmed, and each change is announced to screen readers.
 
 ### 5.4 Bot
@@ -77,14 +78,14 @@ Players who know Okiya or are learning it, alone against the bot or two at one s
 
 ### 5.6 Presentation
 
-- **U1. Tabletop.** The board and the seats are the whole interface: illustrated square tiles in a framed tray, with each terrain a scene and each symbol an emblem, round tokens in two player colours, and a seated avatar on each side, one fixed avatar for Player 1 and one for Player 2. The art has a tabletop-materials finish: one light source from the top left, soft shadows, a wood-grain tray on a felt table, tiles with a slight edge and depth, bevelled tokens that drop and settle, and shaded avatars. It stays fast on a phone: static SVG patterns and gradients, no live blur filters across the board. All art is original and drawn in code (inline SVG or CSS). Colour is never the only signal: tokens differ in shape or mark as well.
-- **U2. Seats and top bar.** Each seat is a nameplate, compact on a phone, showing its avatar, its name ("Player 1" and "Player 2", or "You" and "Bot · Normal"), its token mark, its remaining tokens out of 8 and its score in the sitting. A slim top bar holds the menu button. During the bot's turn the board does not accept takes.
+- **U1. Tabletop.** The board and the seats are the whole interface: illustrated square tiles in a framed tray, with each terrain a scene and each symbol an emblem, round tokens in two player colours, and a seated avatar on each side, one fixed avatar for Player 1 and one for Player 2. The art has a tabletop-materials finish: one light source from the top left, soft shadows, a wooden board frame, tiles that read as separate raised pieces with a gap of about 12% of a tile between them, bevelled tokens that drop and settle, and shaded avatars. Behind everything is a calm ground: warm paper or linen in the light theme and desaturated slate ink in the dark theme, with one soft glow behind the board, a gentle vignette and static grain of 3% or less, and no felt or repeating pattern. It stays fast on a phone: static CSS gradients and shadows, no blur filters across the board. All art is original and drawn in code (inline SVG or CSS). Colour is never the only signal: tokens differ in shape or mark as well.
+- **U2. Seats and top bar.** Each seat is a slim nameplate showing its avatar, its name ("Player 1" and "Player 2", or "You" and "Bot · Normal"), its token mark and its remaining tokens out of 8. The score of the sitting is one line between the nameplates. The board's A–D and 1–4 labels are light and small. A slim top bar holds the menu button. During the bot's turn the board does not accept takes.
 - **U3. Toasts.** Short, non-blocking notices for a refused take and for the other side's take ("Bot took D3, Desert–Star"), shown where they never cover a tile. A refusal notice clears when the turn changes. The end of the game is shown by the end screen and the seats, once.
 - **U4. Menu.** Resume, How to Play, the highlight and sound settings, and quit to title, which keeps the saved game.
 - **U5. Themes.** Light and dark, following the system colour scheme. Text meets a 4.5:1 contrast ratio.
 - **U6. Phone.** At a 390 px wide viewport the board, both seats, the Match card and the menu button fit without scrolling, and every tap target is at least 44 px.
 - **U7. Keyboard.** Every tile and button is reachable by keyboard, and every cell has an accessible name, for example "B3, Water–Moon, legal take", "B3, your token" or, in a two-player game, "B3, Player 1's token".
-- **U8. Motion.** Animations stay under 400 ms, never block input and are off under reduced motion.
+- **U8. Motion.** Animations stay under 400 ms, never block input and are off under reduced motion. The one exception is the end sequence (U10), which lasts at most 700 ms. A taken tile does not fly anywhere; the Match card changes in place with a short crossfade.
 - **U9. Reactions.** The avatars react only to what just happened:
   - the player to move looks ready, and the bot thinks while it chooses;
   - a player nods on their own take and winces when their tap is refused;
@@ -92,14 +93,20 @@ Players who know Okiya or are learning it, alone against the bot or two at one s
   - at the end, the winner shows the won face with a small bounce and the other player the lost face.
 
   Each reaction follows U8, and none depends on the position on the board.
+- **U10. End of the game.** A brief sequence on the board, at most 700 ms in all:
+  - a line or square: the four winning tokens lift one after another, the stroke is drawn through them and the other cells dim;
+  - a blockade: the Match card shows that no tile matches and the remaining tiles grey out;
+  - a draw: the board settles evenly.
+
+  The result card and Play again appear at once, beside the board (below it on a phone), never covering it, and work from the first frame. Play again and Home keep fixed places. Any tap skips the sequence, and it is off under reduced motion.
 
 ### 5.7 Release
 
-- **E1. Home screen.** The title screen is the home screen: a hero (the title as a drawn wordmark over the board tray, with the two avatars), Continue when a game is saved, the two ways to play of S1, a compact strip of the results by difficulty, and How to Play and Settings.
+- **E1. Home screen.** The title screen is the home screen: a hero (the title as a drawn wordmark that never breaks inside the word, over the board, with the two avatars), Continue when a game is saved, the play panel of S1, one quiet line of results by difficulty, and How to Play and Settings. At 390 × 844 it fits without scrolling.
 - **E2. How to Play.** A dialog of short pages, opened from the title screen and from the match menu, that explains taking a matching tile, the edge opening, the line and square shapes, the blockade and the full-board draw, with small board diagrams drawn with the tile art, in wording that fits both modes.
-- **E3. Highlight setting.** Legal-take highlights can be turned off; refusals work either way.
+- **E3. Highlight and tile-name settings.** Legal-take highlights can be turned off: then nothing fades, lifts or carries a wash, and refusals work either way. Tile names on the tiles can be turned on (off by default).
 - **E4. Sound.** Short effects synthesized with the Web Audio API, starting only after a user action, with a remembered mute setting. Sound is never the only signal of an event.
-- **E5. Results.** Wins, losses and draws per difficulty against the bot, kept only in the browser, with a reset. Two-player games are not counted.
+- **E5. Results.** Wins, losses and draws per difficulty against the bot, kept only in the browser, with a reset in Settings. Two-player games are not counted.
 - **E6. Publishing.** A static site with relative asset paths that runs on any static host or as an itch.io HTML5 upload (`docs/publishing.md`). No service worker, accounts, network calls or analytics.
 
 ### 5.8 Two players
@@ -107,7 +114,7 @@ Players who know Okiya or are learning it, alone against the bot or two at one s
 - **P1.** Two people take turns on one device. Player 1 is the engine's player A and Player 2 is player B. Each takes on their own turn by tap, click or keyboard; there is no hand-off screen, because the state is fully public (spec §2).
 - **P2.** In a bot game the human is Player 1 and the bot plays Player 2's seat, avatar and token.
 - **P3.** The score of a sitting counts each seat's wins and the draws, from the first game started on the home screen. Play again keeps it. Leaving to the title screen ends the sitting, and starting a game from the home screen begins a new one. It reads, for example, "Player 1 2 – 1 Player 2 · 1 draw", or "You 1 – 2 Bot" in a bot game.
-- **P4.** The end screen offers Play again and Title screen in both modes.
+- **P4.** The end screen offers Play again and Home (the title screen) in both modes.
 
 ## 6. Technical constraints
 
@@ -123,7 +130,7 @@ Players who know Okiya or are learning it, alone against the bot or two at one s
 - Every rule of spec §1–§4 has a unit test that names the spec section it proves, including the order of the end checks.
 - Determinism: a game log replays to the same final state every run; a malformed or illegal log is refused with a structured reason, never an exception.
 - The bot only ever returns legal takes; a test proves each difficulty takes an immediate win, and a reference solver in the tests proves Hard perfect after the opening. Hard never loses a game it can still save at its first take after the opening.
-- Browser tests cover the home screen, starting each mode from it with the remembered difficulty, the match screen with both seats, the opening take, a legal turn and a refused take, the highlight setting, How to Play, resuming a game with its score, a full game to the end screen against the bot, a full two-player game to the end screen, the score of a sitting across Play again, the starter alternating, sound, the dark theme, the phone layout, keyboard play, and the animations and avatar reactions with motion on. Each layout rule is tested at both a wide and a phone viewport.
+- Browser tests cover the home screen, starting each mode from it with the remembered difficulty, the match screen with both seats, the opening take, a legal turn and a refused take, the highlight setting, How to Play, resuming a game with its score, a full game to the end screen against the bot, a full two-player game to the end screen, the score of a sitting across Play again, the starter alternating, sound, the dark theme, the phone layout, keyboard play, the animations, avatar reactions and end sequence with motion on, and the tile-name setting. Each layout rule is tested at both a wide and a phone viewport.
 
 ## 8. Delivery plan
 
@@ -135,6 +142,7 @@ Features run with the workflow controller (see `CLAUDE.md` and `features/README.
 4. Cleanup after `pure-okiya` merges: delete `packages/rules`, `packages/content`, the old bot code and their tests, and prune the workspace and lockfile.
 5. **`two-player-table`**, one `web` lane (v1.1): two players on one device (§5.8), the seats and avatars, the Match card, the score of a sitting, the clearer feedback of §5.3 and §5.6, and the How to Play pages. The engine and the bot are unchanged.
 6. **`game-feel`**, one `web` lane (v1.2): the home screen (S1, E1), the tabletop-materials art (U1), the seat nameplates and toasts that never cover the board (U2, U3), and the avatar reactions (U9). The engine and the bot are unchanged.
+7. **`calm-table`**, one `web` lane (v1.3): the spaced tiles and calm ground (U1), the legal-tile look (R2), each piece of information once with tile names on demand (I1, U2, E3), the end sequence (U8, U10) and the one-panel home (S1, E1). The engine and the bot are unchanged.
 
 ## 9. Risks and open questions
 
