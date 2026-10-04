@@ -1,0 +1,154 @@
+{
+  "version": "1.2.0",
+  "feature": "Constraint two-player table",
+  "independent_review": true,
+  "integration_approval": true,
+  "max_verification_attempts": 3,
+  "setup": [
+    {
+      "argv": [
+        "npm",
+        "ci"
+      ],
+      "timeout_seconds": 900
+    }
+  ],
+  "workers": [
+    {
+      "node_id": "web",
+      "role": "frontend",
+      "required_check_kinds": [
+        "typecheck",
+        "unit",
+        "build",
+        "browser"
+      ],
+      "owned_paths": [
+        "apps/web/src",
+        "apps/web/index.html",
+        "tests/e2e"
+      ],
+      "checks": [
+        {
+          "id": "typecheck",
+          "kind": "typecheck",
+          "argv": [
+            "npm",
+            "run",
+            "typecheck"
+          ],
+          "timeout_seconds": 300,
+          "scenarios": []
+        },
+        {
+          "id": "unit",
+          "kind": "unit",
+          "argv": [
+            "npm",
+            "run",
+            "test:unit"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "build",
+          "kind": "build",
+          "argv": [
+            "npm",
+            "run",
+            "build"
+          ],
+          "timeout_seconds": 600,
+          "scenarios": []
+        },
+        {
+          "id": "browser",
+          "kind": "browser",
+          "argv": [
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            "--config=tests/e2e/playwright.config.ts"
+          ],
+          "timeout_seconds": 900,
+          "scenarios": [
+            {
+              "id": "title-screen",
+              "description": "The title screen shows the game's title, New game, Continue when a game is saved, How to play, results by difficulty and a menu for settings."
+            },
+            {
+              "id": "mode-choice",
+              "description": "New game offers Versus bot and Two players: Versus bot leads to Easy, Normal or Hard and then the board, Two players leads straight to the board with seats for Player 1 and Player 2, and Back returns to the title screen."
+            },
+            {
+              "id": "new-game",
+              "description": "From Versus bot the player picks Easy or Normal and the board appears at once with all 16 tiles, the seats read You and Bot with that difficulty, and the lit seat says who starts."
+            },
+            {
+              "id": "match-screen",
+              "description": "During a game the screen shows the board, a seat for each player (avatar, name, token mark, tokens left out of 8 and the score), the Match card with the last tile's art and names, and a top bar holding only the menu button; no log, status panel, legend or settings panel is present."
+            },
+            {
+              "id": "seats-turn",
+              "description": "In a two-player game the seat to move is lit and labelled with its player's move while the other seat is dimmed, the board frame and the glowing tiles take the colour of the player to move, and after a take the lit seat, its label and the aria-live announcement switch to the other player."
+            },
+            {
+              "id": "opening-take",
+              "description": "With the page's randomness fixed so the player starts, only the 12 edge tiles glow; tapping an inner tile is refused with its reason, tapping an edge tile places the player's token there and the Match card shows that tile."
+            },
+            {
+              "id": "legal-turn",
+              "description": "After the bot's take its cell is marked as the last move and a toast names the bot's take, exactly the tiles matching the last tile glow, a non-matching tile is refused with a reason naming both tiles, that refusal clears once the turn changes, and a matching take hands the turn back to the bot."
+            },
+            {
+              "id": "highlight-toggle",
+              "description": "With highlights turned off in the menu, no tile glows, a legal take still works and an illegal one is still refused with its reason; the setting survives a reload."
+            },
+            {
+              "id": "how-to-play",
+              "description": "The How to Play dialog opens from the title screen and from the match menu, shows its pages (taking a matching tile, the opening, lines and squares, blockade and the full-board draw) with diagrams drawn with the tile art, closes with Escape or its close button, and returns focus to the button that opened it."
+            },
+            {
+              "id": "resume-match",
+              "description": "After a few takes the page is reloaded; Continue restores the same board, tokens, Match card, turn, mode and score of the sitting."
+            },
+            {
+              "id": "full-match",
+              "description": "The test plays glowing takes in a bot game until it ends; the end screen names the result once (line, square, blockade or draw) with no end toast, the winning shape's cells are marked on the board, the seats show the won and lost expressions, and the results for that difficulty count one more game."
+            },
+            {
+              "id": "two-player-match",
+              "description": "The test drives both seats of a two-player game with glowing takes until it ends; the end screen names the winning seat or the draw and how it happened, the score of the sitting counts it, and the results by difficulty are unchanged."
+            },
+            {
+              "id": "sitting-score",
+              "description": "After a finished game the score of the sitting shows it; Play again keeps the score and swaps the starter, a second finished game adds to it, a reload with Continue in mid-game restores it, and leaving to the title screen and starting a New game resets it to zero."
+            },
+            {
+              "id": "starter-alternates",
+              "description": "Play again after a finished game starts a new game in the same mode whose starting player is the other player."
+            },
+            {
+              "id": "sound-toggle",
+              "description": "Sound starts only after a user action, the mute setting in the menu survives a reload, and while muted no audio is played."
+            },
+            {
+              "id": "dark-theme",
+              "description": "With the dark colour scheme emulated, the board, tiles, emblems, both players' tokens, both avatars and the lit and dimmed seats stay distinguishable and all text meets a 4.5:1 contrast ratio."
+            },
+            {
+              "id": "phone-layout",
+              "description": "At a 390 px wide viewport the board, both seats (above and below the board), the Match card and the menu button fit without scrolling in either direction, and every tile and button is at least 44 px in both dimensions."
+            },
+            {
+              "id": "keyboard-play",
+              "description": "Using the keyboard only, the player starts a game in each mode, opens and closes the menu and How to Play, and takes a legal tile."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -21,6 +21,7 @@ Each directory with a `feature.json` is a workflow feature (see the operator not
 | `tabletop-ui` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | the tabletop interface (PRD §5.9) |
 | `pure-okiya` | `bot` | `packages/bot/src` | `@okiya/game` (rules v1.0); Easy, Normal and perfect Hard behind `chooseTake` |
 | `pure-okiya` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | the client on `@okiya/game` and `chooseTake`, with the fighter game removed |
+| `two-player-table` | `web` | `apps/web/src`, `apps/web/index.html`, `tests/e2e` | PRD v1.1: two players on one device, seats and avatars, the Match card and the score of a sitting, on the unchanged `@okiya/game` and `chooseTake` |
 
 Core and abilities share one lane because trap, lock and ability resolution are entangled (skeleton design challenge, attempt 1). `packages/rules/src/api` and `package-lock.json` belong to no parallel lane: change them in a small feature on `main` first.
 

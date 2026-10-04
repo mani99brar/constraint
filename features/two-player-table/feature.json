@@ -1,0 +1,29 @@
+{
+  "version": "2.3.0",
+  "name": "Two-player table: Constraint for one or two people at one screen, with a seat and avatar per player, a clear whose-move signal, a Match card, the score of a sitting and clearer feedback (PRD v1.1)",
+  "branch_prefix": "feature/two-player-table",
+  "prd": "docs/prd.md",
+  "policy": "policy.json",
+  "workers": [
+    {
+      "node_id": "web",
+      "task": "web-task.md"
+    }
+  ],
+  "reviewers": [
+    {
+      "reviewer_id": "general",
+      "prompt": "builtin:general"
+    },
+    {
+      "reviewer_id": "coverage",
+      "prompt": "builtin:coverage"
+    }
+  ],
+  "sidecar": {
+    "prompt": "builtin:senior-review",
+    "cadence_seconds": 300,
+    "pass_timeout_seconds": 300,
+    "max_passes": 48
+  }
+}
