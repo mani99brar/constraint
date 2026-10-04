@@ -27,6 +27,8 @@ Core and abilities share one lane because trap, lock and ability resolution are 
 
 When a lane needs a new shared type or function, add it to `main` in a small feature first, then fan out. Do not give two lanes the same owned path.
 
+A layout rule that differs by screen size (wide and phone) needs an acceptance item and a browser scenario for each size: `two-player-table-001`'s coverage review blocked on wide-screen seat placement that only the phone scenario tested.
+
 ## New feature
 
 ```bash

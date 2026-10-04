@@ -9,6 +9,8 @@ import { emptyResults, loadResults, outcomeOf, recordFinishedGame, recordResult,
 import { clearSavedGame, loadSavedGame, restoreSavedGame, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
 import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from './settings';
+import { HOWTO_SEEN_KEY } from './howto';
+import { LAST_STARTER_KEY } from './starter';
 import type { KeyValueStorage } from './storage';
 
 function memoryStorage(): KeyValueStorage & { readonly data: Map<string, string> } {
@@ -59,7 +61,8 @@ describe('saved game (PRD L2)', () => {
 
   it('loads a save of the previous build (a game log and a difficulty) as a bot game with a 0–0 score', () => {
     const storage = memoryStorage();
-    storage.data.set(SAVE_KEY, JSON.stringify({ version: 2, difficulty: 'normal', log: gameLogOf(state) }));
+    // Written under the literal key the previous build used, not this build's constant.
+    storage.data.set('okiya.saved-match', JSON.stringify({ version: 2, difficulty: 'normal', log: gameLogOf(state) }));
     expect(loadSavedGame(storage)).toEqual({ state, mode: versusBot('normal'), score: NO_SCORE });
   });
 
@@ -223,5 +226,22 @@ describe('settings (PRD E3, E4)', () => {
     expect(loadSettings(storage)).toEqual({ highlights: false, sound: true });
     expect(loadSettings(throwing)).toEqual(DEFAULT_SETTINGS);
     expect(saveSettings(throwing, DEFAULT_SETTINGS)).toBe(false);
+  });
+});
+
+describe('storage keys', () => {
+  it('keeps the keys the published builds use, so saved games, results and settings carry over', () => {
+    expect(SAVE_KEY).toBe('okiya.saved-match');
+    expect(RESULTS_KEY).toBe('okiya.results');
+    expect(SETTINGS_KEY).toBe('okiya.settings');
+    expect(LAST_STARTER_KEY).toBe('okiya.last-starter');
+    expect(HOWTO_SEEN_KEY).toBe('okiya.howto.seen');
+  });
+
+  it('reads the results a published build wrote under its literal key', () => {
+    const storage = memoryStorage();
+    const written = recordResult(memoryStorage(), 'hard', 'win');
+    storage.data.set('okiya.results', JSON.stringify(written));
+    expect(loadResults(storage)).toEqual(written);
   });
 });

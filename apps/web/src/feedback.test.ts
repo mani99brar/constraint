@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newGame } from '@okiya/game';
+import { newGame, otherPlayer } from '@okiya/game';
 import { takeFeedback } from './feedback';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { afterTakes, endings } from './playouts.test-helper';
@@ -32,12 +32,18 @@ describe('take feedback (PRD U3, E4)', () => {
     }
   });
 
-  it('ends the game with the result’s sound and no end toast, in either mode', () => {
-    for (const state of Object.values(endings())) {
+  it('ends the game with the result’s sound and no end toast, in either mode; the bot’s last take is still toasted', () => {
+    const states = Object.values(endings());
+    // The endings include a game the bot's take ends, so that toast is exercised.
+    expect(states.some((state) => otherPlayer(state.toMove) === 'B')).toBe(true);
+    for (const state of states) {
       const result = state.result!;
       const bot = takeFeedback(state, state.takes.length - 1, easy);
       expect(bot.sound).toBe(result.kind === 'draw' ? 'draw' : result.winner === 'A' ? 'win' : 'loss');
-      expect(bot.toasts).toEqual([]);
+      const last = state.takes[state.takes.length - 1]!;
+      expect(bot.toasts).toEqual(
+        otherPlayer(state.toMove) === 'B' ? [{ kind: 'take', tone: 'info', text: expect.stringMatching(new RegExp(`^Bot took ${last}, \\w+–\\w+$`)) }] : [],
+      );
       const pair = takeFeedback(state, state.takes.length - 1, TWO_PLAYERS);
       expect(pair.sound).toBe(result.kind === 'draw' ? 'draw' : 'win');
       expect(pair.toasts).toEqual([]);

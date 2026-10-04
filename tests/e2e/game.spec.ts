@@ -10,7 +10,9 @@ import {
   cellAt,
   chooseDifficulty,
   chooseTwoPlayers,
+  expectSeatsBeside,
   fixRandomness,
+  frameStripe,
   gameSnapshot,
   glowing,
   HUMAN_STARTS,
@@ -18,6 +20,7 @@ import {
   legalFromPage,
   match,
   matchCard,
+  matchTileFlight,
   openTitle,
   playToEnd,
   readBoard,
@@ -34,6 +37,7 @@ import {
   toMove,
   waitForHumanTurn,
 } from './helpers';
+import { FADE_MS, TOAST_MS } from '../../apps/web/src/toasts';
 
 // Randomness is fixed per test through `fixRandomness`; tiles, tokens, seats and the Match card are
 // read from the page, no test waits on an animation, and no test depends on which tile the bot takes.
@@ -230,6 +234,8 @@ test('[scenario:match-screen] the game is the board, a seat for each player, the
     await expect(view.locator('button, a, [tabindex]')).toHaveCount(0);
   }
   await expect(page.getByTestId('sitting-score')).toContainText('You 0 – 0 Bot');
+  // On a wide screen You sit left of the board and the bot right of it.
+  await expectSeatsBeside(page);
 
   // The Match card: the last tile's scene, emblem and both names.
   const last = (await readLastTile(page))!;
@@ -299,11 +305,14 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
     // The glowing tiles and the frame's side take the lit seat's colour; the dimmed seat looks different.
     expect(lit.glow).toContain(lit.seat);
     expect(lit.frame).toContain(lit.seat);
+    // The stripe sits on the mover's side of the frame: left for Player 1, right for Player 2.
+    expect(await frameStripe(page)).toEqual({ side: player === 'A' ? 'left' : 'right', color: lit.seat });
     expect(dim.seat).not.toBe(lit.seat);
     expect(dim.seatBackground).not.toBe(lit.seatBackground);
   }
 
   await expectTurn('A');
+  await expectSeatsBeside(page);
   await expect(announcer).toHaveText("Player 1 starts. Player 1's move.");
   await expect(announcer).toHaveAttribute('aria-live', 'polite');
   const { legal } = await legalFromPage(page);
@@ -328,6 +337,24 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
   await expect(takeToast(page)).toHaveCount(0);
   await expect(seat(page, 'A')).toHaveAttribute('data-tokens-left', '7');
   await expect(seat(page, 'B')).toHaveAttribute('data-tokens-left', '7');
+
+  // With motion on (PRD U8): the seats change with a transition, and each take's tile flies from its cell
+  // into the Match card without taking taps, so the next player's tap lands on the board at once.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  for (const player of ['A', 'B'] as const) expect(await seat(page, player).evaluate((element) => getComputedStyle(element).transitionDuration)).not.toBe('0s');
+  const target = (await readBoard(page)).find((cell) => cell.glow)!;
+  const centre = (await cellAt(page, target.cell).boundingBox())!;
+  await page.mouse.click(centre.x + centre.width / 2, centre.y + centre.height / 2);
+  const flight = await matchTileFlight(page);
+  expect(flight, 'a glowing tile for Player 2 after the take').not.toBeNull();
+  expect(flight!.arriving).toBe(true);
+  expect(flight!.animation).toBe('tile-arrive');
+  expect(flight!.fromX).toMatch(/px$/);
+  expect(flight!.takesTaps).toBe(false);
+  await expect(cellAt(page, target.cell)).toHaveAttribute('data-owner', 'A');
+  // Player 2 taps a glowing tile at once, while Player 1's tile may still be in flight; the tap takes it.
+  await page.mouse.click(flight!.next.x, flight!.next.y);
+  await expect(cellAt(page, flight!.next.cell)).toHaveAttribute('data-owner', 'B');
 });
 
 test('[scenario:opening-take] at the opening only the 12 edge tiles glow, an inner tile is refused, and an edge take places a token and fills the Match card', async ({ page }, testInfo) => {
@@ -399,15 +426,44 @@ test('[scenario:legal-turn] after the bot’s take its cell is marked and toaste
   await expect(seatStatus(page, 'A')).toHaveText('Your move');
   await attachScreenshot(page, testInfo, 'legal-turn');
 
-  // A matching take hands the turn to the bot, and the refusal clears at once.
+  // A matching take hands the turn to the bot, and the refusal clears at once: well before a toast leaves on
+  // its own (TOAST_MS), so its own expiry cannot explain the disappearance. A fresh refusal replaces the
+  // shown one, so its life starts just before the take.
+  await cellAt(page, wrong.cell).click();
+  await expect(refusalToast(page)).toHaveCount(1);
+  const refusedAt = Date.now();
   await cellAt(page, legal[0]!).click();
   await expect(cellAt(page, legal[0]!)).toHaveAttribute('data-owner', 'A');
-  await expect(refusalToast(page)).toHaveCount(0);
+  await expect(refusalToast(page)).toHaveCount(0, { timeout: 1_000 });
+  expect(Date.now() - refusedAt).toBeLessThan(TOAST_MS - FADE_MS);
   await expect(seatStatus(page, 'B')).toHaveText('Bot is thinking');
   await expect(match(page)).toHaveAttribute('data-to-move', 'B');
   await waitForHumanTurn(page);
   expect(await takeCount(page)).toBe(4);
   await expect(refusalToast(page)).toHaveCount(0);
+
+  // With motion on (PRD U8), the bot's tile flies into the Match card without taking taps: a tap right
+  // after the bot's take lands on the board.
+  if ((await page.getByTestId('end-screen').count()) > 0) return;
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await takeGlowing(page);
+  const flight = await page.waitForFunction(
+    () => {
+      const screen = document.querySelector('[data-testid="match-screen"]');
+      const tile = document.querySelector('[data-testid="match-card"] .match-tile.arriving');
+      if (screen?.getAttribute('data-accepts-takes') !== 'true' || !tile) return null;
+      const box = tile.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return { takesTaps: hit !== null && tile.contains(hit), pointerEvents: getComputedStyle(tile).pointerEvents };
+    },
+    null,
+    { timeout: BOT_REPLY_MS },
+  );
+  expect(await flight.jsonValue()).toEqual({ takesTaps: false, pointerEvents: 'none' });
+  const next = (await readBoard(page)).find((cell) => cell.glow)!;
+  const centre = (await cellAt(page, next.cell).boundingBox())!;
+  await page.mouse.click(centre.x + centre.width / 2, centre.y + centre.height / 2);
+  await expect(cellAt(page, next.cell)).toHaveAttribute('data-owner', 'A');
 });
 
 test('[scenario:highlight-toggle] with highlights off nothing glows, a legal take works, an illegal one is refused, and the setting survives a reload', async ({ page }, testInfo) => {
@@ -590,6 +646,9 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
   const before = await total();
   await chooseDifficulty(page, 'Easy');
   await playToEnd(page, 20);
+  // When the bot's take ends the game, that take is still toasted like any other (but never the result).
+  const lastTake = (await readBoard(page)).find((cell) => cell.last)!;
+  if (lastTake.owner === 'B') await expect(takeToast(page)).toHaveText(`Bot took ${lastTake.cell}, ${tile(lastTake)}`);
 
   // The end screen names the result and how it happened, once: no toast and no seat repeats it.
   const end = page.getByTestId('end-screen');

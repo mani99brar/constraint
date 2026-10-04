@@ -6,6 +6,7 @@ import {
   board,
   cellAt,
   chooseTwoPlayers,
+  frameStripe,
   glowing,
   lowContrastText,
   openTitle,
@@ -212,10 +213,15 @@ test.describe('phone viewport', () => {
     expect(844 - (score.y + score.height)).toBeLessThan(40);
     // The seats' text reads the same way up.
     for (const testId of ['seat-A', 'seat-B']) expect(await page.getByTestId(testId).evaluate((element) => getComputedStyle(element).transform)).toBe('none');
+    // The frame's stripe sits on the mover's side: below the board for Player 1, above it for Player 2.
+    const p1 = await seat(page, 'A').evaluate((element) => getComputedStyle(element).borderTopColor);
+    expect(await frameStripe(page)).toEqual({ side: 'bottom', color: p1 });
 
-    // Take a tile by touch so the last tile shows its emblems; the bot replies.
+    // Take a tile by touch so the last tile shows its emblems; while the bot thinks, the stripe moves above
+    // the board, and then the bot replies.
     const before = await takeCount(page);
     await glowing(page).first().tap();
+    await expect.poll(async () => (await frameStripe(page)).side, { intervals: [25], timeout: 2_000 }).toBe('top');
     await expect.poll(() => takeCount(page)).toBeGreaterThan(before);
     await waitForHumanTurn(page);
     await expect(page.getByTestId('match-card-terrain')).toBeVisible();

@@ -484,11 +484,13 @@ button:disabled {
   flex: none;
 }
 
+/* The tile never takes a tap: while it flies in from its cell over the board, taps reach the cells (PRD U8). */
 .match-tile {
   position: absolute;
   inset: 0;
   z-index: 20;
   display: block;
+  pointer-events: none;
   border-radius: 10px;
   overflow: hidden;
   border: 2px solid color-mix(in srgb, var(--frame-edge) 55%, transparent);
@@ -596,6 +598,11 @@ button:disabled {
     align-items: stretch;
     gap: 8px;
     padding: 8px 10px 10px;
+  }
+
+  /* The end card joins the column under the board, so the board gives up its height (outranks .match.ended). */
+  .match.ended {
+    --chrome: 530px;
   }
 
   .top-bar {

@@ -117,6 +117,58 @@ export const refusalToast = (page: Page) => page.locator('[data-testid="toast"][
 export const takeToast = (page: Page) => page.locator('[data-testid="toast"][data-kind="take"]');
 export const toasts = (page: Page) => page.getByTestId('toast');
 
+/**
+ * On wide screens the seats sit beside the board (PRD U2): Player 1's seat wholly left of the board's
+ * frame and Player 2's wholly right of it, each level with the board rather than above or below it.
+ */
+export async function expectSeatsBeside(page: Page) {
+  const [frame, left, right] = await Promise.all([page.getByTestId('board-frame'), seat(page, 'A'), seat(page, 'B')].map(async (locator) => (await locator.boundingBox())!));
+  expect(left!.x + left!.width).toBeLessThanOrEqual(frame!.x);
+  expect(right!.x).toBeGreaterThanOrEqual(frame!.x + frame!.width);
+  for (const box of [left!, right!]) {
+    expect(box.y).toBeLessThan(frame!.y + frame!.height);
+    expect(box.y + box.height).toBeGreaterThan(frame!.y);
+  }
+}
+
+/**
+ * The stripe the board frame shows in the colour of the player to move (PRD I3): the side it sits on,
+ * read from the offsets of the frame's first inset shadow, and its colour; no side when no stripe shows.
+ */
+export async function frameStripe(page: Page): Promise<{ side: 'left' | 'right' | 'top' | 'bottom' | null; color: string }> {
+  return page.getByTestId('board-frame').evaluate((element) => {
+    // Chrome writes each shadow as "<colour> <x> <y> <blur> <spread> inset", separated by commas outside parentheses.
+    const first = getComputedStyle(element).boxShadow.split(/,(?![^(]*\))/)[0]!.trim();
+    const color = /^(?:rgba?|color)\([^)]*\)/.exec(first)?.[0] ?? '';
+    const [x = 0, y = 0] = first.slice(color.length).trim().split(/\s+/).map(parseFloat);
+    const side = !first.endsWith('inset') ? null : x > 0 ? 'left' : x < 0 ? 'right' : y > 0 ? 'top' : y < 0 ? 'bottom' : null;
+    return { side, color };
+  });
+}
+
+/**
+ * With motion on, the state of the Match card's tile right after a take (PRD U8): whether it is flying
+ * in, its start offset, whether it takes taps (the element hit at its own centre is inside it), and the
+ * centre of a glowing cell to tap next.
+ */
+export async function matchTileFlight(page: Page) {
+  return page.evaluate(() => {
+    const tile = document.querySelector('[data-testid="match-card"] .match-tile');
+    const glow = document.querySelector('[data-testid="board"] [data-cell][data-glow="true"]');
+    if (!tile || !glow) return null;
+    const box = tile.getBoundingClientRect();
+    const target = glow.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return {
+      arriving: tile.classList.contains('arriving'),
+      animation: getComputedStyle(tile).animationName,
+      fromX: getComputedStyle(tile).getPropertyValue('--from-x').trim(),
+      takesTaps: hit !== null && tile.contains(hit),
+      next: { cell: glow.getAttribute('data-cell')!, x: target.left + target.width / 2, y: target.top + target.height / 2 },
+    };
+  });
+}
+
 /** The number of takes so far, from the match screen. */
 export async function takeCount(page: Page): Promise<number> {
   return Number(await match(page).getAttribute('data-takes'));

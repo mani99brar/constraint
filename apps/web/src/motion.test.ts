@@ -30,6 +30,17 @@ describe('reduced motion (PRD U8)', () => {
     }
   });
 
+  it('names the motion of the table: the tile flying into the Match card, the seats lighting and dimming, the avatar faces and the winning stroke', () => {
+    const rule = (selector: string) => new RegExp(`(^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css)?.[2] ?? '';
+    expect(rule('.match-tile.arriving')).toMatch(/animation:\s*tile-arrive\s/);
+    expect(css).toMatch(/@keyframes tile-arrive\s*\{[\s\S]*?translate\(var\(--from-x/);
+    expect(rule('.seat')).toMatch(/transition:[^;]*border-color[^;]*background-color/);
+    expect(rule('.face')).toMatch(/animation:\s*face-in\s/);
+    expect(rule('.win-stroke path')).toMatch(/animation:\s*stroke-draw\s/);
+    // The flying tile never takes a tap (PRD U8: motion never blocks input).
+    expect(rule('.match-tile')).toMatch(/pointer-events:\s*none/);
+  });
+
   it('animates only through CSS, never through script timing the reduced-motion switch cannot reach', () => {
     for (const source of sources) expect(source).not.toMatch(/\.animate\(|requestAnimationFrame|setInterval/);
   });

@@ -18,17 +18,19 @@ const QUIET: TakeFeedback = { sound: null, toasts: [], turnChanged: false };
 /**
  * The feedback of the takes made since `heardTakes`; a resumed game starts quiet, so a state with no
  * new take gives none. The result's sound replaces the take's, and no toast names the result: the end
- * screen and the seats show it once (PRD U3). Only the bot's takes get a toast.
+ * screen and the seats show it once (PRD U3). Only the bot's takes get a toast, the one that ends the
+ * game included.
  */
 export function takeFeedback(state: GameState, heardTakes: number, mode: GameMode): TakeFeedback {
   if (state.takes.length <= heardTakes) return QUIET;
+  // The engine passes the turn on every take, the last one included, so the player to move did not
+  // make the newest take. Player 2's takes, the bot's included, sound lower.
+  const byPlayerTwo = state.toMove === 'A';
+  const toasts = mode.kind === 'bot' && byPlayerTwo ? [takeToast(takeText(state, mode)!)] : [];
   const { result } = state;
   if (result) {
     const sound: SoundEffect = result.kind === 'draw' ? 'draw' : mode.kind === 'bot' && result.winner !== HUMAN ? 'loss' : 'win';
-    return { sound, toasts: [], turnChanged: true };
+    return { sound, toasts, turnChanged: true };
   }
-  // The player to move did not make the newest take. Player 2's takes, the bot's included, sound lower.
-  const byPlayerTwo = state.toMove === 'A';
-  const botTook = mode.kind === 'bot' && byPlayerTwo;
-  return { sound: byPlayerTwo ? 'bot' : 'place', toasts: botTook ? [takeToast(takeText(state, mode)!)] : [], turnChanged: true };
+  return { sound: byPlayerTwo ? 'bot' : 'place', toasts, turnChanged: true };
 }
