@@ -58,6 +58,15 @@ The operator calls it "a last and final run".
   - **Nameplates:** two rows on wide layouts.
   - **CSS cascade traps:** spelled out for the pop delays and the dark tokens.
   - **Halo spread:** at most a third of the gap.
+- After design challenge attempt 3, the operator applied its rulings. Consequence:
+  - **No board stripe:** the whose-turn stripe is dropped from the board. Whose turn shows through the mover-coloured pop and glow, the badge, the lit nameplate and the announcement.
+  - **Player 2 colours:** in the light variants, Player 2 may darken: terracotta to reach 4.5:1 as score text, and Sea glass's amber to a burnt ochre (about `#9E5E0E`), kept distinct from the frame and desert colours.
+  - **The pop:** owns the lift, with no competing cell transition, and fills backwards.
+  - **Phone toasts:** one-line short forms per refusal kind, hidden once the game ends.
+  - **Narrow nameplates:** the avatar shrinks to about 40 px at narrow wide widths.
+  - **Ring sampler:** accepts only pixels matching `--well`.
+- **Phone end screen: the layout glides** (operator's choice A). Consequence: at the final take, the phone column's rows ease into their ended places over about 250 ms, the board moving up about 30 px, while the end sequence plays. It is instant under reduced motion, both faces stay visible, and nothing covers the board.
+- Standing permission for the rest of this run: challenge rulings that do not change what the player sees are applied and the run is resumed without asking. Anything visible (layout, colours, motion, cues) is asked first.
 
 ## Assumptions
 
