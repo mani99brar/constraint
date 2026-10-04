@@ -31,14 +31,26 @@ From the grill session of 2026-10-04 with the operator.
 - PRD U8 is unchanged. Consequence: every animation and reaction stays under 400 ms, never loops, never blocks input and is off under reduced motion. The win moment is the won face with its bounce plus the existing stroke, with no confetti or longer sequence.
 - One feature, `game-feel`, with one lane, `web`, which owns `apps/web/src`, `apps/web/index.html` and `tests/e2e`. Consequence: the rules, `@okiya/game` and `@okiya/bot` are unchanged.
 
+- After design challenge attempt 1, the operator accepted its findings. Consequence: the task now says that
+  - each avatar has a resting face (`data-expression`: `to-move` or `thinking` for the player to move, `idle` for the waiting player, `won`/`lost` at a win, `idle` for both at a draw) and a one-shot motion on top (`data-reaction`):
+    - a take gives the taker `nod` and the other seat `glance`;
+    - a refused tap gives that player `wince`;
+    - a win gives the winner `bounce`;
+    - each event is replayed through a counter key, and the start or a resumed game is no event;
+  - every material is drawn in CSS with no SVG `<defs>`, and tokens and avatars keep solid base colours under their shading;
+  - text over a material meets 4.5:1 against its worst gradient stop, and the contrast helper and theme tests check those stops;
+  - toasts get a fixed slot sized for two outside the board, the board never moves, and the end state fits at 390 × 844;
+  - the token drop stays inside its cell and takes no taps;
+  - the motion test checks the animation longhands, and the filter ban is scoped to blur, backdrop filters and board cells.
+
 ## Assumptions
 
 - The remembered difficulty is a new field in the settings stored under `okiya.settings`. Older settings without it load as Normal. Every storage key stays as `persistence.test.ts` pins it.
 - When a game is saved, the play cards say that starting a game replaces it, as New game did. The results strip keeps its reset button, disabled until a bot game was counted.
 - The starter still alternates from the last game played (`starter.ts`), the first game in a browser is random, and Play again swaps the starter.
 - The bot keeps Player 2's avatar with no per-difficulty look. The seat name still says the difficulty ("Bot · Normal").
-- Shared SVG patterns and gradients are defined once per page (for example one hidden `<svg><defs>`) or drawn in CSS. Rendering a screen never produces duplicate `id` attributes.
-- Materials stay static: SVG patterns, gradients and box-shadows. Nothing on the board uses `filter: blur()`, `backdrop-filter` or a filter repeated on all 16 cells.
+- Rendering a screen never produces duplicate `id` attributes; with CSS-only materials no new ids are needed.
+- Materials stay static: CSS gradients and box-shadows. Nothing uses `filter: blur(` or `backdrop-filter`, and no filter applies to board cells.
 - The synthesized sounds may be refined (for example a wooden click when a token lands), within PRD E4: Web Audio only, with mute respected.
 - How to Play keeps its pages and text, and its diagrams take on the new tile finish through the shared tile art.
 - Browser tests run under reduced motion except where a scenario turns motion on (`avatar-reactions`, and the motion checks kept in `seats-turn` and `legal-turn`). Every layout rule is checked at a wide and at a 390 px viewport.
