@@ -282,14 +282,20 @@ async function resumeBefore(page: Page, ending: Ending) {
 /**
  * Before the ending take: a listener that pauses every animation of the page the moment the end
  * sequence starts, so the checks below see it mid-way whatever the machine's speed; a record of the
- * cells' data-end changes; and a record of what a tap meets.
+ * cells' data-end changes; and a record of what a tap or a key press meets.
  */
 async function watchTheEnd(page: Page) {
   await page.evaluate(() => {
-    const w = window as unknown as { __paused: boolean; __ends: string[]; __taps: { target: string | null; boardAnimations: number }[] };
+    const w = window as unknown as {
+      __paused: boolean;
+      __ends: string[];
+      __taps: { target: string | null; boardAnimations: number }[];
+      __keys: { key: string; boardAnimations: number }[];
+    };
     w.__paused = false;
     w.__ends = [];
     w.__taps = [];
+    w.__keys = [];
     document.addEventListener(
       'animationstart',
       (event) => {
@@ -309,6 +315,15 @@ async function watchTheEnd(page: Page) {
         const board = document.querySelector('[data-testid="board"]');
         const animations = board ? board.getAnimations({ subtree: true }).filter((animation) => animation instanceof CSSAnimation).length : -1;
         w.__taps.push({ target: (event.target as Element).closest('[data-testid]')?.getAttribute('data-testid') ?? null, boardAnimations: animations });
+      },
+      true,
+    );
+    window.addEventListener(
+      'keydown',
+      (event) => {
+        const board = document.querySelector('[data-testid="board"]');
+        const animations = board ? board.getAnimations({ subtree: true }).filter((animation) => animation instanceof CSSAnimation).length : -1;
+        w.__keys.push({ key: event.key, boardAnimations: animations });
       },
       true,
     );
@@ -386,7 +401,7 @@ async function resultCard(page: Page) {
 }
 
 /** Plays one ending with motion on, from a seeded save: checks the sequence mid-way and the result card, and returns where its buttons sit. */
-async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'play-again', viewport: 'wide' | 'phone') {
+async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | 'play-again', viewport: 'wide' | 'phone') {
   const { state, cell } = await resumeBefore(page, ending);
   await watchTheEnd(page);
   const centre = (await cellAt(page, cell).boundingBox())!;
@@ -448,6 +463,17 @@ async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'play-aga
     await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
     const taps = await page.evaluate(() => (window as unknown as { __taps: { target: string | null; boardAnimations: number }[] }).__taps);
     expect(taps.at(-1)!.boardAnimations).toBeGreaterThan(0);
+  } else if (finish === 'key') {
+    // A key press skips the sequence to its final frame too, and the key meets the sequence still running.
+    await page.keyboard.press('Shift');
+    await expect(board(page)).toHaveAttribute('data-end-skipped', 'true');
+    const after = await endNow(page);
+    expect(after.boardAnimations).toBe(0);
+    if (ending === 'shape') expect(after.liftedAbove).toBe(true);
+    await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
+    const keys = await page.evaluate(() => (window as unknown as { __keys: { key: string; boardAnimations: number }[] }).__keys);
+    expect(keys.at(-1)).toMatchObject({ key: 'Shift' });
+    expect(keys.at(-1)!.boardAnimations).toBeGreaterThan(0);
   } else {
     // Play again takes a tap during the sequence: the tap meets it with the sequence still on the board.
     await page.getByTestId('play-again').click();
@@ -465,22 +491,25 @@ test('[scenario:end-sequence] with motion on, a win lifts its tokens in order an
   await openHome(page);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
 
-  // Wide: a line or square, skipped by a tap; a blockade, ended by Play again mid-way; a draw.
+  // Wide: a line or square, skipped by a tap; a blockade, ended by Play again mid-way; a draw, skipped by a key.
   const shape = await playEnding(page, 'shape', 'skip', 'wide');
   await attachScreenshot(page, testInfo, 'end-sequence');
   const blockade = await playEnding(page, 'blockade', 'play-again', 'wide');
-  const draw = await playEnding(page, 'draw', 'skip', 'wide');
+  const draw = await playEnding(page, 'draw', 'key', 'wide');
   for (const other of [blockade, draw]) {
     expect(other.playAgain).toEqual(shape.playAgain);
     expect(other.home).toEqual(shape.home);
   }
 
-  // At 390 × 844 the card sits below the board, and the buttons keep their places there too.
+  // At 390 × 844 the card sits below the board, and the buttons keep their places in every ending there too.
   await page.setViewportSize({ width: 390, height: 844 });
   const phoneShape = await playEnding(page, 'shape', 'play-again', 'phone');
   const phoneBlockade = await playEnding(page, 'blockade', 'skip', 'phone');
-  expect(phoneBlockade.playAgain).toEqual(phoneShape.playAgain);
-  expect(phoneBlockade.home).toEqual(phoneShape.home);
+  const phoneDraw = await playEnding(page, 'draw', 'skip', 'phone');
+  for (const other of [phoneBlockade, phoneDraw]) {
+    expect(other.playAgain).toEqual(phoneShape.playAgain);
+    expect(other.home).toEqual(phoneShape.home);
+  }
 
   // Under reduced motion the final frame shows at once: nothing runs on the board.
   await page.emulateMedia({ reducedMotion: 'reduce' });
