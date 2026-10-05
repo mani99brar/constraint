@@ -36,7 +36,9 @@ async function clockWithName(page: Page, player: 'A' | 'B') {
  * a friend as the opponent.
  */
 async function setUpTimedGame(page: Page, a: number, b: number) {
+  // The fake clock is paused: time moves only when the test runs it, so no check races a running clock.
   await page.clock.install({ time: new Date('2026-10-04T12:00:00Z') });
+  await page.clock.pauseAt(new Date('2026-10-04T12:00:01Z'));
   await openHome(page);
   // Against the bot there are no clocks to set.
   await expect(clockSlider(page, 'A')).toHaveCount(0);

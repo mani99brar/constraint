@@ -22,7 +22,9 @@ import { describeRefusal, shortRefusal } from './text';
 import { refusalToast } from './toasts';
 import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
+import { Countdown } from './Countdown';
 import { useClock } from './useClock';
+import { useCountdown } from './useCountdown';
 import { useGame } from './useGame';
 import { useToasts } from './useToasts';
 
@@ -46,6 +48,8 @@ export interface MatchScreenProps {
   readonly clockLeft?: ClockTimes | null;
   /** Hands over a reader of the clocks' time left, so the game can be saved with it. */
   readonly onClockReader?: (read: () => ClockTimes | null) => void;
+  /** A new game opens with a short 3, 2, 1 countdown: no takes, no bot and no clocks until it ends. */
+  readonly countdown?: boolean;
 }
 
 /**
@@ -56,12 +60,13 @@ export interface MatchScreenProps {
  * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
-  const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader } = props;
-  const { state, attempt, timeOut } = useGame(initialState, mode, onChange);
+  const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false } = props;
+  const start = useCountdown(countdown && initialState.takes.length === 0 && !initialState.result);
+  const { state, attempt, timeOut } = useGame(initialState, mode, onChange, start.counting);
   const [menu, setMenu] = useState<{ opener: HTMLElement | null } | null>(null);
   // A timed game's clocks: the mover's runs, none while the menu is open; running out of time loses.
   const [clockStart] = useState(() => clockLeft ?? clockOf(mode));
-  const clock = useClock(clockStart, state, menu !== null, timeOut);
+  const clock = useClock(clockStart, state, menu !== null || start.counting, timeOut);
   const readClock = useRef(clock.read);
   readClock.current = clock.read;
   useEffect(() => onClockReader?.(() => readClock.current()), [onClockReader]);
@@ -90,7 +95,7 @@ export function MatchScreen(props: MatchScreenProps) {
     if (feedback.sound) sound.play(feedback.sound);
   }, [state, mode, sound, afterTake]);
 
-  const board = boardModel(state, { mode, highlights: settings.highlights, tileNames: settings.tileNames });
+  const board = boardModel(state, { mode, highlights: settings.highlights, tileNames: settings.tileNames, waiting: start.counting });
   // The avatars react to the last event, derived here from the takes and the refusals, never the board.
   const { event, key } = lastEvent(state, shownAtTakes, refusal);
   const [one, two] = seatModels(state, mode, score, event, key, clock.times ? { times: clock.times, running: clock.running } : null);
@@ -116,6 +121,7 @@ export function MatchScreen(props: MatchScreenProps) {
       data-ended={ended}
       data-end-shrinking={shrinking || undefined}
       data-timed={clockStart !== null || undefined}
+      data-starting={start.counting || undefined}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === '--board-size') setShrinkDone(true);
       }}
@@ -133,6 +139,7 @@ export function MatchScreen(props: MatchScreenProps) {
       </div>
       <div className="board-area" data-testid="table">
         <Board model={board} onCellClick={tapCell} />
+        {start.counting && <Countdown count={start.count} onSkip={start.skip} />}
       </div>
       <div className="side side-b">
         <Seat view={two} />

@@ -71,6 +71,8 @@ export function markOf(player: Player): TokenMarkShape {
 
 export interface BoardOptions {
   readonly mode: GameMode;
+  /** The countdown before a new game is running: no takes, no highlights yet. */
+  readonly waiting?: boolean;
   readonly highlights: boolean;
   readonly tileNames?: boolean;
 }
@@ -85,8 +87,9 @@ function winningShapeOf(state: GameState): WinningShape | null {
  * person is to move (the bot choosing, or the game over) or with highlights off, so the board stays still
  * on the bot's turn.
  */
-export function boardModel(state: GameState, { mode, highlights, tileNames = false }: BoardOptions): BoardModel {
-  const acceptsTakes = personToMove(state, mode);
+export function boardModel(state: GameState, { mode, highlights, tileNames = false, waiting = false }: BoardOptions): BoardModel {
+  // While the countdown before a game runs, the board waits: nobody takes, nothing glows or fades.
+  const acceptsTakes = !waiting && personToMove(state, mode);
   const legal = new Set(acceptsTakes ? legalTakes(state) : []);
   const end = endModel(state);
   const last = state.takes[state.takes.length - 1] ?? null;

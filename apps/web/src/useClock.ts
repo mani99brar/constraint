@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import type { GameState, Player } from '@okiya/game';
 import { outOfTimePlayer, runClock, startClock, timesLeft, type Clock, type ClockTimes } from './clock';
 
@@ -13,7 +13,9 @@ export const CLOCK_TICK_MS = 200;
  */
 export function useClock(start: ClockTimes | null, state: GameState, paused: boolean, onOutOfTime: (player: Player) => void) {
   const clock = useRef<Clock | null>(start ? startClock(start, null, Date.now()) : null);
-  const [now, setNow] = useState(() => Date.now());
+  // Redraws on every switch and tick. A counter, not the time: two updates in the same millisecond (or a
+  // paused test clock) would otherwise look unchanged to React and skip the redraw.
+  const [, redraw] = useReducer((count: number) => count + 1, 0);
   const listener = useRef(onOutOfTime);
   listener.current = onOutOfTime;
   const running = clock.current && !state.result && !paused ? state.toMove : null;
@@ -24,7 +26,7 @@ export function useClock(start: ClockTimes | null, state: GameState, paused: boo
     if (!clock.current) return;
     const at = Date.now();
     clock.current = runClock(clock.current, running, at);
-    setNow(at);
+    redraw();
   }, [running, takes]);
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export function useClock(start: ClockTimes | null, state: GameState, paused: boo
     let reported = false;
     const tick = () => {
       const at = Date.now();
-      setNow(at);
+      redraw();
       const out = clock.current ? outOfTimePlayer(clock.current, at) : null;
       if (out && !reported) {
         reported = true;
@@ -45,7 +47,7 @@ export function useClock(start: ClockTimes | null, state: GameState, paused: boo
 
   return {
     /** Each player's time left as drawn now, or null for an untimed game. */
-    times: clock.current ? timesLeft(clock.current, now) : null,
+    times: clock.current ? timesLeft(clock.current, Date.now()) : null,
     /** Whose clock runs, or null. */
     running: clock.current?.running ?? null,
     /** The times left at this moment, for the save. */

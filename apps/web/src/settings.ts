@@ -32,10 +32,12 @@ export interface Settings {
   readonly clockA: ClockChoice;
   /** Player 2's clock in a two-player game. */
   readonly clockB: ClockChoice;
+  /** A short 3, 2, 1 countdown before a new game starts; on by default. */
+  readonly countdown: boolean;
 }
 
 export const SETTINGS_KEY = 'okiya.settings';
-export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off' };
+export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true };
 
 /**
  * The remembered settings; a missing or corrupt value falls back to the defaults, field by field, so
@@ -54,6 +56,7 @@ export function loadSettings(storage: KeyValueStorage | null): Settings {
     palette: isPaletteId(stored.palette) ? stored.palette : DEFAULT_SETTINGS.palette,
     clockA: isClockChoice(stored.clockA) ? stored.clockA : DEFAULT_SETTINGS.clockA,
     clockB: isClockChoice(stored.clockB) ? stored.clockB : DEFAULT_SETTINGS.clockB,
+    countdown: flag(stored.countdown, DEFAULT_SETTINGS.countdown),
   };
 }
 

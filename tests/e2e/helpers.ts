@@ -62,6 +62,22 @@ export async function fixRandomness(page: Page, seed: number) {
       },
     });
   }, seed);
+  await skipStartCountdown(page);
+}
+
+/**
+ * Turns the countdown before a new game off for a test, unless the stored settings already say otherwise
+ * (a test that checks the countdown saves it on). Every page load reads it, so it holds across reloads.
+ */
+export async function skipStartCountdown(page: Page) {
+  await page.addInitScript(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem('okiya.settings') ?? '{}') as Record<string, unknown>;
+      if (!('countdown' in stored)) window.localStorage.setItem('okiya.settings', JSON.stringify({ ...stored, countdown: false }));
+    } catch {
+      window.localStorage.setItem('okiya.settings', JSON.stringify({ countdown: false }));
+    }
+  });
 }
 
 /** Marks How to Play as already seen, so it does not open by itself on the first visit. */

@@ -18,7 +18,7 @@ import { browserStorage, type KeyValueStorage } from './storage';
 
 type Screen =
   | { readonly kind: 'home' }
-  | { readonly kind: 'match'; readonly state: GameState; readonly mode: GameMode; readonly key: number; readonly clockLeft: ClockTimes | null };
+  | { readonly kind: 'match'; readonly state: GameState; readonly mode: GameMode; readonly key: number; readonly clockLeft: ClockTimes | null; readonly countdown: boolean };
 
 export interface AppProps {
   /** Where settings, the saved game and the results live; the browser's `localStorage` by default. */
@@ -112,11 +112,12 @@ export function App({ storage: given }: AppProps) {
     setScreen({ kind: 'home' });
   }
 
-  function play(state: GameState, mode: GameMode, clockLeft: ClockTimes | null = null) {
+  /** Shows a game: a new one (Play, Play again) opens with the countdown when it is on; Continue does not. */
+  function play(state: GameState, mode: GameMode, clockLeft: ClockTimes | null = null, fresh = true) {
     rememberStarter(storage, state.starter);
     matchKey.current += 1;
     running.current = { state, mode };
-    setScreen({ kind: 'match', state, mode, key: matchKey.current, clockLeft });
+    setScreen({ kind: 'match', state, mode, key: matchKey.current, clockLeft, countdown: fresh && settingsRef.current.countdown });
   }
 
   /** A game started from the home screen: a new sitting with its score at zero. */
@@ -151,6 +152,7 @@ export function App({ storage: given }: AppProps) {
           initialState={screen.state}
           mode={mode}
           clockLeft={screen.clockLeft}
+          countdown={screen.countdown}
           onClockReader={onClockReader}
           score={score}
           settings={settings}
@@ -177,7 +179,7 @@ export function App({ storage: given }: AppProps) {
             const current = loadSavedGame(storage);
             if (!current) return setSaved(null);
             setScore(current.score);
-            play(current.state, current.mode, current.clockLeft);
+            play(current.state, current.mode, current.clockLeft, false);
           }}
           onPlay={() => {
             const { opponent, difficulty, clockA, clockB } = settingsRef.current;

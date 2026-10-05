@@ -481,6 +481,54 @@ button:disabled {
   position: relative;
 }
 
+/* The countdown before a new game (3, 2, 1): a soft veil of the ground over the board with the number on
+   a round plate in the middle. Each number pops in once (under 400 ms, never looping, off under reduced
+   motion). A tap anywhere on it starts the game at once. */
+.countdown {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  border-radius: 18px;
+  background-color: color-mix(in srgb, var(--ground) 55%, transparent);
+  cursor: pointer;
+}
+
+.countdown-number {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 3px solid var(--primary);
+  background-color: var(--surface);
+  color: var(--text);
+  font-size: 3.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--shade) 30%, transparent);
+  animation: countdown-pop 300ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+@keyframes countdown-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+.countdown-hint {
+  padding: 3px 12px;
+  border-radius: 999px;
+  background-color: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 /* The scoreboard row (PRD U2, I1, P3): each seat's wins in its player's colour with its token mark, on a
    card either side of the Match card, and the draws small on their own plate under it. The row has one
    fixed height: the draws line keeps its place, hidden, at zero. */

@@ -86,6 +86,13 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
             onToggle={() => onSettings({ ...settings, tileNames: !settings.tileNames })}
           />
           <Switch
+            label="Countdown"
+            testId="setting-countdown"
+            on={settings.countdown}
+            hint="A short 3, 2, 1 before a new game starts. A tap or Enter starts at once."
+            onToggle={() => onSettings({ ...settings, countdown: !settings.countdown })}
+          />
+          <Switch
             label="Sound"
             testId="setting-sound"
             on={settings.sound}
