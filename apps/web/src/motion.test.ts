@@ -160,7 +160,7 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     expect(rule('.cell')).toMatch(/border:\s*1px solid/);
     const layer = rule(".cell[data-glow='true'] .tile-face::before");
     expect(layer).toMatch(/box-shadow:\s*inset 0 0 0 2px var\(--wash\)/);
-    expect(layer).toMatch(/background-color:\s*color-mix\(in srgb, var\(--wash\) (2[5-9]|3[0-5])%, transparent\)/);
+    expect(layer).toMatch(/background-color:\s*color-mix\(in srgb, var\(--wash\) ([6-9]|1[0-2])%, transparent\)/);
     // The halo: the first shadow, its blur and spread together a third of the gap at most.
     const shadows = /box-shadow:\s*([^;]+)/.exec(glow)![1]!;
     let depth = 0;
@@ -223,7 +223,7 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
   });
 
   it('fades the other free tiles by a veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
-    expect(rule(".cell[data-faded='true'] .tile-face::after")).toMatch(/background-color:\s*color-mix\(in srgb, var\(--ground\) [45]\d%, transparent\)/);
+    expect(rule(".cell[data-faded='true'] .tile-face::after")).toMatch(/background-color:\s*color-mix\(in srgb, var\(--ground\) (2\d)%, transparent\)/);
     for (const { selector, body } of fadedRules) {
       expect(selector).toMatch(/\.tile-face::(before|after)$/);
       expect(body, selector).not.toMatch(/(^|[;\s])opacity\s*:/);
