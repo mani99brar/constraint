@@ -510,7 +510,7 @@ button:disabled {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--shade) 30%, transparent);
-  animation: countdown-pop 300ms cubic-bezier(0.3, 1.5, 0.5, 1);
+  animation: countdown-pop 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes countdown-pop {
@@ -1237,7 +1237,7 @@ button:disabled {
     0 9px 7px -5px color-mix(in srgb, var(--shade) 32%, transparent);
   transition: none;
   animation-duration: 190ms;
-  animation-timing-function: cubic-bezier(0.34, 1.5, 0.64, 1);
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-fill-mode: backwards;
 }
 
@@ -2269,7 +2269,8 @@ button:disabled {
   box-shadow: none;
   font-size: clamp(6rem, 38vw, 9rem);
   line-height: 1;
-  color: var(--text);
+  color: var(--primary);
+  text-shadow: 0 2px 0 color-mix(in srgb, var(--shade) 55%, transparent);
   animation: countdown-rise 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -2281,7 +2282,7 @@ button:disabled {
 }
 
 .match[data-starting] .board {
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
 /* Illustrated scenes (every theme): three tones of the terrain's ink. */
@@ -2345,8 +2346,8 @@ button:disabled {
     var(--art-sun),
     var(--art-floor),
     linear-gradient(180deg, var(--ground) 0, var(--ground-glow) 38%, color-mix(in srgb, var(--primary) 60%, var(--ground)) 64%, var(--ground) 66%);
-  background-size: 180px 180px, 200px 100px, 100% 210px, 100% 100%;
-  background-position: 0 0, 50% 8%, 50% 100%, 0 0;
+  background-size: 180px 180px, 130px 65px, 100% 210px, 100% 100%;
+  background-position: 0 0, 50% 106px, 50% 100%, 0 0;
   background-repeat: repeat, no-repeat, no-repeat, no-repeat;
 }
 
@@ -2486,10 +2487,10 @@ button:disabled {
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .countdown-number {
-  color: var(--text);
+  color: var(--primary);
   text-shadow:
-    0 0 14px var(--primary),
-    0 0 40px color-mix(in srgb, var(--primary) 65%, transparent);
+    0 0 12px color-mix(in srgb, var(--primary) 80%, transparent),
+    0 0 36px color-mix(in srgb, var(--primary) 55%, transparent);
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .win-stroke-line {

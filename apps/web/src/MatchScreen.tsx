@@ -112,7 +112,7 @@ export function MatchScreen(props: MatchScreenProps) {
   const board = boardModel(state, { mode, highlights: settings.highlights, tileNames: settings.tileNames, waiting: start.counting });
   // The avatars react to the last event, derived here from the takes and the refusals, never the board.
   const { event, key } = lastEvent(state, shownAtTakes, refusal);
-  const [one, two] = seatModels(state, mode, score, event, key, clock.times ? { times: clock.times, running: clock.running } : null);
+  const [one, two] = seatModels(state, mode, score, event, key, clock.times ? { times: clock.times, running: clock.running } : null, start.counting);
 
   function tapCell(cell: CellId) {
     const refused = attempt(cell);

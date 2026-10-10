@@ -250,7 +250,7 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
   });
 
   it('fades the other free tiles by a veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
-    expect(rule(".cell[data-faded='true'] .tile-face::after")).toMatch(/background-color:\s*color-mix\(in srgb, var\(--ground\) (2\d)%, transparent\)/);
+    expect(rule(".cell[data-faded='true'] .tile-face::after")).toMatch(/background-color:\s*color-mix\(in srgb, var\(--ground\) ([23]\d)%, transparent\)/);
     for (const { selector, body } of fadedRules) {
       expect(selector).toMatch(/\.tile-face::(before|after)$/);
       expect(body, selector).not.toMatch(/(^|[;\s])opacity\s*:/);

@@ -56,6 +56,12 @@ describe('seat model (PRD U2, I3, §5.8)', () => {
     }
   });
 
+  it('lights neither seat during the countdown and tells both to get ready', () => {
+    const seats = seatModels(handBuilt([], 'A', null), easy, NO_SCORE, undefined, 0, null, true);
+    expect(seats.map((seat) => seat.status)).toEqual(['Get ready', 'Get ready']);
+    expect(seats.map((seat) => seat.lit)).toEqual([false, false]);
+  });
+
   it('carries the avatars’ reactions to the last event and its key', () => {
     const seats = seatModels(handBuilt(['A'], 'B', forestStar), easy, NO_SCORE, { kind: 'take', by: 'A' }, 5);
     expect(seats.map((seat) => [seat.expression, seat.reaction, seat.reactionKey])).toEqual([
