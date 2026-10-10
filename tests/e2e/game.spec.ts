@@ -848,7 +848,9 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
     for (const cell of winning) expect(cell.owner).toBe(winner);
     const ids = winning.map((cell) => cell.cell).sort().join();
     expect((by === 'line' ? LINES : SQUARES).some((shape) => [...shape].sort().join() === ids)).toBe(true);
-    for (const cell of winning) expect(detail).toContain(cell.cell);
+    // The board shows no coordinates, so the detail says where the shape is in words.
+    expect(detail).toMatch(/four tokens (fill the \w+ (row|column)|run corner to corner|make a 2×2 square (at|in) the [\w ]+)\.$/);
+    expect(detail).not.toMatch(/\b[A-D][1-4]\b/);
     await expect(page.getByTestId('win-stroke')).toHaveAttribute('data-by', by);
   } else {
     expect(winning).toHaveLength(0);

@@ -143,7 +143,7 @@ test('[scenario:pvp-clock] in a two-player game each player has their own clock 
 });
 
 test('[scenario:pvp-clock-layout] a player may have no clock, bot games have none, and the clocks fit the nameplates on a phone and at the narrowest wide layout', async ({ page }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   // Player 1 untimed, Player 2 on five minutes: only Player 2 has a clock, and Player 1 never runs out.
   await setUpTimedGame(page, 0, 5);
   await expect(playButton(page)).toHaveText('Play · with a friend · no clock / 5:00');

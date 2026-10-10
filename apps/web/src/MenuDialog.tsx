@@ -101,6 +101,13 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
             onToggle={() => onSettings({ ...settings, countdown: !settings.countdown })}
           />
           <Switch
+            label="Scene motion"
+            testId="setting-scene-motion"
+            on={settings.sceneMotion}
+            hint="Waves, clouds, swaying pines and the pulsing sun on the tiles. Turn off to keep the scenes still and save battery."
+            onToggle={() => onSettings({ ...settings, sceneMotion: !settings.sceneMotion })}
+          />
+          <Switch
             label="Terrain backdrop"
             testId="setting-backdrop"
             on={settings.backdrop}

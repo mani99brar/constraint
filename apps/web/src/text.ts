@@ -99,10 +99,10 @@ const ORDINALS = ['first', 'second', 'third', 'fourth'] as const;
 function lineWords(cells: readonly CellId[]): string {
   const rows = new Set(cells.map((cell) => ROWS.indexOf(cell[0] as (typeof ROWS)[number])));
   const columns = new Set(cells.map((cell) => Number(cell[1]) - 1));
-  if (rows.size === 1) return `fill the ${ORDINALS[[...rows][0]!]} row from the top`;
-  if (columns.size === 1) return `fill the ${ORDINALS[[...columns][0]!]} column from the left`;
+  if (rows.size === 1) return `fill the ${ORDINALS[[...rows][0]!]} row`;
+  if (columns.size === 1) return `fill the ${ORDINALS[[...columns][0]!]} column`;
   const [first] = cells.slice().sort();
-  return first!.endsWith('1') ? 'run corner to corner, from top left to bottom right' : 'run corner to corner, from top right to bottom left';
+  return first!.endsWith('1') ? 'run corner to corner' : 'run corner to corner';
 }
 
 /** Where a winning 2×2 square sits: "make a 2×2 square at the top left", "in the centre". */

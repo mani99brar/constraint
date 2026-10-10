@@ -644,7 +644,7 @@ async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | '
     expect(after.boardAnimations).toBe(0);
     if (ending === 'shape') expect(after.liftedAbove).toBe(true);
     // Let the rest of the page (the avatars, the Match card) finish what the pause held.
-    await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
+    await page.evaluate(() => document.getAnimations().filter((animation) => Number.isFinite(Number(animation.effect!.getComputedTiming().endTime))).forEach((animation) => animation.finish()));
     const taps = await page.evaluate(() => (window as unknown as { __taps: { target: string | null; boardAnimations: number }[] }).__taps);
     expect(taps.at(-1)!.boardAnimations).toBeGreaterThan(0);
   } else if (finish === 'key') {
@@ -654,7 +654,7 @@ async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | '
     const after = await endNow(page);
     expect(after.boardAnimations).toBe(0);
     if (ending === 'shape') expect(after.liftedAbove).toBe(true);
-    await page.evaluate(() => document.getAnimations().forEach((animation) => animation.finish()));
+    await page.evaluate(() => document.getAnimations().filter((animation) => Number.isFinite(Number(animation.effect!.getComputedTiming().endTime))).forEach((animation) => animation.finish()));
     const keys = await page.evaluate(() => (window as unknown as { __keys: { key: string; boardAnimations: number }[] }).__keys);
     expect(keys.at(-1)).toMatchObject({ key: 'Shift' });
     expect(keys.at(-1)!.boardAnimations).toBeGreaterThan(0);

@@ -95,8 +95,14 @@ describe('the terrain backdrop and the win outline', () => {
     expect(rule('.match')).toMatch(/isolation:\s*isolate/);
     const lit = /opacity:\s*([\d.]+)/.exec(rule(".backdrop[data-terrain='Forest'] .backdrop-layer[data-layer='Forest'],\n.backdrop[data-terrain='Water'] .backdrop-layer[data-layer='Water'],\n.backdrop[data-terrain='Mountain'] .backdrop-layer[data-layer='Mountain'],\n.backdrop[data-terrain='Desert'] .backdrop-layer[data-layer='Desert']"))?.[1];
     expect(Number(lit)).toBeGreaterThanOrEqual(0.1);
-    expect(Number(lit)).toBeLessThanOrEqual(0.15);
+    expect(Number(lit)).toBeLessThanOrEqual(0.18);
     expect(css).not.toMatch(/\.backdrop[^{]*\{[^}]*filter/);
+  });
+
+  it('lets Settings keep every scene, chip emblem and reason mark still, and turns the pines into one animated group per tile', () => {
+    expect(css).toMatch(/\.match\[data-scene-motion='false'\] \.scene \*,[\s\S]*?animation:\s*none\s*!important/);
+    expect(css).not.toMatch(/sc-tree-[23]/);
+    expect(readFileSync(join(import.meta.dirname, 'art.tsx'), 'utf8').match(/className="sc-tree"/g)).toHaveLength(1);
   });
 
   it('draws the winning outline after, and more specifically than, both last-move rings, in the win colour', () => {

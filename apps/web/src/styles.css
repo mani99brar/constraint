@@ -2591,16 +2591,6 @@ button:disabled {
     animation-delay: calc(var(--i, 0) * -1.3s);
   }
 
-  .board .cell .sc-tree-2,
-  .terrain-thumb .sc-tree-2 {
-    animation-duration: 4.4s;
-  }
-
-  .board .cell .sc-tree-3,
-  .terrain-thumb .sc-tree-3 {
-    animation-duration: 3s;
-  }
-
   .board .cell .sc-sun,
   .terrain-thumb .sc-sun {
     transform-box: fill-box;
@@ -2800,7 +2790,7 @@ button:disabled {
 }
 
 /* ===== Terrain backdrop: a faint scene of the terrain the next take needs, behind the board =====
-   One layer of four stacked scenes, only the needed terrain's visible, 13% bright and mixed toward grey so
+   One layer of four stacked scenes, only the needed terrain's visible, 16% bright and mixed toward grey so
    the theme's own colours stay. A new terrain crossfades by opacity alone over 600 ms (none under reduced
    motion); before the first take nothing shows, and after the game it keeps the last tile's terrain.
    The scene is static: no per-frame work. */
@@ -2832,7 +2822,7 @@ button:disabled {
 .backdrop[data-terrain='Water'] .backdrop-layer[data-layer='Water'],
 .backdrop[data-terrain='Mountain'] .backdrop-layer[data-layer='Mountain'],
 .backdrop[data-terrain='Desert'] .backdrop-layer[data-layer='Desert'] {
-  opacity: 0.13;
+  opacity: 0.16;
 }
 
 .backdrop .backdrop-layer.terrain-forest {
@@ -2849,6 +2839,14 @@ button:disabled {
 
 .backdrop .backdrop-layer.terrain-desert {
   --sa: color-mix(in srgb, var(--desert-ink) 55%, var(--grey));
+}
+
+/* Scene motion off (Settings): the scenes, the chips and the reason marks keep still. */
+.match[data-scene-motion='false'] .scene *,
+.match[data-scene-motion='false'] .chip-emblem .emblem-mark,
+.match[data-scene-motion='false'] .reason-bar,
+.match[data-scene-motion='false'] .tile-symbol::after {
+  animation: none !important;
 }
 
 /* The winning line beats the last-move ring on every tile of the line, whoever owns it: the win outline
@@ -2892,7 +2890,8 @@ button:disabled {
 }
 
 .win-stroke-line {
-  opacity: 0.82;
+  stroke-width: 1.1;
+  opacity: 0.7;
 }
 
 .countdown {

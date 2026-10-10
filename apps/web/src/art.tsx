@@ -24,14 +24,9 @@ export function TerrainScene({ terrain }: { terrain: Terrain }) {
       return (
         <svg {...props} data-shape="pines">
           <path d="M-4 46 14 30 24 41 38 26 52 39 68 32V68H-4z" style={c} opacity=".5" />
-          <g className="sc-tree sc-tree-1" style={a}>
-            <path d="M16 17 25 35H7zM16 27 27 47H5z" />
-          </g>
-          <g className="sc-tree sc-tree-2" style={a}>
-            <path d="M42 11 54 34H30zM42 24 57 50H27z" />
-          </g>
-          <g className="sc-tree sc-tree-3" style={b}>
-            <path d="M57 30 63 42H51zM57 38 64 52H50z" />
+          <g className="sc-tree">
+            <path d="M16 17 25 35H7zM16 27 27 47H5zM42 11 54 34H30zM42 24 57 50H27z" style={a} />
+            <path d="M57 30 63 42H51zM57 38 64 52H50z" style={b} />
           </g>
           <path d="M40 50h4v8h-4zM14 46h4v8h-4z" style={b} />
           <path d="M-4 56Q32 47 68 56V68H-4z" style={b} />

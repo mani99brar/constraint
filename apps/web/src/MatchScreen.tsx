@@ -142,6 +142,7 @@ export function MatchScreen(props: MatchScreenProps) {
       data-timed={clockStart !== null || undefined}
       data-starting={start.counting || undefined}
       data-backdrop={settings.backdrop}
+      data-scene-motion={settings.sceneMotion}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === '--board-size') setShrinkDone(true);
       }}

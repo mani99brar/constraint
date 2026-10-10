@@ -212,17 +212,17 @@ describe('results by difficulty (PRD E5)', () => {
 });
 
 describe('settings (PRD E3, E4, S1)', () => {
-  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard', palette: 'seaglass', clockA: '5', clockB: '1', countdown: false, haptics: false, backdrop: false } as const;
+  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard', palette: 'seaglass', clockA: '5', clockB: '1', countdown: false, haptics: false, backdrop: false, sceneMotion: false } as const;
 
   it('defaults to highlights and sound on, tile names off, the Normal bot and the Walnut theme, and remembers changes', () => {
     const storage = memoryStorage();
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true });
-    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
+    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     saveSettings(storage, all);
     expect(JSON.parse(storage.data.get('okiya.settings')!)).toEqual(all);
     expect(loadSettings(storage)).toEqual(all);
-    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true, haptics: true, backdrop: true });
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true, haptics: true, backdrop: true });
+    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
   });
 
   it('round-trips the opponent, the difficulty, the Tile names setting and the colour theme one by one', () => {
@@ -250,14 +250,14 @@ describe('settings (PRD E3, E4, S1)', () => {
     const storage = memoryStorage();
     // Written under the literal key the previous builds used: before the difficulty switch, and with it.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: false, sound: true }));
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true });
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: false, difficulty: 'hard' }));
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     // The calm-table build's settings, with the opponent and tile names but no theme.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy' }));
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme', opponent: 'cat', tileNames: 'yes', palette: 'teal', clockA: '6', clockB: 3 }));
-    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false, palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true });
+    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false, palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
   });
 
   it('falls back to the defaults for corrupt values and storage that throws', () => {

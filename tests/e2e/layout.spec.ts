@@ -119,9 +119,11 @@ async function expectDistinguishable(page: Page, neon = false) {
   // The neon themes paint a generated backdrop (grain, aurora, a sunset), so only the classic ground is plain radial gradients.
   expect(materials.ground).toMatch(neon ? /gradient|url\(/ : /radial-gradient/);
   if (!neon) expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
-  expect(materials.wood).toMatch(neon ? /linear-gradient/ : /repeating-linear-gradient/);
+  // The neon themes draw no frame round the board; the classic ones keep their wood grain.
+  if (neon) expect(materials.wood).toBe('none');
+  else expect(materials.wood).toMatch(/repeating-linear-gradient/);
   expect(materials.token).toMatch(/radial-gradient/);
-  expect(materials.woodColour).not.toBe(materials.groundColour);
+  if (!neon) expect(materials.woodColour).not.toBe(materials.groundColour);
   // The tiles stand apart from the board's well, and the plates and the scoreboard stand apart from the ground.
   const plates = await page.evaluate(() => ['[data-testid="seat-A"]', '[data-testid="seat-B"]', '[data-testid="score-A"]', '[data-testid="score-B"]', '[data-testid="match-card"]'].map((selector) => getComputedStyle(document.querySelector(selector)!).backgroundColor));
   for (const plate of plates) expect(plate).not.toBe(materials.groundColour);

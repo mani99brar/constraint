@@ -88,6 +88,11 @@ describe('the haptics setting', () => {
     expect(loadSettings(stored, true).haptics).toBe(true);
     stored.data.set(SETTINGS_KEY, JSON.stringify({ haptics: false }));
     expect(loadSettings(stored).haptics).toBe(false);
+    // The backdrop and the scene motion are on at first, and a stored choice wins.
+    expect(DEFAULT_SETTINGS.backdrop).toBe(true);
+    expect(DEFAULT_SETTINGS.sceneMotion).toBe(true);
+    stored.data.set(SETTINGS_KEY, JSON.stringify({ backdrop: false, sceneMotion: false }));
+    expect(loadSettings(stored)).toMatchObject({ backdrop: false, sceneMotion: false });
     // Other settings keep their defaults under reduced motion.
     expect(loadSettings(memoryStorage(), true)).toEqual({ ...DEFAULT_SETTINGS, haptics: false });
   });

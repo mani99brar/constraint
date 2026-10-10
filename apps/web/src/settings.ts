@@ -38,10 +38,12 @@ export interface Settings {
   readonly haptics: boolean;
   /** A faint scene of the terrain the next take needs, behind the board; on by default. */
   readonly backdrop: boolean;
+  /** The scenes on the tiles move; on by default. Off keeps them still, for a phone that struggles. */
+  readonly sceneMotion: boolean;
 }
 
 export const SETTINGS_KEY = 'okiya.settings';
-export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true };
+export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true };
 
 /**
  * The remembered settings; a missing or corrupt value falls back to the defaults, field by field, so
@@ -65,6 +67,7 @@ export function loadSettings(storage: KeyValueStorage | null, reducedMotion = fa
     countdown: flag(stored.countdown, DEFAULT_SETTINGS.countdown),
     haptics: flag(stored.haptics, defaults.haptics),
     backdrop: flag(stored.backdrop, defaults.backdrop),
+    sceneMotion: flag(stored.sceneMotion, defaults.sceneMotion),
   };
 }
 
