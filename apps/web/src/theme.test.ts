@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import {
   contrastRatio,
   DARK,
+  DEFAULT_PALETTE,
   deltaE,
   hueAngle,
+  isNeon,
   isPaletteId,
   labOf,
   LIGHT,
@@ -27,6 +29,10 @@ const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((match) => ({ selec
 /** Every theme and variant, as [name, tokens]. */
 const SETS: readonly (readonly [string, Theme])[] = PALETTE_IDS.flatMap((id) => (['light', 'dark'] as const).map((variant) => [`${id} ${variant}`, THEMES[id][variant]] as const));
 
+/** The neon family is dark under both system schemes and has its own checks; the classic themes keep theirs. */
+const NEON_IDS = PALETTE_IDS.filter((id) => isNeon(id));
+const CLASSIC_IDS = PALETTE_IDS.filter((id) => !isNeon(id));
+
 const OLD_COLOURS = ['#2c5a60', '#a63b2b', '#d97706'];
 
 describe('colour themes (PRD U5)', () => {
@@ -44,9 +50,10 @@ describe('colour themes (PRD U5)', () => {
     expect(deltaE('#ffffff', '#000000')).toBeCloseTo(100, 1);
   });
 
-  it('offers three themes, Walnut and parchment first, each with a light and a dark set of every token', () => {
-    expect(PALETTE_IDS).toEqual(['walnut', 'seaglass', 'clear']);
-    expect(PALETTES.map((palette) => palette.label)).toEqual(['Walnut', 'Sea glass', 'Clear']);
+  it('offers the neon family first, Night Circuit the default, then the three classic themes, each with a light and a dark set of every token', () => {
+    expect(PALETTE_IDS).toEqual(['night-circuit', 'neon-frost', 'synth-horizon', 'midnight-aurora', 'walnut', 'seaglass', 'clear']);
+    expect(DEFAULT_PALETTE).toBe('night-circuit');
+    expect(PALETTES.map((palette) => palette.label)).toEqual(['Night Circuit', 'Neon Frost', 'Synth Horizon', 'Midnight Aurora', 'Walnut', 'Sea glass', 'Clear']);
     expect(LIGHT).toBe(THEMES.walnut.light);
     expect(DARK).toBe(THEMES.walnut.dark);
     for (const [name, theme] of SETS) {
@@ -72,8 +79,8 @@ describe('colour themes (PRD U5)', () => {
     expect(THEMES.seaglass.dark.ground).toBe('#14201f');
     expect(labOf(THEMES.clear.light.ground)[0]).toBeGreaterThan(95);
     expect(labOf(THEMES.clear.dark.ground)[0]).toBeLessThan(5);
-    // Terracotta and amber stay in their families: warm, orange-red hues.
-    for (const [name, theme] of SETS) {
+    // Terracotta and amber stay in their families in the classic themes: warm, orange-red hues.
+    for (const [name, theme] of SETS.filter(([name]) => CLASSIC_IDS.some((id) => name.startsWith(`${id} `)))) {
       expect(hueAngle(theme.p2), name).toBeGreaterThan(25);
       expect(hueAngle(theme.p2), name).toBeLessThan(85);
     }
@@ -135,8 +142,19 @@ describe('colour themes (PRD U5)', () => {
     expect(new Set([theme.p1, theme.p2, theme.win]).size).toBe(3);
   });
 
+  it('makes every neon theme dark under both schemes, with a dark well, a glowing player pair and a frame of its own', () => {
+    for (const id of NEON_IDS) {
+      const { light, dark } = THEMES[id];
+      expect(light, id).toBe(dark);
+      expect(labOf(dark.ground)[0], id).toBeLessThan(10);
+      expect(labOf(dark.well)[0], id).toBeLessThan(10);
+      expect(labOf(dark.p1)[0], id).toBeGreaterThan(70);
+      expect(labOf(dark.p2)[0], id).toBeGreaterThan(55);
+    }
+  });
+
   it('puts the light well in the pale tone of its ground, the wood on the frame only, and a dark well under the dark sets', () => {
-    for (const id of PALETTE_IDS) {
+    for (const id of CLASSIC_IDS) {
       const { light, dark } = THEMES[id];
       expect(labOf(light.well)[0], id).toBeGreaterThan(85);
       expect(deltaE(light.well, light.ground), id).toBeLessThan(10);
@@ -152,17 +170,18 @@ describe('colour themes (PRD U5)', () => {
     expect(dark).toBeDefined();
     for (const id of PALETTE_IDS) {
       const selector = paletteSelector(id);
+      const scheme = isNeon(id) ? 'dark' : 'light';
       for (const name of TOKEN_NAMES) {
         expect(light).toContain(`--${name}: ${THEMES[id].light[name]};`);
         expect(dark).toContain(`--${name}: ${THEMES[id].dark[name]};`);
       }
       // The very same selector in both blocks, so the dark set wins by order and never loses by specificity.
-      expect(light).toContain(`${selector} { color-scheme: light;`);
+      expect(light).toContain(`${selector} { color-scheme: ${scheme};`);
       expect(dark).toContain(`${selector} { color-scheme: dark;`);
     }
-    // A root with no data-palette, or an unknown one, still gets Walnut's tokens.
-    expect(paletteSelector('walnut')).toBe(":root, :root[data-palette='walnut']");
-    expect(light.indexOf(":root, :root[data-palette='walnut']")).toBeLessThan(light.indexOf(":root[data-palette='seaglass']"));
+    // A root with no data-palette, or an unknown one, still gets the default theme's tokens.
+    expect(paletteSelector('night-circuit')).toBe(":root, :root[data-palette='night-circuit']");
+    expect(light.indexOf(":root, :root[data-palette='night-circuit']")).toBeLessThan(light.indexOf(":root[data-palette='seaglass']"));
   });
 
   it('paints each text-bearing material with gradient stops from its own tokens only, over a solid token colour', () => {

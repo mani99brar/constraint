@@ -5,6 +5,8 @@
  * `styles.css` uses only these variables for colour.
  */
 
+import { MIDNIGHT_AURORA, NEON_FROST, NIGHT_CIRCUIT, SYNTH_HORIZON } from './neonThemes';
+
 export const TOKEN_NAMES = [
   'bg',
   'ground',
@@ -65,6 +67,10 @@ export type Theme = Readonly<Record<TokenName, string>>;
 
 /** The colour themes (PRD U5, E3), Walnut and parchment first, the default. */
 export const PALETTES = [
+  { id: 'night-circuit', label: 'Night Circuit', name: 'Night Circuit, tube neon on black glass', family: 'neon' },
+  { id: 'neon-frost', label: 'Neon Frost', name: 'Neon on frosted violet glass', family: 'neon' },
+  { id: 'synth-horizon', label: 'Synth Horizon', name: 'Synth Horizon, a neon sunset', family: 'neon' },
+  { id: 'midnight-aurora', label: 'Midnight Aurora', name: 'Midnight Aurora, a dark sky with one aqua light', family: 'neon' },
   { id: 'walnut', label: 'Walnut', name: 'Walnut and parchment' },
   { id: 'seaglass', label: 'Sea glass', name: 'Sea glass and stone' },
   { id: 'clear', label: 'Clear', name: 'Clear, high contrast' },
@@ -72,7 +78,12 @@ export const PALETTES = [
 
 export type PaletteId = (typeof PALETTES)[number]['id'];
 export const PALETTE_IDS: readonly PaletteId[] = PALETTES.map((palette) => palette.id);
-export const DEFAULT_PALETTE: PaletteId = 'walnut';
+export const DEFAULT_PALETTE: PaletteId = 'night-circuit';
+
+/** Whether a theme is in the neon family: dark under both system schemes, with the illustrated art set. */
+export function isNeon(id: PaletteId): boolean {
+  return id === 'night-circuit' || id === 'neon-frost' || id === 'synth-horizon' || id === 'midnight-aurora';
+}
 
 export function isPaletteId(value: unknown): value is PaletteId {
   return typeof value === 'string' && (PALETTE_IDS as readonly string[]).includes(value);
@@ -418,6 +429,10 @@ export type Variant = 'light' | 'dark';
 
 /** Every theme's light and dark set. */
 export const THEMES: Readonly<Record<PaletteId, Readonly<Record<Variant, Theme>>>> = {
+  'night-circuit': { light: NIGHT_CIRCUIT, dark: NIGHT_CIRCUIT },
+  'neon-frost': { light: NEON_FROST, dark: NEON_FROST },
+  'synth-horizon': { light: SYNTH_HORIZON, dark: SYNTH_HORIZON },
+  'midnight-aurora': { light: MIDNIGHT_AURORA, dark: MIDNIGHT_AURORA },
   walnut: { light: WALNUT_LIGHT, dark: WALNUT_DARK },
   seaglass: { light: SEAGLASS_LIGHT, dark: SEAGLASS_DARK },
   clear: { light: CLEAR_LIGHT, dark: CLEAR_DARK },
@@ -563,6 +578,6 @@ export function paletteSelector(id: PaletteId): string {
  * A root without a data-palette attribute, or with an unknown one, gets the default theme.
  */
 export function themeStyleSheet(): string {
-  const block = (variant: Variant) => PALETTES.map(({ id }) => `${paletteSelector(id)} { color-scheme: ${variant}; ${declarations(THEMES[id][variant])} }`).join('\n');
+  const block = (variant: Variant) => PALETTES.map(({ id }) => `${paletteSelector(id)} { color-scheme: ${isNeon(id) ? 'dark' : variant}; ${declarations(THEMES[id][variant])} }`).join('\n');
   return [block('light'), `@media (prefers-color-scheme: dark) {\n${block('dark')}\n}`].join('\n');
 }
