@@ -44,6 +44,8 @@ export interface MatchScreenProps {
   readonly sound?: SoundPlayer;
   /** Haptics for the same moments as the sounds, plus the countdown's ticks; none by default. */
   readonly haptics?: HapticsPlayer;
+  /** A newer build is being served: the menu offers a reload. */
+  readonly updateReady?: boolean;
   /** Hears every new state once, to save the game, count its result and update the score. */
   readonly onChange?: (state: GameState) => void;
   readonly onHowTo?: (opener: HTMLElement) => void;
@@ -66,7 +68,7 @@ export interface MatchScreenProps {
  * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
-  const { initialState, mode, score, settings, onSettings, sound = SILENT, haptics = NO_HAPTICS, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false } = props;
+  const { initialState, mode, score, settings, onSettings, sound = SILENT, haptics = NO_HAPTICS, updateReady = false, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false } = props;
   const start = useCountdown(countdown && initialState.takes.length === 0 && !initialState.result);
   const { state, attempt, timeOut } = useGame(initialState, mode, onChange, start.counting);
   const [menu, setMenu] = useState<{ opener: HTMLElement | null } | null>(null);
@@ -194,6 +196,7 @@ export function MatchScreen(props: MatchScreenProps) {
           onClose={() => setMenu(null)}
           returnFocusTo={menu.opener}
           haptics={haptics}
+          updateReady={updateReady}
           onHowTo={onHowTo}
           onQuit={onLeave}
         />

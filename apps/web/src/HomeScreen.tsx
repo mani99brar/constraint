@@ -7,6 +7,7 @@ import type { ClockChoice } from './clock';
 import { ClockSlider } from './ClockSlider';
 import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
 import { MenuDialog } from './MenuDialog';
+import { UpdateNotice } from './UpdateNotice';
 import type { HapticsPlayer } from './haptics';
 import { RadioSwitch } from './RadioSwitch';
 import { OPPONENTS, type Opponent, type Settings } from './settings';
@@ -26,6 +27,8 @@ export interface HomeScreenProps {
   readonly onResetResults: () => void;
   readonly onSettings: (settings: Settings) => void;
   readonly haptics?: HapticsPlayer;
+  /** A newer build is being served: offer a reload. */
+  readonly updateReady?: boolean;
 }
 
 /** The hero's little board: a fixed deal of the 16 tiles with a few tokens on it, drawn with the tile art. */
@@ -60,10 +63,11 @@ function HeroBoard() {
  * chosen, each player's clock while a friend is chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
  * Settings, which holds the results' reset. One tap on Play starts a game.
  */
-export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings, haptics }: HomeScreenProps) {
+export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings, haptics, updateReady = false }: HomeScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
   return (
     <main className="home" data-testid="home-screen">
+      {updateReady && <UpdateNotice />}
       <header className="hero" data-testid="hero">
         <Avatar player="A" expression="to-move" testId="hero-avatar-A" />
         <div className="hero-centre">
@@ -141,6 +145,7 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
           onResetResults={onResetResults}
           canReset={model.canReset}
           haptics={haptics}
+          updateReady={updateReady}
         />
       )}
     </main>

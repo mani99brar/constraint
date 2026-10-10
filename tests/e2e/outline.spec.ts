@@ -91,3 +91,70 @@ test('[scenario:win-outline-beats-last-move] on a finished game every tile of th
     for (const look of looks) expect(look.shadow.match(/rgba?\([^)]*\)/)![0], `${mover} ${look.cell}: outlined in the win colour`).toBe(first);
   }
 });
+
+/** A real position with `symbol` as the last tile's symbol and at least two legal tiles matching by symbol alone. */
+function symbolPosition(symbol: string): GameState {
+  for (let seed = 1; seed < 3000; seed += 1) {
+    let state = newGame({ seed, starter: 'A' });
+    while (state.takes.length < 5) {
+      const legal = legalTakes(state);
+      const next = take(state, legal[(state.takes.length * 3 + seed) % legal.length]!);
+      if (!next.ok) break;
+      state = next.state;
+    }
+    if (state.takes.length < 5 || state.result || state.lastTile?.symbol !== symbol) continue;
+    const last = state.lastTile;
+    if (legalTakes(state).filter((cell) => tileAt(state, cell).symbol === symbol && tileAt(state, cell).terrain !== last.terrain).length >= 2) return state;
+  }
+  throw new Error(`no position for ${symbol}`);
+}
+
+test.describe('on an Android phone', () => {
+  test.use({
+    viewport: { width: 412, height: 915 },
+    deviceScaleFactor: 2.625,
+    isMobile: true,
+    hasTouch: true,
+    userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+  });
+
+  for (const symbol of ['Moon', 'Sun', 'Star', 'Wave']) {
+    test(`[scenario:symbol-cue-circle] the same-${symbol.toLowerCase()} cue is a perfect circle centred on its badge on every tile that matches by symbol`, async ({ page }) => {
+      await openHome(page);
+      await continueSaved(page, symbolPosition(symbol), 'two-player');
+      const looks = await page.locator('[data-match="symbol"], [data-match="both"]').evaluateAll((cells) =>
+        cells.map((cell) => {
+          const box = cell.querySelector('.tile-symbol')!;
+          const rect = box.getBoundingClientRect();
+          const disc = box.querySelector('circle')!.getBoundingClientRect();
+          const glow = getComputedStyle(box, '::after');
+          const inset = glow.inset.split(' ').map(parseFloat);
+          return {
+            cell: cell.getAttribute('data-cell')!,
+            squareBox: Math.abs(rect.width - rect.height),
+            offCentre: Math.hypot(rect.left + rect.width / 2 - (disc.left + disc.width / 2), rect.top + rect.height / 2 - (disc.top + disc.height / 2)),
+            discRound: Math.abs(disc.width - disc.height),
+            glowRound: Math.abs(parseFloat(glow.width) - parseFloat(glow.height)),
+            glowEven: Math.max(...inset) - Math.min(...inset),
+            fill: getComputedStyle(box.querySelector('circle')!).fill,
+            wash: getComputedStyle(cell).borderTopColor,
+            ring: getComputedStyle(box).boxShadow,
+            stroke: getComputedStyle(box.querySelector('circle')!).strokeWidth,
+          };
+        }),
+      );
+      expect(looks.length, `${symbol}: tiles matching by symbol`).toBeGreaterThanOrEqual(2);
+      for (const look of looks) {
+        expect(look.squareBox, `${look.cell} box is square`).toBeLessThan(0.6);
+        expect(look.offCentre, `${look.cell} disc is centred on its box`).toBeLessThan(0.6);
+        expect(look.discRound, `${look.cell} disc is round`).toBeLessThan(0.6);
+        expect(look.glowRound, `${look.cell} glow is round`).toBeLessThan(0.6);
+        expect(look.glowEven, `${look.cell} glow is even on every side`).toBeLessThan(0.6);
+        expect(look.fill, `${look.cell} symbol is lit in the mover's colour`).toBe(look.wash);
+        // No second ring: no box-shadow ring on the badge and no stroke on its disc.
+        expect(look.ring, `${look.cell} badge has no ring`).toBe('none');
+        expect(look.stroke, `${look.cell} disc has no stroke`).toMatch(/^(0px|1px)$/);
+      }
+    });
+  }
+});

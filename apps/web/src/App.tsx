@@ -13,6 +13,7 @@ import { clearSavedGame, loadSavedGame, saveGame, type SavedGame } from './save'
 import { addResult, NO_SCORE, scoreAfter, type Score } from './score';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { browserHaptics, prefersReducedMotion } from './haptics';
+import { useUpdateReady } from './update';
 import { browserAudioContext, createSoundPlayer } from './sound';
 import { rememberStarter, starterForNewGame } from './starter';
 import { browserStorage, type KeyValueStorage } from './storage';
@@ -57,6 +58,7 @@ export function App({ storage: given }: AppProps) {
   settingsRef.current = settings;
   const sound = useMemo(() => createSoundPlayer({ createContext: browserAudioContext, muted: () => !settingsRef.current.sound }), []);
 
+  const updateReady = useUpdateReady();
   const haptics = useMemo(() => browserHaptics(() => settingsRef.current.haptics), []);
 
   useEffect(() => {
@@ -170,6 +172,7 @@ export function App({ storage: given }: AppProps) {
           onSettings={changeSettings}
           sound={sound}
           haptics={haptics}
+          updateReady={updateReady}
           onChange={(state) => gameChanged(state, mode)}
           onHowTo={(opener) => setHowTo({ opener })}
           onPlayAgain={(finished) => {
@@ -186,6 +189,7 @@ export function App({ storage: given }: AppProps) {
       content = (
         <HomeScreen
           haptics={haptics}
+          updateReady={updateReady}
           model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length } : null, settings, results)}
           settings={settings}
           onContinue={() => {

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Dialog } from './Dialog';
+import { UpdateNotice } from './UpdateNotice';
 import { paletteAfterKey } from './home';
 import { RadioSwitch } from './RadioSwitch';
 import { PALETTES, THEMES, type PaletteId } from './theme';
@@ -40,13 +41,15 @@ export interface MenuDialogProps {
   readonly canReset?: boolean;
   /** Haptics, to hide their switch on a device that has none. */
   readonly haptics?: HapticsPlayer | undefined;
+  /** A newer build is being served: offer a reload. */
+  readonly updateReady?: boolean | undefined;
 }
 
 /**
  * The menu (PRD U4, E3, E5, U5): resume, How to Play, the colour theme, the highlight, tile-name and sound
  * settings, and quit to title; on the home screen, as Settings, it also holds the reset of the results.
  */
-export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false, haptics }: MenuDialogProps) {
+export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false, haptics, updateReady = false }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
   return (
     <Dialog titleId="menu-title" className="menu-dialog" testId="menu" onClose={onClose} returnFocusTo={returnFocusTo} initialFocus={first}>
@@ -54,6 +57,7 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
         <h2 id="menu-title">{title}</h2>
       </header>
       <div className="menu-items">
+        {updateReady && <UpdateNotice />}
         <button ref={first} type="button" className="primary" data-testid="menu-resume" onClick={onClose}>
           {onQuit ? 'Resume' : 'Close'}
         </button>
