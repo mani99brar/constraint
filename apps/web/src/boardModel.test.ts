@@ -66,6 +66,26 @@ describe('board model (PRD U1, R2, I2, R4, U7)', () => {
     }
   });
 
+  it('says why a glowing tile is legal: it shares the last tile’s terrain, its symbol or both, and a tile that does not glow says nothing', () => {
+    for (const takes of [1, 3, 5, 7]) {
+      const state = afterTakes(17, takes);
+      const last = state.lastTile!;
+      const model = boardModel(state, on);
+      for (const view of model.cells) {
+        if (!view.glow) {
+          expect(view.match, view.cell).toBeNull();
+          continue;
+        }
+        const terrain = view.tile.terrain === last.terrain;
+        const symbol = view.tile.symbol === last.symbol;
+        expect(view.match, view.cell).toBe(terrain && symbol ? 'both' : terrain ? 'terrain' : 'symbol');
+      }
+    }
+    // At the opening every edge tile is legal with nothing to match.
+    expect(boardModel(afterTakes(17, 0), on).cells.filter((view) => view.glow).every((view) => view.match === null)).toBe(true);
+    expect(boardModel(afterTakes(17, 3), off).cells.every((view) => view.match === null)).toBe(true);
+  });
+
   it('makes nothing glow with highlights off, though the legal takes stay known', () => {
     for (const mode of [bot, TWO_PLAYERS]) {
       const state = afterTakes(29, 4);

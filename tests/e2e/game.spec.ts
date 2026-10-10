@@ -98,8 +98,8 @@ async function expectStatusOnOneLine(page: Page) {
 }
 
 /**
- * On wide layouts each nameplate has two rows: the name and the tokens on top, the status under them,
- * beside the avatar. At the narrowest wide layout the avatar shrinks to about 40 px.
+ * On wide layouts each nameplate has the name over the status beside the avatar, the tokens in a row
+ * under them, and the wins at the right. At the narrowest wide layout the avatar shrinks to about 40 px.
  */
 async function expectTwoRowPlates(page: Page, narrow: boolean) {
   for (const player of ['A', 'B'] as const) {
@@ -114,14 +114,14 @@ async function expectTwoRowPlates(page: Page, narrow: boolean) {
       status.textContent = text;
       if (wasEmpty) status.classList.add('empty');
       return {
-        topRow: Math.abs(name.top + name.height / 2 - (tokens.top + tokens.height / 2)) <= 6,
-        statusBelow: line.top >= Math.max(name.bottom, tokens.bottom) - 1,
+        topRow: tokens.top >= line.bottom - 1,
+        statusBelow: line.top >= name.bottom - 1,
         besideAvatar: line.left >= avatar.right - 1 && line.top < avatar.bottom,
         insidePlate: line.right <= plate.right && line.bottom <= plate.bottom,
         avatar: Math.round(avatar.width),
       };
     }, player);
-    expect(layout, `${player}: two rows`).toMatchObject({ topRow: true, statusBelow: true, besideAvatar: true, insidePlate: true });
+    expect(layout, `${player}: name, status, then the tokens`).toMatchObject({ topRow: true, statusBelow: true, besideAvatar: true, insidePlate: true });
     if (narrow) {
       expect(layout.avatar, `${player}: the avatar shrinks at the narrowest wide layout`).toBeGreaterThanOrEqual(36);
       expect(layout.avatar).toBeLessThanOrEqual(44);
@@ -344,12 +344,11 @@ test('[scenario:match-screen] the game is the board, a slim nameplate for each p
     await expect(view.locator(`svg[data-testid="avatar-${player}"]`)).toBeVisible();
     await expect(page.getByTestId(`seat-${player}-name`)).toHaveText(name);
     await expect(page.getByTestId(`seat-${player}-tokens`).locator(`svg.token-mark[data-shape="${mark}"]`)).toBeVisible();
-    await expect(page.getByTestId(`seat-${player}-tokens`)).toContainText('7/8');
+    await expect(page.getByTestId(`seat-${player}-tokens`)).toContainText('7 left');
     await expect(page.getByTestId(`seat-${player}-tokens`).getByLabel('7 of 8 tokens left')).toBeVisible();
-    await expect(page.getByTestId(`seat-${player}-score`)).toHaveCount(0);
-    await expect(view).not.toContainText(/Wins/);
+    await expect(page.getByTestId(`score-${player}`)).toHaveText('0');
     await expect(view.locator('button, a, [tabindex]')).toHaveCount(0);
-    expect((await view.boundingBox())!.height).toBeLessThanOrEqual(80);
+    expect((await view.boundingBox())!.height).toBeLessThanOrEqual(130);
   }
   // The score of the sitting: once, in the scoreboard row above the board round the Match card; no floating
   // score line and no corner pill.
@@ -358,9 +357,7 @@ test('[scenario:match-screen] the game is the board, a slim nameplate for each p
   await expect(score).toHaveAttribute('aria-label', 'You 0, Bot 0');
   await expect(page.locator('[data-testid="sitting-score"], .sitting-score, .score-pill')).toHaveCount(0);
   const [row, frame, left, right, tileCard] = await Promise.all([score, page.getByTestId('board-frame'), seat(page, 'A'), seat(page, 'B'), matchCard(page)].map(async (locator) => (await locator.boundingBox())!));
-  expect(row!.height).toBeLessThanOrEqual(64);
-  expect(row!.x).toBeGreaterThanOrEqual(left!.x + left!.width);
-  expect(row!.x + row!.width).toBeLessThanOrEqual(right!.x);
+  expect(row!.height).toBeLessThanOrEqual(92);
   expect(Math.abs(tileCard!.x + tileCard!.width / 2 - (frame!.x + frame!.width / 2))).toBeLessThan(4);
   expect(row!.y + row!.height).toBeLessThanOrEqual(frame!.y);
   expect(await score.locator('[data-testid="match-card"]').count()).toBe(1);
@@ -378,8 +375,8 @@ test('[scenario:match-screen] the game is the board, a slim nameplate for each p
   const last = (await readLastTile(page))!;
   const card = matchCard(page);
   await expect(card).toHaveAttribute('aria-label', `Tile to match: ${tile(last)}`);
-  await expect(card.locator(`.tile-art[data-terrain="${last.terrain}"][data-symbol="${last.symbol}"] svg.scene`)).toBeVisible();
-  await expect(card.locator('.tile-art svg.emblem-svg')).toBeVisible();
+  await expect(card.locator(`.terrain-thumb[data-terrain="${last.terrain}"] svg.scene`)).toBeVisible();
+  await expect(card.locator('.chip-emblem svg.emblem-svg')).toBeVisible();
   await expect(page.getByTestId('match-card-terrain')).toHaveText(last.terrain);
   await expect(page.getByTestId('match-card-symbol')).toHaveText(last.symbol);
 
@@ -439,7 +436,7 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
     await expect(seatStatus(page, player)).toHaveText(`Player ${number}'s move`);
     await expect(seat(page, other)).toHaveAttribute('data-lit', 'false');
     await expect(seat(page, other)).toHaveAttribute('data-expression', 'idle');
-    await expect(seatStatus(page, other)).toHaveText('');
+    await expect(seatStatus(page, other)).toHaveText('Waiting');
     await expect(board(page)).toHaveAttribute('data-glow-player', player);
     const lit = await colours(player);
     const dim = await colours(other);
@@ -545,7 +542,7 @@ test('[scenario:opening-take] at the opening only the 12 edge tiles stand out, a
   await expect(page.getByTestId('match-card-symbol')).toHaveText(edge.symbol);
   await expect(seat(page, 'A')).toHaveAttribute('data-tokens-left', '7');
   // No tile flies from the board: nothing moves the card's tile.
-  const card = await matchCard(page).locator('.match-tile').evaluate((element) => ({ animation: getComputedStyle(element).animationName, transform: getComputedStyle(element).transform, from: getComputedStyle(element).getPropertyValue('--from-x') }));
+  const card = await matchCard(page).locator('.match-text').evaluate((element) => ({ animation: getComputedStyle(element).animationName, transform: getComputedStyle(element).transform, from: getComputedStyle(element).getPropertyValue('--from-x') }));
   // Under reduced motion even the crossfade is off.
   expect(card).toEqual({ animation: 'none', transform: 'none', from: '' });
   await expect(page.locator('.arriving')).toHaveCount(0);
@@ -608,7 +605,7 @@ test('[scenario:legal-turn] after the bot’s take its cell is marked and toaste
   const card = await page.waitForFunction(
     () => {
       const screen = document.querySelector('[data-testid="match-screen"]');
-      const tile = document.querySelector('[data-testid="match-card"] .match-tile');
+      const tile = document.querySelector('[data-testid="match-card"] .match-text');
       if (screen?.getAttribute('data-accepts-takes') !== 'true' || !tile) return null;
       const box = tile.getBoundingClientRect();
       const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);

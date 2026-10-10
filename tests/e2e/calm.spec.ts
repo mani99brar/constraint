@@ -79,7 +79,7 @@ async function playerColours(page: Page): Promise<Record<'A' | 'B', Rgba>> {
       const scale = value.startsWith('color(') ? 255 : 1;
       return { r: parts[0]! * scale, g: parts[1]! * scale, b: parts[2]! * scale, a: 1 };
     };
-    const probe = (player: string) => parse(getComputedStyle(document.querySelector(`[data-testid="score-${player}"] .count-token`)!).backgroundColor);
+    const probe = (player: string) => parse(getComputedStyle(document.querySelector(`[data-testid="seat-${player}-tokens"] .count-token`)!).backgroundColor);
     return { A: probe('A'), B: probe('B') };
   });
 }

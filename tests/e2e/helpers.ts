@@ -73,9 +73,10 @@ export async function skipStartCountdown(page: Page) {
   await page.addInitScript(() => {
     try {
       const stored = JSON.parse(window.localStorage.getItem('okiya.settings') ?? '{}') as Record<string, unknown>;
-      if (!('countdown' in stored)) window.localStorage.setItem('okiya.settings', JSON.stringify({ ...stored, countdown: false }));
+      // The scenarios were written against the classic Walnut look, so they keep it unless a test chooses a theme.
+      if (!('countdown' in stored)) window.localStorage.setItem('okiya.settings', JSON.stringify({ palette: 'walnut', ...stored, countdown: false }));
     } catch {
-      window.localStorage.setItem('okiya.settings', JSON.stringify({ countdown: false }));
+      window.localStorage.setItem('okiya.settings', JSON.stringify({ palette: 'walnut', countdown: false }));
     }
   });
 }
@@ -293,7 +294,7 @@ export async function expectSeatsBeside(page: Page) {
  */
 export async function matchTileNow(page: Page) {
   return page.evaluate(() => {
-    const tile = document.querySelector('[data-testid="match-card"] .match-tile');
+    const tile = document.querySelector('[data-testid="match-card"] .match-text');
     const glow = document.querySelector('[data-testid="board"] [data-cell][data-glow="true"]');
     if (!tile || !glow) return null;
     const box = tile.getBoundingClientRect();

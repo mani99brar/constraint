@@ -34,7 +34,7 @@ import {
 } from './helpers';
 
 /** The tiles, tokens, avatars and seats of the game on screen, read from the page, for the theme checks. */
-async function expectDistinguishable(page: Page) {
+async function expectDistinguishable(page: Page, neon = false) {
   // Four terrains, each with its own colour and scene; four symbols, each with its own emblem.
   const tiles = await board(page)
     .locator('[data-cell]:not([data-owner])')
@@ -116,9 +116,10 @@ async function expectDistinguishable(page: Page) {
       token: style('[data-testid="board"] [data-testid="token"]').backgroundImage,
     };
   });
-  expect(materials.ground).toMatch(/radial-gradient/);
-  expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
-  expect(materials.wood).toMatch(/repeating-linear-gradient/);
+  // The neon themes paint a generated backdrop (grain, aurora, a sunset), so only the classic ground is plain radial gradients.
+  expect(materials.ground).toMatch(neon ? /gradient|url\(/ : /radial-gradient/);
+  if (!neon) expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
+  expect(materials.wood).toMatch(neon ? /linear-gradient/ : /repeating-linear-gradient/);
   expect(materials.token).toMatch(/radial-gradient/);
   expect(materials.woodColour).not.toBe(materials.groundColour);
   // The tiles stand apart from the board's well, and the plates and the scoreboard stand apart from the ground.
@@ -191,15 +192,19 @@ async function groundChannels(page: Page) {
  * Settings, a bot game after two takes with tile names on (a refusal toast and the menu shown), and a
  * two-player game's end with its result card, each read for 4.5:1 and the pieces kept distinguishable.
  */
+/** The neon themes are dark under both system schemes, on a slab frame rather than wood. */
+const isNeon = (palette: string) => ['night-circuit', 'neon-frost', 'synth-horizon', 'midnight-aurora'].includes(palette);
+
 async function readableInPalette(page: Page, palette: PaletteId, scheme: 'light' | 'dark') {
   const where = `${palette} ${scheme}`;
+  const looks = isNeon(palette) ? 'dark' : scheme;
   await continueSaved(page, seededPosition(2), 'bot');
   await setPalette(page, palette);
   const [r, g, b] = await groundChannels(page);
-  if (scheme === 'dark') expect(r + g + b, where).toBeLessThan(120);
+  if (looks === 'dark') expect(r + g + b, where).toBeLessThan(120);
   else expect(r + g + b, where).toBeGreaterThan(600);
   expect(await lowContrastText(page), where).toEqual([]);
-  await expectDistinguishable(page);
+  await expectDistinguishable(page, isNeon(palette));
   await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'B')!.cell).click();
   await expect(refusalToast(page)).toBeVisible();
   expect(await lowContrastText(page), where).toEqual([]);
