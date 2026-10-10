@@ -31,4 +31,12 @@ describe('Match card model (PRD I1)', () => {
     const line = handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' }, { result: { kind: 'win', winner: 'A', by: 'line', cells: ['A1', 'A2', 'A3', 'A4'] } });
     expect(matchCardModel(line).blocked).toBeNull();
   });
+
+  it('marks a finished game, a blockade excepted, so the card says it shows the last tile taken', () => {
+    const line = handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' }, { result: { kind: 'win', winner: 'A', by: 'line', cells: ['A1', 'A2', 'A3', 'A4'] } });
+    expect(matchCardModel(line).ended).toBe(true);
+    expect(matchCardModel(handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' })).ended).toBe(false);
+    const blockade = handBuilt(['A', 'B', 'A'], 'B', { terrain: 'Desert', symbol: 'Star' }, { result: { kind: 'win', winner: 'A', by: 'blockade' } });
+    expect(matchCardModel(blockade).ended).toBe(false);
+  });
 });

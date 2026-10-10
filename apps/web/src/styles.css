@@ -889,7 +889,7 @@ button:disabled {
 
 .match-heading {
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   line-height: 1;
   font-weight: 800;
   text-transform: uppercase;
@@ -920,8 +920,8 @@ button:disabled {
 }
 
 .match-or {
-  color: var(--muted);
-  font-size: 0.7rem;
+  color: var(--text);
+  font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -969,7 +969,7 @@ button:disabled {
 
 .chip-text i {
   font-style: normal;
-  font-size: 0.6rem;
+  font-size: 0.66rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1541,8 +1541,8 @@ button:disabled {
 }
 
 .token-mark {
-  width: 52%;
-  height: 52%;
+  width: 60%;
+  height: 60%;
 }
 
 /* The home screen's tokens sit still. */
@@ -1616,6 +1616,12 @@ button:disabled {
 
 .end-screen .button-row {
   margin-bottom: 4px;
+  flex-wrap: nowrap;
+}
+
+.end-screen .button-row button {
+  flex: 1 1 0;
+  min-height: 52px;
 }
 
 .end-screen h2 {
@@ -2651,5 +2657,42 @@ button:disabled {
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* Final round (critique): the turn's colour reaches the top of the screen, the legal ring gets an inner dark
+   keyline so it holds 3:1 against pale art, faded tiles rest their scenes (fewer loops while it is your move),
+   the win line sits a little back so the tokens' marks read through it, and the countdown has a scrim. */
+.match[data-to-move='A'] .match-card {
+  border-color: color-mix(in srgb, var(--p1) 55%, var(--border));
+}
+
+.match[data-to-move='B'] .match-card {
+  border-color: color-mix(in srgb, var(--p2) 55%, var(--border));
+}
+
+.cell[data-glow='true'] .tile-face::before {
+  box-shadow:
+    inset 0 0 0 2px var(--wash),
+    inset 0 0 0 3.5px color-mix(in srgb, var(--shade) 55%, transparent);
+}
+
+.win-stroke-line {
+  opacity: 0.82;
+}
+
+.countdown {
+  background-image: radial-gradient(ellipse 62% 42% at 50% 46%, color-mix(in srgb, var(--ground) 78%, transparent), transparent 100%);
+}
+
+.countdown-hint {
+  border: 1px solid var(--border);
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .board[data-glow-player] .cell:not([data-glow='true']) .scene * {
+    animation-play-state: paused;
   }
 }

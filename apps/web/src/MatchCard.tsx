@@ -35,9 +35,10 @@ export function MatchCard({ model }: { model: MatchCardModel }) {
       data-symbol={symbol ?? undefined}
       data-opening={terrain === null || undefined}
       data-blocked={model.blocked !== null || undefined}
+      data-ended={model.ended || undefined}
     >
       <span className="match-heading" aria-hidden="true">
-        {terrain === null ? 'First tile' : 'Next tile needs'}
+        {terrain === null ? 'First tile' : model.ended ? 'Last tile taken' : 'Next tile needs'}
       </span>
       <span key={model.takes} className="match-text" aria-hidden="true">
         {model.blocked ? (

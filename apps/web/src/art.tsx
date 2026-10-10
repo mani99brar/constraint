@@ -147,9 +147,9 @@ export function TokenMark({ player }: { player: Player }) {
   return (
     <svg {...glyph} className="token-mark" data-shape={player === 'A' ? 'ring' : 'diamond'}>
       {player === 'A' ? (
-        <circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" strokeWidth="3" />
+        <circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" strokeWidth="3.6" />
       ) : (
-        <path d="M12 4.5 19.5 12 12 19.5 4.5 12z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
+        <path d="M12 3.5 20.5 12 12 20.5 3.5 12z" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinejoin="round" />
       )}
     </svg>
   );

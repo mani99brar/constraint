@@ -18,6 +18,8 @@ export interface MatchCardModel {
   readonly cell: CellId | null;
   /** The number of takes, which keys the card's crossfade. */
   readonly takes: number;
+  /** The game has ended: the tile shown is the last one taken, not one the next take must match. */
+  readonly ended: boolean;
 }
 
 export const OPENING_LABEL = 'Any edge tile';
@@ -26,8 +28,8 @@ export const BLOCKED_SHORT = 'No match';
 export function matchCardModel(state: Pick<GameState, 'lastTile' | 'takes'> & Partial<Pick<GameState, 'result'>>): MatchCardModel {
   const { lastTile, takes } = state;
   const cell = takes[takes.length - 1] ?? null;
-  if (!lastTile) return { terrain: null, symbol: null, text: OPENING_LABEL, label: 'Tile to match: any edge tile', blocked: null, blockedShort: null, cell, takes: takes.length };
+  if (!lastTile) return { terrain: null, symbol: null, text: OPENING_LABEL, label: 'Tile to match: any edge tile', blocked: null, blockedShort: null, cell, takes: takes.length, ended: false };
   const name = tileName(lastTile);
   const blocked = state.result?.kind === 'win' && state.result.by === 'blockade' ? `No tile matches ${name}` : null;
-  return { terrain: lastTile.terrain, symbol: lastTile.symbol, text: name, label: blocked ?? `Tile to match: ${name}`, blocked, blockedShort: blocked ? BLOCKED_SHORT : null, cell, takes: takes.length };
+  return { terrain: lastTile.terrain, symbol: lastTile.symbol, text: name, label: blocked ?? `Tile to match: ${name}`, blocked, blockedShort: blocked ? BLOCKED_SHORT : null, cell, takes: takes.length, ended: Boolean(state.result) && !blocked };
 }
