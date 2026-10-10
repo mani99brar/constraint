@@ -121,9 +121,9 @@ describe('reduced motion (PRD U8)', () => {
     // No tile flies from the board into the Match card (PRD U8): its contents crossfade in place under 200 ms.
     expect(css).not.toMatch(/tile-arrive|arriving|--from-x/);
     for (const source of ['MatchCard.tsx', 'Board.tsx'].map((file) => readFileSync(join(import.meta.dirname, file), 'utf8'))) expect(source).not.toMatch(/arriving|tile-arrive|getBoundingClientRect\(\)[\s\S]*--from/);
-    const fade = /animation:\s*match-fade\s+([^;]+)/.exec(rule('.match-tile,\n.match-text'))?.[1] ?? '';
+    const fade = /animation:\s*match-fade\s+([^;]+)/.exec(rule('.match-text'))?.[1] ?? '';
     expect(times(fade)[0]).toBeLessThan(200);
-    expect(rule('.match-tile')).toMatch(/pointer-events:\s*none/);
+    expect(rule('.terrain-thumb')).not.toMatch(/animation/);
     // The seats lighting and dimming. A new face shows at once, so a seat with no reaction never moves
     // when the shared reaction key remounts both avatars' groups.
     expect(rule('.seat')).toMatch(/transition:[^;]*border-color[^;]*background-color/);
@@ -323,11 +323,10 @@ describe('the board’s spacing (PRD U1)', () => {
     expect(rule('.board-frame')).toMatch(/border:\s*3px solid/);
   });
 
-  it('keeps the A–D and 1–4 labels light and small, on the wood', () => {
-    const labels = rule('.frame-labels');
-    expect(labels).toMatch(/font-weight:\s*[45]00/);
-    expect(Number(/font-size:\s*([\d.]+)rem/.exec(labels)![1])).toBeLessThan(0.8);
-    expect(labels).toMatch(/color:\s*var\(--on-frame\)/);
+  it('draws no A–D or 1–4 labels round the board', () => {
+    expect(css).not.toContain('.frame-labels');
+    expect(css).not.toContain('.frame-columns');
+    expect(css).not.toContain('.frame-rows');
   });
 });
 

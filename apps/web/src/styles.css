@@ -413,7 +413,7 @@ button:disabled {
 .match {
   --seat: clamp(200px, 21vw, 270px);
   --toast-room: 88px;
-  --score-row: 64px;
+  --score-row: 88px;
   --chrome: calc(var(--toast-room) + var(--score-row) + 40px);
   --board-size: min(100vw - 2 * var(--seat) - 72px, 100dvh - var(--chrome), 640px);
   --board: var(--board-size);
@@ -529,45 +529,17 @@ button:disabled {
   font-weight: 700;
 }
 
-/* The scoreboard row (PRD U2, I1, P3): each seat's wins in its player's colour with its token mark, on a
-   card either side of the Match card, and the draws small on their own plate under it. The row has one
-   fixed height: the draws line keeps its place, hidden, at zero. */
+/* The row above the board (PRD U2, I1, P3): the Match card, wide, with the draws small on their own plate
+   under it. The row has one fixed height: the draws line keeps its place, hidden, at zero. Each seat's
+   wins are on its own nameplate. */
 .scoreboard {
   grid-area: score;
   justify-self: center;
   align-self: start;
   display: grid;
-  grid-template-columns: auto minmax(0, auto) auto;
-  align-items: start;
-  gap: 12px;
-  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 26rem);
   height: var(--score-row);
-}
-
-.score-side {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--card-height, 46px);
-  margin: 0;
-  padding: 0 14px 0 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background-color: var(--surface);
-  background-image: linear-gradient(170deg, var(--surface) 35%, var(--surface-2));
-  font-size: 1.45rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  box-shadow: 2px 4px 10px color-mix(in srgb, var(--shade) 12%, transparent);
-}
-
-.score-p1 {
-  color: var(--p1);
-}
-
-.score-p2 {
-  color: var(--p2);
 }
 
 .score-centre {
@@ -901,46 +873,32 @@ button:disabled {
   height: 70%;
 }
 
-/* The Match card (PRD I1): the tile to match with its scene, emblem and names. A new tile and its names
-   change in place with a crossfade under 200 ms (PRD U8); nothing flies in. */
-
-/* One size in every turn, sized for the longest names and the blockade's sentence, so the scores beside
-   it never move. */
+/* The Match card (PRD I1): what the next take needs. "Next tile needs", then a terrain chip with its
+   picture and a symbol chip with its emblem, joined by "or": a tile with either is legal. At the opening
+   a diagram of the edge ring stands in for the chips. A new tile changes in place with a crossfade under
+   200 ms (PRD U8); nothing flies in. One size in every turn, so nothing around it ever moves. */
 .match-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 18rem;
-  height: var(--card-height, 46px);
-  max-width: 100%;
-  padding: 4px 14px 4px 4px;
-  border-radius: 12px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  width: 100%;
+  height: var(--card-height, 64px);
+  padding: 6px 8px;
+  border-radius: 14px;
 }
 
-.match-tile-slot {
-  position: relative;
-  display: block;
-  width: calc(var(--card-height, 46px) - 10px);
-  height: calc(var(--card-height, 46px) - 10px);
-  flex: none;
-  border-radius: 10px;
-  background-color: var(--slot);
+.match-heading {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
-/* The tile never takes a tap. */
-.match-tile {
-  position: absolute;
-  inset: 0;
-  display: block;
-  pointer-events: none;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--frame-edge) 45%, transparent);
-  box-shadow: 1px 2px 4px color-mix(in srgb, var(--shade) 25%, transparent);
-}
-
-.match-tile,
 .match-text {
+  display: block;
+  min-width: 0;
   animation: match-fade 180ms ease-out;
 }
 
@@ -950,60 +908,99 @@ button:disabled {
   }
 }
 
-.match-tile.opening {
-  border: 3px dashed var(--border);
-  background-color: var(--surface-2);
-  box-shadow: none;
-  animation: none;
-}
-
-.match-text {
-  display: grid;
-  gap: 2px;
+.match-names {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
-.match-heading {
+.match-or {
   color: var(--muted);
-  font-size: 0.66rem;
-  line-height: 1.1;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-.match-names {
+.match-chip {
+  flex: 1 1 0;
   display: flex;
-  flex-wrap: nowrap;
-  gap: 2px 12px;
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 3px 8px 3px 3px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-3);
+}
+
+.terrain-thumb {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.chip-emblem,
+.edge-diagram {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+}
+
+.chip-emblem .emblem-svg {
+  width: 32px;
+  height: 32px;
+}
+
+.chip-text {
+  display: grid;
+  min-width: 0;
+}
+
+.chip-text i {
+  font-style: normal;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.chip-text b {
+  font-size: 0.98rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edge-diagram rect {
+  fill: none;
+  stroke: var(--primary);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+}
+
+.edge-diagram rect.on {
+  fill: var(--primary);
+  stroke-opacity: 1;
 }
 
 /* A blockade's sentence; a phone shows its short form in the card's fixed names area. */
 .match-blocked {
-  font-size: 0.85rem;
+  color: var(--refusal);
+  font-size: 0.88rem;
 }
 
 .match-blocked .short-form {
   display: none;
-}
-
-.match-blocked {
-  color: var(--refusal);
-}
-
-.match-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.match-name .glyph,
-.match-name .emblem-svg {
-  width: 20px;
-  height: 20px;
 }
 
 /* A tile drawn anywhere: the board, the Match card, How to Play and the home screen. Its terrain colour
@@ -1048,7 +1045,7 @@ button:disabled {
    is four tiles and five gaps, so a gap is 0.12 / 4.6 of it. */
 
 .board-frame {
-  --band: 22px;
+  --band: 12px;
   position: relative;
   width: var(--board);
   padding: var(--band);
@@ -1071,37 +1068,6 @@ button:disabled {
     inset -3px -3px 0 color-mix(in srgb, var(--shade) 28%, transparent);
 }
 
-/* The labels are light and small, and still meet 4.5:1 on the wood. */
-.frame-labels {
-  position: absolute;
-  display: grid;
-  color: var(--on-frame);
-  font-size: 0.68rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-}
-
-.frame-columns {
-  top: 2px;
-  left: calc(var(--band) + var(--gap));
-  right: calc(var(--band) + var(--gap));
-  height: calc(var(--band) - 4px);
-  grid-template-columns: repeat(4, 1fr);
-  column-gap: var(--gap);
-  align-items: center;
-  text-align: center;
-}
-
-.frame-rows {
-  top: calc(var(--band) + var(--gap));
-  bottom: calc(var(--band) + var(--gap));
-  left: 0;
-  width: var(--band);
-  grid-template-rows: repeat(4, 1fr);
-  row-gap: var(--gap);
-  align-items: center;
-  text-align: center;
-}
 
 .board-frame,
 .board {
@@ -1724,13 +1690,7 @@ button:disabled {
 
   .scoreboard {
     justify-self: stretch;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 8px;
-  }
-
-  .score-side {
-    padding: 0 10px 0 6px;
-    font-size: 1.6rem;
+    width: auto;
   }
 
   .top-bar {
@@ -1740,40 +1700,12 @@ button:disabled {
     margin-top: calc((var(--card-height) - 44px) / 2);
   }
 
-  .match-card {
-    width: 100%;
-    min-width: 0;
-    gap: 8px;
-    padding: 4px 8px 4px 4px;
-  }
-
-  .match-text {
-    height: calc(var(--card-height) - 12px);
-    align-content: center;
-  }
-
-  .match-heading {
-    font-size: 0.66rem;
-  }
-
-  .match-names {
-    flex-wrap: wrap;
-    gap: 0 8px;
-    font-size: 0.88rem;
-  }
-
   .match-blocked .long-form {
     display: none;
   }
 
   .match-blocked .short-form {
     display: inline;
-  }
-
-  .match-name .glyph,
-  .match-name .emblem-svg {
-    width: 18px;
-    height: 18px;
   }
 
   .menu-button {
@@ -1816,7 +1748,7 @@ button:disabled {
   }
 
   .board-frame {
-    --band: 18px;
+    --band: 10px;
   }
 
   /* One toast at a time, its short form on one line, in the gap between the board and Player 1's
@@ -2169,6 +2101,198 @@ button:disabled {
 }
 
 /* Reduced motion: no animation or transition at all (PRD U8). */
+
+
+/* ===== Information layout (critique round): the seat's wins and token dots, the reason marks, the countdown ===== */
+
+/* A nameplate: the avatar, the name, the status as a tab, the token mark with one dot per token and
+   "N left", and the seat's wins at the right in its player's colour. Beside the board the tokens take
+   their own row under the avatar; on a phone the avatar spans all rows. */
+.seat {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'avatar name   wins'
+    'avatar status wins'
+    'tokens tokens tokens';
+  border-radius: 24px;
+  row-gap: 4px;
+}
+
+.seat[data-timed] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'avatar name   wins'
+    'avatar clock  wins'
+    'avatar status wins'
+    'tokens tokens tokens';
+}
+
+.seat-tokens {
+  grid-area: tokens;
+  justify-self: start;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.token-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.token-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.45;
+}
+
+.token-dots i.full {
+  background-color: currentColor;
+  opacity: 1;
+}
+
+.seat-p1 .token-dots {
+  color: var(--p1);
+}
+
+.seat-p2 .token-dots {
+  color: var(--p2);
+}
+
+.tokens-left {
+  color: var(--text);
+}
+
+.seat-wins {
+  grid-area: wins;
+  align-self: center;
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  min-width: 2.6rem;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.seat-wins::after {
+  content: 'WINS';
+  margin-top: 4px;
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.seat-p1 .seat-wins {
+  color: var(--p1);
+}
+
+.seat-p2 .seat-wins {
+  color: var(--p2);
+}
+
+.seat-status {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .seat {
+    grid-template-areas:
+      'avatar name   wins'
+      'avatar status wins'
+      'avatar tokens wins';
+    border-radius: 28px;
+    row-gap: 3px;
+  }
+
+  .seat[data-timed] {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'avatar name   clock  wins'
+      'avatar status status wins'
+      'avatar tokens tokens wins';
+  }
+
+  .seat-wins {
+    font-size: 2.1rem;
+  }
+}
+
+/* Legal tiles show why: a bar along the foot for the same terrain, a ring round the emblem for the same
+   symbol, a bar and a ring for both. The reasons are drawn, so colour is never the only signal. */
+.reason-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  height: 9%;
+  background-color: var(--wash);
+}
+
+.cell[data-match='symbol'] .tile-symbol,
+.cell[data-match='both'] .tile-symbol {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--wash);
+}
+
+/* The countdown: the board dims behind it, and the numeral stands large with no disc. */
+.countdown {
+  background-color: color-mix(in srgb, var(--ground) 62%, transparent);
+}
+
+.countdown-number {
+  width: auto;
+  height: auto;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font-size: clamp(6rem, 38vw, 9rem);
+  line-height: 1;
+  color: var(--text);
+  animation: countdown-rise 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes countdown-rise {
+  from {
+    transform: translateY(35%);
+    opacity: 0;
+  }
+}
+
+.match[data-starting] .board {
+  opacity: 0.4;
+}
+
+/* Illustrated scenes (every theme): three tones of the terrain's ink. */
+.terrain-forest {
+  --sa: var(--forest-ink);
+}
+
+.terrain-water {
+  --sa: var(--water-ink);
+}
+
+.terrain-mountain {
+  --sa: var(--mountain-ink);
+}
+
+.terrain-desert {
+  --sa: var(--desert-ink);
+}
+
+.terrain-forest,
+.terrain-water,
+.terrain-mountain,
+.terrain-desert {
+  --sb: color-mix(in srgb, var(--sa) 55%, var(--shade));
+  --sc: color-mix(in srgb, var(--sa) 60%, var(--shine));
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -39,10 +39,10 @@ describe('seat model (PRD U2, I3, §5.8)', () => {
   });
 
   it.each([
-    ['a bot game, your move', easy, 'A', ['Your move', null], [true, false], ['to-move', 'idle']],
-    ['a bot game, the bot’s move', easy, 'B', [null, 'Bot is thinking'], [false, true], ['idle', 'thinking']],
-    ['a two-player game, Player 1 to move', TWO_PLAYERS, 'A', ["Player 1's move", null], [true, false], ['to-move', 'idle']],
-    ['a two-player game, Player 2 to move', TWO_PLAYERS, 'B', [null, "Player 2's move"], [false, true], ['idle', 'to-move']],
+    ['a bot game, your move', easy, 'A', ['Your move', 'Waiting'], [true, false], ['to-move', 'idle']],
+    ['a bot game, the bot’s move', easy, 'B', ['Waiting', 'Bot is thinking'], [false, true], ['idle', 'thinking']],
+    ['a two-player game, Player 1 to move', TWO_PLAYERS, 'A', ["Player 1's move", 'Waiting'], [true, false], ['to-move', 'idle']],
+    ['a two-player game, Player 2 to move', TWO_PLAYERS, 'B', ['Waiting', "Player 2's move"], [false, true], ['idle', 'to-move']],
   ] as const)('lights and labels the seat to move and dims the other: %s', (_name, mode, toMove, statuses, lit, faces) => {
     for (const lastTile of [null, forestStar]) {
       const seats = seatModels(handBuilt(lastTile ? ['A'] : [], toMove, lastTile), mode, NO_SCORE);

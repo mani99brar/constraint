@@ -60,7 +60,7 @@ export function turnLabel(state: Pick<GameState, 'result' | 'toMove'>, mode: Gam
 
 function statusOf(state: GameState, player: Player, mode: GameMode): string | null {
   const { result } = state;
-  if (!result) return state.toMove === player ? turnLabel(state, mode) : null;
+  if (!result) return state.toMove === player ? turnLabel(state, mode) : 'Waiting';
   if (result.kind === 'draw') return 'Draw';
   return result.winner === player ? 'Winner' : null;
 }

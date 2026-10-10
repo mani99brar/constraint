@@ -452,7 +452,7 @@ export const MATERIALS: readonly { readonly name: string; readonly selectors: re
   // The wood of the board frame (its A–D and 1–4 labels) and of the home screen's wordmark plaque.
   { name: 'wood', selectors: ['.board-frame', '.wordmark'], stops: ['frame', 'frame-grain', 'frame-sheen'], text: ['on-frame'] },
   // Cards, lit nameplates, buttons, the Match card, the scoreboard's scores (in each player's colour), the end card and the dialogs.
-  { name: 'card', selectors: ['.material-card', 'button', '.seat.lit', '.score-side'], stops: ['surface', 'surface-2'], text: ['text', 'muted', 'primary', 'refusal', 'p1', 'p2'] },
+  { name: 'card', selectors: ['.material-card', 'button', '.seat.lit', '.match-card'], stops: ['surface', 'surface-2'], text: ['text', 'muted', 'primary', 'refusal', 'p1', 'p2'] },
   // A dimmed nameplate, a shade darker.
   { name: 'dim plate', selectors: ['.seat', '.seat.dimmed'], stops: ['surface-2', 'surface-3'], text: ['text', 'muted'] },
 ];
