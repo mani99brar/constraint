@@ -2294,6 +2294,255 @@ button:disabled {
   --sc: color-mix(in srgb, var(--sa) 60%, var(--shine));
 }
 
+
+/* ===== The neon family (Night Circuit, Neon Frost, Synth Horizon, Midnight Aurora) =====
+   Dark glass tiles with a neon rim in the terrain's own ink, flat glowing tokens, a slab for a frame, and
+   a generated backdrop per theme. Glows are box-shadows; no filter ever touches a cell. */
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) body,
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .match,
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .home {
+  background-image:
+    var(--art-grain),
+    radial-gradient(60% 38% at 12% 6%, color-mix(in srgb, var(--ground-glow) 70%, transparent), transparent 72%),
+    radial-gradient(55% 40% at 98% 36%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 72%),
+    radial-gradient(60% 42% at 30% 100%, color-mix(in srgb, var(--p2) 22%, transparent), transparent 72%),
+    radial-gradient(ellipse 125% 110% at 50% 46%, transparent 58%, var(--ground-edge));
+  background-size: 180px 180px, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+  background-blend-mode: soft-light, normal, normal, normal, normal;
+}
+
+:root[data-palette='neon-frost'] body,
+:root[data-palette='neon-frost'] .match,
+:root[data-palette='neon-frost'] .home {
+  background-image:
+    var(--art-grain),
+    radial-gradient(ellipse 80% 46% at 50% 100%, color-mix(in srgb, var(--p2) 30%, transparent), transparent 70%),
+    radial-gradient(ellipse 100% 60% at 50% 0%, var(--ground-glow), transparent 70%);
+  background-size: 180px 180px, 100% 100%, 100% 100%;
+}
+
+:root[data-palette='synth-horizon'] body,
+:root[data-palette='synth-horizon'] .match,
+:root[data-palette='synth-horizon'] .home {
+  background-image:
+    var(--art-grain),
+    var(--art-sun),
+    var(--art-floor),
+    linear-gradient(180deg, var(--ground) 0, var(--ground-glow) 38%, color-mix(in srgb, var(--primary) 60%, var(--ground)) 64%, var(--ground) 66%);
+  background-size: 180px 180px, 200px 100px, 100% 210px, 100% 100%;
+  background-position: 0 0, 50% 8%, 50% 100%, 0 0;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+}
+
+:root[data-palette='midnight-aurora'] body,
+:root[data-palette='midnight-aurora'] .match,
+:root[data-palette='midnight-aurora'] .home {
+  background-image: var(--art-grain), var(--art-aurora), var(--art-stars), radial-gradient(ellipse 80% 50% at 50% 30%, var(--ground-glow), transparent 75%);
+  background-size: 180px 180px, 100% 100%, 100% 100%, 100% 100%;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+}
+
+/* The frame: a dark slab with a neon rim. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board-frame {
+  background-image: linear-gradient(160deg, var(--frame-sheen), var(--frame) 40%, var(--frame-grain));
+  border: 2px solid var(--frame-edge);
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--frame-edge) 35%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--frame-edge) 40%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board {
+  box-shadow: inset 0 0 14px color-mix(in srgb, var(--shade) 60%, transparent);
+}
+
+/* A tile: dark glass with a rim and a faint inner glow in its own ink; the scene sits on it. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell {
+  border: 1.5px solid color-mix(in srgb, var(--sa) 62%, transparent);
+  background-image: linear-gradient(150deg, color-mix(in srgb, var(--shine) 12%, transparent), transparent 45%);
+  box-shadow:
+    inset 0 0 14px color-mix(in srgb, var(--sa) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--shine) 30%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell.taken {
+  border-color: color-mix(in srgb, var(--shine) 14%, transparent);
+  box-shadow: inset 0 0 10px color-mix(in srgb, var(--shade) 70%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell.taken.last[data-owner='A'] {
+  box-shadow: inset 0 0 0 2px var(--p1), 0 0 12px color-mix(in srgb, var(--p1) 55%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell.taken.last[data-owner='B'] {
+  box-shadow: inset 0 0 0 2px var(--p2), 0 0 12px color-mix(in srgb, var(--p2) 55%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell.taken.winning {
+  box-shadow: inset 0 0 0 3px var(--win), 0 0 16px color-mix(in srgb, var(--win) 60%, transparent);
+}
+
+/* Legal tiles lift and glow in the mover's colour; the other free tiles are veiled back. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] {
+  border-color: var(--wash);
+  box-shadow:
+    0 0 0 1.5px var(--wash),
+    0 0 16px color-mix(in srgb, var(--wash) 70%, transparent),
+    0 7px 8px -4px color-mix(in srgb, var(--shade) 70%, transparent);
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-faded='true'] .tile-face::after {
+  background-color: color-mix(in srgb, var(--ground) 52%, transparent);
+}
+
+/* The emblem sits in its own bubble, larger and brighter. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .tile-symbol {
+  width: 38%;
+  top: 5%;
+  left: 5%;
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .emblem-svg circle {
+  fill: color-mix(in srgb, var(--chip) 82%, transparent);
+}
+
+/* Flat glowing tokens. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .token {
+  border-width: 3px;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--p1) 70%, transparent),
+    inset 0 -3px 2px color-mix(in srgb, var(--shade) 30%, transparent);
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .token.p2 {
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--p2) 70%, transparent),
+    inset 0 -3px 2px color-mix(in srgb, var(--shade) 30%, transparent);
+}
+
+/* Cards, seats and buttons: dark glass with a neon edge. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .match-card,
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .seat,
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .material-card,
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .end-screen,
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .dialog {
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--shine) 22%, transparent),
+    0 4px 14px color-mix(in srgb, var(--shade) 55%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .seat-p1.lit {
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--p1) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--shine) 22%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .seat-p2.lit {
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--p2) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--shine) 22%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .countdown-number {
+  color: var(--text);
+  text-shadow:
+    0 0 14px var(--primary),
+    0 0 40px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .win-stroke-line {
+  filter: drop-shadow(0 0 3px var(--win));
+}
+
+/* ----- Idle motion: one thing moves at a time, on the compositor only (transform and opacity) -----
+   While nothing is legal to take (the bot's turn, highlights off), a single tile at a time wakes: a
+   shimmer band crosses it and its far layer drifts 2 px, 0.8 s each, tile after tile round the board in
+   a 12.8 s cycle. While the player has legal tiles, the sweep rests and only the legal tiles breathe, all
+   together, in opacity. Placement and the legal lift are the table's own animations above. All of it is
+   off under reduced motion (and the legal glow stays, still). */
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board:not([data-glow-player]):not([data-end-kind]) .cell:not(.taken)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background-image: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--shine) 38%, transparent) 50%, transparent 65%);
+    transform: translateX(-110%);
+    opacity: 0;
+    animation: idle-shimmer 12.8s linear infinite;
+    animation-delay: calc(var(--i, 0) * 0.8s);
+  }
+
+  :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board:not([data-glow-player]):not([data-end-kind]) .cell:not(.taken) .scene-far {
+    animation: idle-drift 12.8s linear infinite;
+    animation-delay: calc(var(--i, 0) * 0.8s);
+  }
+
+  :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] .tile-face::before {
+    animation: legal-breathe 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes idle-shimmer {
+  0% {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+  5.5% {
+    transform: translateX(110%);
+    opacity: 1;
+  }
+  6.25%,
+  100% {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+}
+
+@keyframes idle-drift {
+  0%,
+  6.25%,
+  100% {
+    transform: translateX(0);
+  }
+  3% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes legal-breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The theme picker's colour dots. */
+.radio-switch .swatches {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.radio-switch .swatches i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text) 40%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

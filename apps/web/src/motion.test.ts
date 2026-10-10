@@ -19,7 +19,10 @@ const rules = [...css.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g,
 /** The end sequence's rules (PRD U10): the cells' and the stroke's data-end parts. */
 const isEndRule = (selector: string) => /\[data-end=/.test(selector);
 const endRules = rules.filter(({ selector }) => isEndRule(selector));
-const otherRules = rules.filter(({ selector }) => !isEndRule(selector));
+/** The neon family's idle motion: the only animations that loop, each in the no-preference block. */
+const isIdleRule = (body: string) => /animation(-delay)?:[^;]*(idle-shimmer|idle-drift|legal-breathe|\bcalc\(var\(--i)/.test(body);
+const idleRules = rules.filter(({ body }) => isIdleRule(body));
+const otherRules = rules.filter(({ selector, body }) => !isEndRule(selector) && !isIdleRule(body));
 
 /** Every declaration of a property across the given rules, without its `!important`. */
 function declarations(property: string, within = otherRules): string[] {
@@ -45,6 +48,25 @@ const rule = (selector: string) =>
     .filter((candidate) => candidate.selector === selector)
     .map((candidate) => candidate.body)
     .join(';');
+
+describe('the neon family’s idle motion', () => {
+  it('lives only in the no-preference block, moves by transform and opacity alone, and wakes one tile at a time', () => {
+    expect(idleRules.length).toBeGreaterThanOrEqual(3);
+    const block = /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{([\s\S]*?)\n\}\n/.exec(css)?.[1] ?? '';
+    for (const { selector } of idleRules) expect(block, selector).toContain(selector);
+    for (const name of ['idle-shimmer', 'idle-drift', 'legal-breathe']) {
+      const body = new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)\\s*\\}`).exec(css)?.[1] ?? '';
+      expect(body, name).not.toBe('');
+      const properties = [...body.matchAll(/([a-z-]+)\s*:/g)].map((match) => match[1]);
+      for (const property of properties) expect(['transform', 'opacity'], `${name} animates ${property}`).toContain(property);
+    }
+    // One tile at a time: 16 tiles at 0.8 s each fill the 12.8 s cycle, and the sweep rests while any tile is legal.
+    expect(css).toMatch(/idle-shimmer 12\.8s linear infinite/);
+    expect(css).toMatch(/animation-delay:\s*calc\(var\(--i, 0\) \* 0\.8s\)/);
+    expect(css).toMatch(/\.board:not\(\[data-glow-player\]\):not\(\[data-end-kind\]\) \.cell:not\(\.taken\)::after/);
+    expect(css).toMatch(/idle-shimmer \{[\s\S]*?5\.5%[\s\S]*?6\.25%/);
+  });
+});
 
 describe('reduced motion (PRD U8)', () => {
   it('turns off every animation and transition, pseudo-elements included', () => {
@@ -219,7 +241,8 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     expect(delays.every((delay, index) => index === 0 || delay > delays[index - 1]!)).toBe(true);
     expect(new Set(delays).size).toBe(11);
     expect(Math.max(...delays) + duration).toBeLessThan(400);
-    expect(css).not.toMatch(/animation-delay:\s*calc\(/);
+    // The pop has static delays only; the idle sweep's one calc() delay (by tile index) belongs to the neon family alone.
+    expect(css.replace(/animation-delay:\s*calc\(var\(--i, 0\) \* 0\.8s\)/g, "")).not.toMatch(/animation-delay:\s*calc\(/);
   });
 
   it('fades the other free tiles by a veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
