@@ -49,16 +49,16 @@ describe('refusal texts (PRD R3)', () => {
     const notEdge = all['not-edge'];
     expect(describeRefusal(notEdge.refusal, notEdge.state)).toMatch(/^\w+–\w+ is not an edge tile; the first take must come from the edge\.$/);
     const taken = all['cell-taken'];
-    expect(describeRefusal(taken.refusal, taken.state)).toMatch(/^\w+–\w+ at [A-D][1-4] was already taken; a token stands there now\.$/);
-    expect(describeRefusal(all['unknown-cell'].refusal, all['unknown-cell'].state)).toBe('Z9 is not a cell of the board.');
+    expect(describeRefusal(taken.refusal, taken.state)).toMatch(/^\w+–\w+ was already taken; a token stands there now\.$/);
+    expect(describeRefusal(all['unknown-cell'].refusal, all['unknown-cell'].state)).toBe('That is not a tile of the board.');
     expect(describeRefusal(all['game-over'].refusal, all['game-over'].state)).toBe('The game is over: no more tiles can be taken.');
   });
 
   it('has a one-line phone form for every refusal kind, chosen by the kind and naming the tiles briefly', () => {
     const forms = Object.fromEntries(Object.entries(all).map(([code, { refusal }]) => [code, shortRefusal(refusal)]));
     expect(forms['not-edge']).toBe('Edge tiles only at the start');
-    expect(forms['cell-taken']).toBe(`${(all['cell-taken'].refusal as { cell: CellId }).cell} is already taken`);
-    expect(forms['unknown-cell']).toBe('Z9 is not a cell');
+    expect(forms['cell-taken']).toBe('That tile is already taken');
+    expect(forms['unknown-cell']).toBe('Not a tile');
     expect(forms['game-over']).toBe('The game is over');
     expect(shortRefusal({ code: 'no-match', cell: 'B2', tile: { terrain: 'Desert', symbol: 'Moon' }, lastTile: { terrain: 'Forest', symbol: 'Star' } })).toBe("Desert–Moon doesn't match Forest–Star");
     // Each fits one phone line: the longest tile names together stay under 42 characters.
@@ -73,6 +73,28 @@ describe('refusal texts (PRD R3)', () => {
   });
 });
 
+describe('where a win is, in words and never as coordinates (the board shows none)', () => {
+  const win = (by: 'line' | 'square', cells: readonly string[]) => ({ result: { kind: 'win', winner: 'A', by, cells } as never, lastTile: null });
+  it.each([
+    ['line', ['B1', 'B2', 'B3', 'B4'], 'Your four tokens fill the second row from the top.'],
+    ['line', ['A3', 'B3', 'C3', 'D3'], 'Your four tokens fill the third column from the left.'],
+    ['line', ['A4', 'B3', 'C2', 'D1'], 'Your four tokens run corner to corner, from top right to bottom left.'],
+    ['square', ['A1', 'A2', 'B1', 'B2'], 'Your four tokens make a 2×2 square at the top left.'],
+    ['square', ['C3', 'C4', 'D3', 'D4'], 'Your four tokens make a 2×2 square at the bottom right.'],
+    ['square', ['B1', 'B2', 'C1', 'C2'], 'Your four tokens make a 2×2 square at the middle left.'],
+  ] as const)('says %s %j: %s', (by, cells, sentence) => {
+    expect(resultDetail(win(by, cells), versusBot('normal'))).toBe(sentence);
+    expect(sentence).not.toMatch(/\b[A-D][1-4]\b/);
+  });
+
+  it('puts no coordinate in any visible refusal, result or toast text', () => {
+    for (const code of ['cell-taken', 'not-edge', 'no-match', 'unknown-cell'] as const) {
+      const short = shortRefusal({ code, cell: 'B3', tile: { terrain: 'Forest', symbol: 'Star' }, lastTile: { terrain: 'Desert', symbol: 'Moon' } } as never);
+      expect(short, code).not.toMatch(/\b[A-D][1-4]\b/);
+    }
+  });
+});
+
 describe('end texts (PRD R4)', () => {
   const forest = { terrain: 'Forest', symbol: 'Star' } as const;
   const bot = versusBot('normal');
@@ -82,11 +104,11 @@ describe('end texts (PRD R4)', () => {
   const draw = { kind: 'draw', by: 'full-board' } as const;
 
   const botCases: readonly [GameResult, string, string][] = [
-    [line('A'), 'You win by a line', 'Your tokens on A1, B2, C3 and D4 make a line.'],
-    [square('A'), 'You win by a square', 'Your tokens on B2, B3, C2 and C3 fill a 2×2 square.'],
+    [line('A'), 'You win by a line', 'Your four tokens run corner to corner, from top left to bottom right.'],
+    [square('A'), 'You win by a square', 'Your four tokens make a 2×2 square in the centre.'],
     [blockade('A'), 'You win by blockade', 'No tile left on the board matches Forest–Star, so the bot cannot take one and loses.'],
-    [line('B'), 'The bot wins by a line', "The bot's tokens on A1, B2, C3 and D4 make a line."],
-    [square('B'), 'The bot wins by a square', "The bot's tokens on B2, B3, C2 and C3 fill a 2×2 square."],
+    [line('B'), 'The bot wins by a line', "The bot's four tokens run corner to corner, from top left to bottom right."],
+    [square('B'), 'The bot wins by a square', "The bot's four tokens make a 2×2 square in the centre."],
     [blockade('B'), 'The bot wins by blockade', 'No tile left on the board matches Forest–Star, so you cannot take one and lose.'],
     [draw, 'Draw: the board is full', 'All 16 cells hold tokens and nobody made a line or a square.'],
   ];
@@ -97,11 +119,11 @@ describe('end texts (PRD R4)', () => {
   });
 
   const pairCases: readonly [GameResult, string, string][] = [
-    [line('A'), 'Player 1 wins by a line', "Player 1's tokens on A1, B2, C3 and D4 make a line."],
-    [square('A'), 'Player 1 wins by a square', "Player 1's tokens on B2, B3, C2 and C3 fill a 2×2 square."],
+    [line('A'), 'Player 1 wins by a line', "Player 1's four tokens run corner to corner, from top left to bottom right."],
+    [square('A'), 'Player 1 wins by a square', "Player 1's four tokens make a 2×2 square in the centre."],
     [blockade('A'), 'Player 1 wins by blockade', 'No tile left on the board matches Forest–Star, so Player 2 cannot take one and loses.'],
-    [line('B'), 'Player 2 wins by a line', "Player 2's tokens on A1, B2, C3 and D4 make a line."],
-    [square('B'), 'Player 2 wins by a square', "Player 2's tokens on B2, B3, C2 and C3 fill a 2×2 square."],
+    [line('B'), 'Player 2 wins by a line', "Player 2's four tokens run corner to corner, from top left to bottom right."],
+    [square('B'), 'Player 2 wins by a square', "Player 2's four tokens make a 2×2 square in the centre."],
     [blockade('B'), 'Player 2 wins by blockade', 'No tile left on the board matches Forest–Star, so Player 1 cannot take one and loses.'],
     [draw, 'Draw: the board is full', 'All 16 cells hold tokens and nobody made a line or a square.'],
   ];

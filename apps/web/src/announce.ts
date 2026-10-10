@@ -5,7 +5,7 @@ import { turnLabel } from './seats';
 import { resultSummary, tileName } from './text';
 
 /**
- * The newest take in words, for the bot's take toast and the announcements (PRD U3, I3):
+ * The newest take in words, for the announcements, which keep the cell for screen readers (PRD U3, I3):
  * "Bot took D3, Desert–Star", "You took A1, Forest–Sun" or "Player 2 took B2, Water–Moon"; null before the first.
  */
 export function takeText(state: GameState, mode: GameMode): string | null {
@@ -16,10 +16,10 @@ export function takeText(state: GameState, mode: GameMode): string | null {
   return `${shortName(mode, taker)} took ${cell}, ${tileName(tileAt(state, cell))}`;
 }
 
-/** The newest take in a few words, for a phone's toast: "Bot took D3"; null before the first. */
-export function takeShortText(state: GameState, mode: GameMode): string | null {
+/** The newest take for the bot's toast, naming the tile and no coordinates, which the board no longer shows: "Bot took Desert–Star"; null before the first. */
+export function takeToastText(state: GameState, mode: GameMode): string | null {
   const cell = state.takes[state.takes.length - 1];
-  return cell ? `${shortName(mode, otherPlayer(state.toMove))} took ${cell}` : null;
+  return cell ? `${shortName(mode, otherPlayer(state.toMove))} took ${tileName(tileAt(state, cell))}` : null;
 }
 
 function starterLine(state: GameState, mode: GameMode): string {

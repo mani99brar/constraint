@@ -1,6 +1,6 @@
 import { HUMAN } from './match';
 import type { GameState } from '@okiya/game';
-import { takeShortText, takeText } from './announce';
+import { takeToastText } from './announce';
 import type { GameMode } from './mode';
 import type { SoundEffect } from './sound';
 import { takeToast, type ToastSpec } from './toasts';
@@ -26,7 +26,7 @@ export function takeFeedback(state: GameState, heardTakes: number, mode: GameMod
   // The engine passes the turn on every take, the last one included, so the player to move did not
   // make the newest take. Player 2's takes, the bot's included, sound lower.
   const byPlayerTwo = state.toMove === 'A';
-  const toasts = mode.kind === 'bot' && byPlayerTwo ? [takeToast(takeText(state, mode)!, takeShortText(state, mode)!)] : [];
+  const toasts = mode.kind === 'bot' && byPlayerTwo ? [takeToast(takeToastText(state, mode)!)] : [];
   const { result } = state;
   if (result) {
     const sound: SoundEffect = result.kind === 'draw' ? 'draw' : mode.kind === 'bot' && result.winner !== HUMAN ? 'loss' : 'win';

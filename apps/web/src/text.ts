@@ -1,15 +1,9 @@
-import { otherPlayer, tileAt, type CellId, type GameResult, type GameState, type Player, type TakeRefusal, type Tile } from '@okiya/game';
+import { otherPlayer, ROWS, tileAt, type CellId, type GameResult, type GameState, type Player, type TakeRefusal, type Tile } from '@okiya/game';
 import { HUMAN } from './match';
 import { possessive, shortName, type GameMode } from './mode';
 
 export function tileName(tile: Tile): string {
   return `${tile.terrain}–${tile.symbol}`;
-}
-
-/** A list of cells in words, for example "A1, B2, C3 and D4". */
-export function cellList(cells: readonly CellId[]): string {
-  if (cells.length <= 1) return cells.join('');
-  return `${cells.slice(0, -1).join(', ')} and ${cells[cells.length - 1]}`;
 }
 
 /**
@@ -21,9 +15,9 @@ export function describeRefusal(refusal: TakeRefusal, state: GameState): string 
     case 'game-over':
       return 'The game is over: no more tiles can be taken.';
     case 'unknown-cell':
-      return `${refusal.cell} is not a cell of the board.`;
+      return 'That is not a tile of the board.';
     case 'cell-taken':
-      return `${tileName(tileAt(state, refusal.cell))} at ${refusal.cell} was already taken; a token stands there now.`;
+      return `${tileName(tileAt(state, refusal.cell))} was already taken; a token stands there now.`;
     case 'not-edge':
       return `${tileName(tileAt(state, refusal.cell))} is not an edge tile; the first take must come from the edge.`;
     case 'no-match':
@@ -35,7 +29,7 @@ export function describeRefusal(refusal: TakeRefusal, state: GameState): string 
 
 /**
  * A refusal in one short line for a phone's toast (PRD R3, U6), chosen by its kind: "Edge tiles only at
- * the start", "D3 is already taken" or "Desert–Moon doesn't match Forest–Star". The full reason stays in
+ * the start", "That tile is already taken" or "Desert–Moon doesn't match Forest–Star". The full reason stays in
  * the announcement.
  */
 export function shortRefusal(refusal: TakeRefusal): string {
@@ -43,9 +37,9 @@ export function shortRefusal(refusal: TakeRefusal): string {
     case 'game-over':
       return 'The game is over';
     case 'unknown-cell':
-      return `${refusal.cell} is not a cell`;
+      return 'Not a tile';
     case 'cell-taken':
-      return `${refusal.cell} is already taken`;
+      return 'That tile is already taken';
     case 'not-edge':
       return 'Edge tiles only at the start';
     case 'no-match':
@@ -96,6 +90,27 @@ export function resultDetail(state: Pick<GameState, 'result' | 'lastTile'>, mode
   }
   const owner = possessive(mode, result.winner);
   const whose = owner === 'your' ? 'Your' : owner === "bot's" ? "The bot's" : owner;
-  const shape = result.by === 'line' ? 'make a line' : 'fill a 2×2 square';
-  return `${whose} tokens on ${cellList(result.cells)} ${shape}.`;
+  return `${whose} four tokens ${result.by === 'line' ? lineWords(result.cells) : squareWords(result.cells)}.`;
+}
+
+const ORDINALS = ['first', 'second', 'third', 'fourth'] as const;
+
+/** Where a winning line runs, in words the board shows without coordinates: "fill the second row", "fill the third column", "run corner to corner". */
+function lineWords(cells: readonly CellId[]): string {
+  const rows = new Set(cells.map((cell) => ROWS.indexOf(cell[0] as (typeof ROWS)[number])));
+  const columns = new Set(cells.map((cell) => Number(cell[1]) - 1));
+  if (rows.size === 1) return `fill the ${ORDINALS[[...rows][0]!]} row from the top`;
+  if (columns.size === 1) return `fill the ${ORDINALS[[...columns][0]!]} column from the left`;
+  const [first] = cells.slice().sort();
+  return first!.endsWith('1') ? 'run corner to corner, from top left to bottom right' : 'run corner to corner, from top right to bottom left';
+}
+
+/** Where a winning 2×2 square sits: "make a 2×2 square at the top left", "in the centre". */
+function squareWords(cells: readonly CellId[]): string {
+  const row = Math.min(...cells.map((cell) => ROWS.indexOf(cell[0] as (typeof ROWS)[number])));
+  const column = Math.min(...cells.map((cell) => Number(cell[1]) - 1));
+  const vertical = ['top', 'middle', 'bottom'][row]!;
+  const horizontal = ['left', 'centre', 'right'][column]!;
+  if (vertical === 'middle' && horizontal === 'centre') return 'make a 2×2 square in the centre';
+  return `make a 2×2 square at the ${vertical === 'middle' ? 'middle' : vertical} ${horizontal}`;
 }
