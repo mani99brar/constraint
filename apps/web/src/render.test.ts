@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { legalTakes, newGame, type GameState } from '@okiya/game';
 import { turnAnnouncement } from './announce';
 import { boardModel } from './boardModel';
+import { matchCardModel } from './matchCard';
 import { MatchScreen } from './MatchScreen';
 import { TWO_PLAYERS, versusBot, type GameMode } from './mode';
 import { afterTakes, endings } from './playouts.test-helper';
@@ -22,8 +23,8 @@ function decode(html: string): string {
 
 const normal = versusBot('normal');
 
-const renderMatch = (state: GameState, { mode = normal, highlights = true, tileNames = false, score = NO_SCORE }: { mode?: GameMode; highlights?: boolean; tileNames?: boolean; score?: Score } = {}) =>
-  decode(renderToStaticMarkup(createElement(MatchScreen, { initialState: state, mode, score, settings: { ...DEFAULT_SETTINGS, highlights, tileNames }, onPlayAgain: () => {}, onLeave: () => {} })));
+const renderMatch = (state: GameState, { mode = normal, highlights = true, tileNames = false, score = NO_SCORE, backdrop = true }: { mode?: GameMode; highlights?: boolean; tileNames?: boolean; score?: Score; backdrop?: boolean } = {}) =>
+  decode(renderToStaticMarkup(createElement(MatchScreen, { initialState: state, mode, score, settings: { ...DEFAULT_SETTINGS, highlights, tileNames, backdrop }, onPlayAgain: () => {}, onLeave: () => {} })));
 
 describe('the match screen (PRD U1, U2, §5.8)', () => {
   const state = afterTakes(4, 4);
@@ -67,6 +68,19 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(html).not.toMatch(/>Wins</);
     expect(html).not.toContain('seat-A-score');
     for (const heading of ['Log', 'Last actions', 'Status', 'Settings', 'Legend']) expect(html).not.toMatch(new RegExp(`<h[1-6][^>]*>${heading}</h`));
+  });
+
+  it('puts one hidden backdrop behind the table, keyed to the terrain the next take needs, none before the first take, and none when switched off', () => {
+    const last = matchCardModel(state);
+    expect(html).toContain('class="backdrop" aria-hidden="true"');
+    expect(html).toContain(`data-terrain="${last.terrain}"`);
+    expect(html.match(/class="backdrop-layer terrain-/g)).toHaveLength(4);
+    expect(html).toContain('data-backdrop="true"');
+    const opening = renderMatch(afterTakes(4, 0));
+    expect(/<div class="backdrop"[^>]*>/.exec(opening)![0]).not.toContain('data-terrain');
+    const off = renderMatch(state, { backdrop: false });
+    expect(off).not.toContain('class="backdrop"');
+    expect(off).toContain('data-backdrop="false"');
   });
 
   it('keeps the seats out of the Tab order: they hold no button or link', () => {

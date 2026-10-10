@@ -20,9 +20,11 @@ const rules = [...css.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g,
 const isEndRule = (selector: string) => /\[data-end=/.test(selector);
 const endRules = rules.filter(({ selector }) => isEndRule(selector));
 /** The scenes' motion inside the tiles: the only animations that loop, each in the no-preference block. */
-const isIdleRule = (selector: string) => /^\.board \.cell \.sc-/.test(selector);
+const isIdleRule = (selector: string) => /^(\.board \.cell|\.terrain-thumb|\.chip-emblem \[|:root\[data-hidden\])/.test(selector) && !/^\.board \.cell(\.|\[data-glow|:)/.test(selector) && !/^\.board \.cell \.(tile|token)/.test(selector);
 const idleRules = rules.filter(({ selector }) => isIdleRule(selector));
-const otherRules = rules.filter(({ selector }) => !isEndRule(selector) && !isIdleRule(selector));
+/** The terrain backdrop's one slow crossfade (600 ms, opacity only), the other exception to the 400 ms rule. */
+const backdropRules = rules.filter(({ selector }) => selector === '.backdrop-layer');
+const otherRules = rules.filter(({ selector }) => !isEndRule(selector) && !isIdleRule(selector) && selector !== '.backdrop-layer');
 
 /** Every declaration of a property across the given rules, without its `!important`. */
 function declarations(property: string, within = otherRules): string[] {
@@ -50,25 +52,62 @@ const rule = (selector: string) =>
     .join(';');
 
 describe('the motion inside the tile art', () => {
-  it('lives only in the no-preference block, moves by transform and opacity alone, each tile on its own phase, and never touches the legal highlight', () => {
-    expect(idleRules.length).toBeGreaterThanOrEqual(8);
+  it('lives only in the no-preference block, moves by transform and opacity alone, each tile on its own phase, and never touches the legal outline', () => {
+    expect(idleRules.length).toBeGreaterThanOrEqual(12);
     const block = /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{([\s\S]*?)\n\}\n/.exec(css)?.[1] ?? '';
     for (const { selector } of idleRules) expect(block, selector).toContain(selector);
-    for (const name of ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-pulse', 'scene-flicker']) {
+    const names = ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-pulse', 'scene-flicker', 'scene-spin', 'scene-twinkle', 'scene-rock', 'scene-slide', 'scene-glint', 'scene-halo'];
+    for (const name of names) {
       const body = new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)\\s*\\}`).exec(css)?.[1] ?? '';
       expect(body, name).not.toBe('');
       const properties = [...body.matchAll(/([a-z-]+)\s*:/g)].map((match) => match[1]);
       for (const property of properties) expect(['transform', 'opacity'], `${name} animates ${property}`).toContain(property);
     }
-    // Every scene animation sits on a board cell's own part of the art, with a negative delay by the cell's index.
+    // Every animation here is one of those keyframes, and a board tile's scene part has a negative delay by the tile's index.
     for (const { selector, body } of idleRules) {
-      expect(selector, selector).toMatch(/^\.board \.cell \.sc-/);
+      for (const value of declarations('animation', [{ selector, body }])) expect(names.some((name) => value.startsWith(name)), `${selector}: ${value}`).toBe(true);
       if (/animation-delay/.test(body)) expect(body, selector).toMatch(/animation-delay:\s*calc\(var\(--i, 0\) \* -\d/);
     }
-    // The scenes rest while the tab is hidden; the card has no sweep over it, and the highlight no loop.
-    expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \* \{\s*animation-play-state:\s*paused/);
+    // The scenes rest while the tab is hidden; the card has no sweep over it, and the outline no loop.
+    expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \*,/);
     expect(css).not.toMatch(/idle-shimmer|idle-drift|legal-breathe/);
     expect(rule(".cell[data-glow='true'] .tile-face::before")).not.toMatch(/animation/);
+    // No second ring: the same-symbol cue lights the symbol itself, in a square box, so it is a circle at any size.
+    expect(css).not.toMatch(/scene-ring/);
+    expect(rule('.tile-symbol')).toMatch(/aspect-ratio:\s*1/);
+    expect(rule('.tile-symbol .emblem-svg')).toMatch(/display:\s*block/);
+    expect(rule('.emblem-svg')).toMatch(/overflow:\s*visible/);
+    // Scenes move at a calm but lively pace: no loop longer than 25 s, none shorter than 2 s.
+    for (const { body } of idleRules) for (const ms of times(/animation(?:-duration)?\s*:\s*([^;]+)/.exec(body)?.[1] ?? '')) {
+      expect(ms).toBeGreaterThanOrEqual(2000);
+      expect(ms).toBeLessThanOrEqual(25_000);
+    }
+  });
+});
+
+describe('the terrain backdrop and the win outline', () => {
+  it('crossfades by opacity alone in 600 ms, is static otherwise, stays faint and sits behind the content', () => {
+    expect(backdropRules).toHaveLength(1);
+    expect(backdropRules[0]!.body).toMatch(/transition:\s*opacity 600ms/);
+    expect(declarations('animation', backdropRules)).toEqual([]);
+    expect(rule('.backdrop')).toMatch(/z-index:\s*-1/);
+    expect(rule('.backdrop')).toMatch(/pointer-events:\s*none/);
+    expect(rule('.match')).toMatch(/isolation:\s*isolate/);
+    const lit = /opacity:\s*([\d.]+)/.exec(rule(".backdrop[data-terrain='Forest'] .backdrop-layer[data-layer='Forest'],\n.backdrop[data-terrain='Water'] .backdrop-layer[data-layer='Water'],\n.backdrop[data-terrain='Mountain'] .backdrop-layer[data-layer='Mountain'],\n.backdrop[data-terrain='Desert'] .backdrop-layer[data-layer='Desert']"))?.[1];
+    expect(Number(lit)).toBeGreaterThanOrEqual(0.1);
+    expect(Number(lit)).toBeLessThanOrEqual(0.15);
+    expect(css).not.toMatch(/\.backdrop[^{]*\{[^}]*filter/);
+  });
+
+  it('draws the winning outline after, and more specifically than, both last-move rings, in the win colour', () => {
+    const last = css.lastIndexOf(".cell.taken.last[data-owner='B']");
+    const win = css.indexOf('.cell.taken.winning[data-owner] {');
+    expect(win).toBeGreaterThan(last);
+    expect(rule('.cell.taken.winning[data-owner]')).toMatch(/inset 0 0 0 3px var\(--win\)/);
+    const neonLast = css.lastIndexOf(".cell.taken.last[data-owner='B'] {");
+    const neonWin = css.lastIndexOf('.cell.taken.winning[data-owner] {');
+    expect(neonWin).toBeGreaterThan(neonLast);
+    expect(css.slice(neonWin - 330, neonWin)).toContain('data-palette');
   });
 });
 

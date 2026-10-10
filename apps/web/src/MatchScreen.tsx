@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CellId, GameState } from '@okiya/game';
 import { turnAnnouncement } from './announce';
+import { TerrainScene } from './art';
 import { Board } from './Board';
 import { boardModel } from './boardModel';
 import { EndScreen } from './EndScreen';
@@ -28,6 +29,8 @@ import { useClock } from './useClock';
 import { useCountdown } from './useCountdown';
 import { useGame } from './useGame';
 import { useToasts } from './useToasts';
+
+const TERRAINS = ['Forest', 'Water', 'Mountain', 'Desert'] as const;
 
 const SILENT: SoundPlayer = { unlock: () => {}, play: () => false };
 
@@ -124,6 +127,7 @@ export function MatchScreen(props: MatchScreenProps) {
     }
   }
 
+  const cardModel = matchCardModel(state);
   return (
     <main
       className={`match${state.result ? ' ended' : ''}`}
@@ -137,16 +141,26 @@ export function MatchScreen(props: MatchScreenProps) {
       data-end-shrinking={shrinking || undefined}
       data-timed={clockStart !== null || undefined}
       data-starting={start.counting || undefined}
+      data-backdrop={settings.backdrop}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === '--board-size') setShrinkDone(true);
       }}
     >
+      {settings.backdrop && (
+        <div className="backdrop" aria-hidden="true" data-testid="backdrop" data-terrain={cardModel.terrain ?? undefined}>
+          {TERRAINS.map((terrain) => (
+            <div key={terrain} className={`backdrop-layer terrain-${terrain.toLowerCase()}`} data-layer={terrain}>
+              <TerrainScene terrain={terrain} />
+            </div>
+          ))}
+        </div>
+      )}
       <h1 className="visually-hidden">Game</h1>
       <p className="visually-hidden" aria-live="polite" aria-atomic="true" data-testid="announcer">
         {turnAnnouncement(state, mode)}
       </p>
       <Scoreboard model={scoreboardModel(score, mode)}>
-        <MatchCard model={matchCardModel(state)} />
+        <MatchCard model={cardModel} />
       </Scoreboard>
       <TopBar onMenu={(opener) => setMenu({ opener })} />
       <div className="side side-a">

@@ -100,6 +100,13 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
             hint="A short 3, 2, 1 before a new game starts. A tap or Enter starts at once."
             onToggle={() => onSettings({ ...settings, countdown: !settings.countdown })}
           />
+          <Switch
+            label="Terrain backdrop"
+            testId="setting-backdrop"
+            on={settings.backdrop}
+            hint="A faint scene of the terrain the next take needs, behind the board. Off keeps the plain background."
+            onToggle={() => onSettings({ ...settings, backdrop: !settings.backdrop })}
+          />
           {haptics?.supported && (
             <Switch
               label="Haptics"

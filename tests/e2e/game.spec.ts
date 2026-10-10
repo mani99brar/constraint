@@ -564,7 +564,7 @@ test('[scenario:legal-turn] after the bot’s take its cell is marked and toaste
   expect(botCell.owner).toBe('B');
   expect(botCell.label).toBe(`${botCell.cell}, bot's token, last take`);
   expect(await readLastTile(page)).toEqual({ terrain: botCell.terrain, symbol: botCell.symbol });
-  await expect(takeToast(page)).toHaveText(`Bot took ${botCell.cell}, ${tile(botCell)}`);
+  await expect(takeToast(page)).toHaveText(`Bot took ${tile(botCell)}`);
   await expect(page.getByTestId('announcer')).toHaveText(`Bot took ${botCell.cell}, ${tile(botCell)}. Your move.`);
 
   // Exactly the free tiles sharing its terrain or symbol glow, in Player 1's colour.
@@ -825,7 +825,7 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
   await playToEnd(page, 20);
   // When the bot's take ends the game, that take is still toasted like any other (but never the result).
   const lastTake = (await readBoard(page)).find((cell) => cell.last)!;
-  if (lastTake.owner === 'B') await expect(takeToast(page)).toHaveText(`Bot took ${lastTake.cell}, ${tile(lastTake)}`);
+  if (lastTake.owner === 'B') await expect(takeToast(page)).toHaveText(`Bot took ${tile(lastTake)}`);
 
   // The end screen names the result and how it happened, once: no toast and no seat repeats it.
   const end = page.getByTestId('end-screen');
@@ -1093,9 +1093,9 @@ test('[scenario:sound-toggle] sound starts only after a user action, the menu’
   await takeGlowing(page);
   await waitForHumanTurn(page);
   const botCell = (await readBoard(page)).find((cell) => cell.owner === 'B')!;
-  await expect(takeToast(page)).toContainText(`Bot took ${botCell.cell}`);
+  await expect(takeToast(page)).toContainText(`Bot took ${tile(botCell)}`);
   await cellAt(page, botCell.cell).click();
-  await expect(refusalToast(page)).toHaveText(`${tile(botCell)} at ${botCell.cell} was already taken; a token stands there now.`);
+  await expect(refusalToast(page)).toHaveText(`${tile(botCell)} was already taken; a token stands there now.`);
   expect(await audio()).toEqual({ contexts: 0, tones: 0 });
   await attachScreenshot(page, testInfo, 'sound-toggle');
 

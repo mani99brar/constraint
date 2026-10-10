@@ -395,7 +395,7 @@ async function checkToastsBesideBoard(page: Page, viewport: 'wide' | 'phone', sh
   await waitForHumanTurn(page);
   await expect(takeToast(page)).toHaveCount(1);
   const botCell = (await readBoard(page)).find((cell) => cell.last)!;
-  if (viewport === 'phone') await expectOnePhoneToast(page, 'take', `Bot took ${botCell.cell}`);
+  if (viewport === 'phone') await expectOnePhoneToast(page, 'take', `Bot took ${botCell.terrain}–${botCell.symbol}`);
   const { illegal } = await legalFromPage(page);
   await cellAt(page, illegal[0]!.cell).click();
   await expect(refusalToast(page)).toBeVisible();
@@ -418,8 +418,8 @@ async function checkToastsBesideBoard(page: Page, viewport: 'wide' | 'phone', sh
     await expectOnePhoneToast(page, 'refusal', new RegExp(`^${illegal[0]!.terrain}–${illegal[0]!.symbol} doesn't match ${botCell.terrain}–${botCell.symbol}$`));
     // A tap on a taken cell: its own short form replaces the refusal before it.
     await cellAt(page, botCell.cell).click();
-    await expect(refusalToast(page)).toHaveText(new RegExp(`at ${botCell.cell} was already taken`));
-    await expectOnePhoneToast(page, 'refusal', `${botCell.cell} is already taken`);
+    await expect(refusalToast(page)).toHaveText(/was already taken/);
+    await expectOnePhoneToast(page, 'refusal', 'That tile is already taken');
     expect(await frameBox(page), viewport).toEqual(before);
   }
 

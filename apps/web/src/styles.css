@@ -72,6 +72,11 @@ p {
   flex: none;
 }
 
+/* An emblem's ring is drawn to the edge of its box; never clip it. */
+.emblem-svg {
+  overflow: visible;
+}
+
 .muted,
 .help {
   color: var(--muted);
@@ -1170,10 +1175,13 @@ button:disabled {
   top: 6%;
   left: 6%;
   width: 34%;
+  height: auto;
   aspect-ratio: 1;
+  line-height: 0;
 }
 
 .tile-symbol .emblem-svg {
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -2244,22 +2252,51 @@ button:disabled {
   }
 }
 
-/* Legal tiles show why: a bar along the foot for the same terrain, a ring round the emblem for the same
-   symbol, a bar and a ring for both. The reasons are drawn, so colour is never the only signal. */
+/* Legal tiles show why, inside the art and clear of the outline: a short bar under the scene for the same
+   terrain, a ring round the emblem for the same symbol, both for both. The reasons are drawn, so colour is
+   never the only signal; the tile's own outline is the same on every side whatever the reason. */
 .reason-bar {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 16%;
+  right: 16%;
+  bottom: 8%;
   z-index: 2;
-  height: 9%;
+  height: 4px;
+  border-radius: 4px;
   background-color: var(--wash);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--wash) 70%, transparent);
 }
 
-.cell[data-match='symbol'] .tile-symbol,
-.cell[data-match='both'] .tile-symbol {
+/* The same-symbol cue is the symbol itself lit: its disc fills with the mover's colour, its glyph turns
+   dark on it, and a soft round glow sits behind it. The tile-symbol box is square, so the disc and its
+   glow are perfect circles at any size; there is no second ring to drift out of line. */
+.cell[data-match='symbol'] .tile-symbol .emblem-svg circle,
+.cell[data-match='both'] .tile-symbol .emblem-svg circle {
+  fill: var(--wash);
+}
+
+.cell[data-match='symbol'] .tile-symbol .emblem-mark *,
+.cell[data-match='both'] .tile-symbol .emblem-mark * {
+  fill: var(--on-wash);
+}
+
+.cell[data-match='symbol'] .tile-symbol [data-shape='wave'] .emblem-mark *,
+.cell[data-match='both'] .tile-symbol [data-shape='wave'] .emblem-mark *,
+.cell[data-match='symbol'] .tile-symbol [data-shape='sun'] .emblem-mark path,
+.cell[data-match='both'] .tile-symbol [data-shape='sun'] .emblem-mark path {
+  fill: none;
+  stroke: var(--on-wash);
+}
+
+.cell[data-match='symbol'] .tile-symbol::after,
+.cell[data-match='both'] .tile-symbol::after {
+  content: '';
+  position: absolute;
+  inset: -35%;
+  z-index: -1;
   border-radius: 50%;
-  box-shadow: 0 0 0 3px var(--wash);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--wash) 55%, transparent), transparent 68%);
+  pointer-events: none;
 }
 
 /* The countdown: the board dims behind it, and the numeral stands large with no disc. */
@@ -2371,13 +2408,12 @@ button:disabled {
   text-shadow: 0 0 10px color-mix(in srgb, var(--primary) 70%, transparent);
 }
 
-/* The frame: a dark slab with a neon rim. */
+/* No frame: the board sits straight on the backdrop, on its dark well. */
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board-frame {
-  background-image: linear-gradient(160deg, var(--frame-sheen), var(--frame) 40%, var(--frame-grain));
-  border: 2px solid var(--frame-edge);
-  box-shadow:
-    0 0 22px color-mix(in srgb, var(--frame-edge) 35%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, var(--frame-edge) 40%, transparent);
+  background-image: none;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board {
@@ -2410,21 +2446,24 @@ button:disabled {
   box-shadow: inset 0 0 0 3px var(--win), 0 0 16px color-mix(in srgb, var(--win) 60%, transparent);
 }
 
-/* Legal tiles are the clearest thing on the board: a 3 px ring in the mover's colour (a 1 px border and a
-   2 px inner edge), a halo kept inside the gap so the bare well shows between tiles, a firmer tint, a
-   larger badge with the mover's mark, and the other free tiles veiled and their rims quieted. Never animated. */
+/* Legal tiles are the clearest thing on the board and look the same in every row and column: lifted, a
+   crisp 2 px ring in the mover's colour (a 1 px border and a 1 px inner edge) with a soft halo kept inside
+   the gap, a glow just inside the ring, a larger badge with the mover's mark, and the other free tiles
+   veiled with quieter rims. The outline itself never animates. */
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] {
   border-width: 1px;
   border-color: var(--wash);
   box-shadow:
-    0 0 calc(var(--gap) / 4) calc(var(--gap) / 6) color-mix(in srgb, var(--wash) 65%, transparent),
-    0 5px 0 color-mix(in srgb, var(--shade) 50%, transparent);
+    0 0 calc(var(--gap) / 4) calc(var(--gap) / 6) color-mix(in srgb, var(--wash) 60%, transparent),
+    0 6px 7px -3px color-mix(in srgb, var(--shade) 75%, transparent);
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] .tile-face::before {
-  background-color: color-mix(in srgb, var(--wash) 14%, transparent);
-  box-shadow: inset 0 0 0 2px var(--wash);
+  background-color: color-mix(in srgb, var(--wash) 10%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--wash),
+    inset 0 0 12px 1px color-mix(in srgb, var(--wash) 42%, transparent);
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .move-badge {
@@ -2448,7 +2487,7 @@ button:disabled {
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .emblem-svg circle {
-  fill: color-mix(in srgb, var(--chip) 82%, transparent);
+  fill: color-mix(in srgb, var(--chip) 86%, transparent);
 }
 
 /* Flat glowing tokens. */
@@ -2503,70 +2542,179 @@ button:disabled {
   filter: drop-shadow(0 0 3px var(--win));
 }
 
-/* ----- Scene motion: the art itself moves, slowly, inside its tile -----
+/* ----- Scene motion: the art itself moves, inside its tile -----
    Swells roll under a bobbing boat, clouds drift across the peaks, pines sway, the desert sun pulses and
-   heat lines flicker. Only transform and opacity change, each tile on its own negative delay (by its
-   index) so no two neighbours move together, and nothing moves faster than a few pixels a second. A
-   tile under a token has no scene to move. The scenes rest while the tab is hidden and under reduced
-   motion. The legal-tile highlight is never animated, so nothing washes it out. */
+   heat lines flicker, on every tile that still shows its scene. The same small motions play in the Match
+   card's chips (the terrain's scene, the symbol's emblem), and the legal tiles' reason marks breathe. Only
+   transform and opacity change, each tile on its own negative delay (by its index) so no two neighbours
+   move together. A tile under a token has no scene to move. The scenes rest while the tab is hidden and
+   under reduced motion. The legal tile's outline is never animated, so nothing washes it out. */
 
 @media (prefers-reduced-motion: no-preference) {
-  .board .cell .sc-swell-a {
-    animation: scene-roll 9s linear infinite;
+  .board .cell .sc-swell-a,
+  .terrain-thumb .sc-swell-a {
+    animation: scene-roll 5s linear infinite;
     animation-delay: calc(var(--i, 0) * -2.3s);
   }
 
-  .board .cell .sc-swell-b {
-    animation: scene-roll 14s linear infinite reverse;
+  .board .cell .sc-swell-b,
+  .terrain-thumb .sc-swell-b {
+    animation: scene-roll 8s linear infinite reverse;
     animation-delay: calc(var(--i, 0) * -3.1s);
   }
 
-  .board .cell .sc-boat {
+  .board .cell .sc-boat,
+  .terrain-thumb .sc-boat {
     transform-box: fill-box;
     transform-origin: 50% 90%;
-    animation: scene-bob 5.5s ease-in-out infinite;
+    animation: scene-bob 3.2s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -1.7s);
   }
 
-  .board .cell .sc-cloud-1 {
-    animation: scene-drift 26s linear infinite;
+  .board .cell .sc-cloud-1,
+  .terrain-thumb .sc-cloud-1 {
+    animation: scene-drift 15s linear infinite;
     animation-delay: calc(var(--i, 0) * -4.1s);
   }
 
-  .board .cell .sc-cloud-2 {
-    animation: scene-drift 38s linear infinite;
+  .board .cell .sc-cloud-2,
+  .terrain-thumb .sc-cloud-2 {
+    animation: scene-drift 22s linear infinite;
     animation-delay: calc(var(--i, 0) * -5.3s - 9s);
   }
 
-  .board .cell .sc-tree {
+  .board .cell .sc-tree,
+  .terrain-thumb .sc-tree {
     transform-box: fill-box;
     transform-origin: 50% 100%;
-    animation: scene-sway 6s ease-in-out infinite;
+    animation: scene-sway 3.6s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -1.3s);
   }
 
-  .board .cell .sc-tree-2 {
-    animation-duration: 7.5s;
+  .board .cell .sc-tree-2,
+  .terrain-thumb .sc-tree-2 {
+    animation-duration: 4.4s;
   }
 
-  .board .cell .sc-tree-3 {
-    animation-duration: 5s;
+  .board .cell .sc-tree-3,
+  .terrain-thumb .sc-tree-3 {
+    animation-duration: 3s;
   }
 
-  .board .cell .sc-sun {
+  .board .cell .sc-sun,
+  .terrain-thumb .sc-sun {
     transform-box: fill-box;
     transform-origin: 50% 50%;
-    animation: scene-pulse 5s ease-in-out infinite;
+    animation: scene-pulse 3s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -1.9s);
   }
 
-  .board .cell .sc-heat {
-    animation: scene-flicker 4s ease-in-out infinite;
+  .board .cell .sc-heat,
+  .terrain-thumb .sc-heat {
+    animation: scene-flicker 2.4s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -2.7s);
   }
 
-  :root[data-hidden] .board .cell .scene * {
+  /* The symbol's emblem in the Match card: a sun turning, a star twinkling, a moon rocking, a wave sliding. */
+  .chip-emblem .emblem-mark {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+  }
+
+  .chip-emblem [data-shape='sun'] .emblem-mark {
+    animation: scene-spin 14s linear infinite;
+  }
+
+  .chip-emblem [data-shape='star'] .emblem-mark {
+    animation: scene-twinkle 2.4s ease-in-out infinite;
+  }
+
+  .chip-emblem [data-shape='moon'] .emblem-mark {
+    animation: scene-rock 3.6s ease-in-out infinite;
+  }
+
+  .chip-emblem [data-shape='wave'] .emblem-mark {
+    animation: scene-slide 2.8s ease-in-out infinite;
+  }
+
+  /* The reasons on a legal tile breathe: the bar glints, the emblem's ring swells and fades. */
+  .board .cell .reason-bar {
+    transform-origin: 50% 50%;
+    animation: scene-glint 2s ease-in-out infinite;
+  }
+
+  .board .cell[data-match='symbol'] .tile-symbol::after,
+  .board .cell[data-match='both'] .tile-symbol::after {
+    animation: scene-halo 2s ease-in-out infinite;
+  }
+
+  :root[data-hidden] .board .cell .scene *,
+  :root[data-hidden] .terrain-thumb .scene *,
+  :root[data-hidden] .chip-emblem .emblem-mark,
+  :root[data-hidden] .board .cell .reason-bar {
     animation-play-state: paused;
+  }
+}
+
+@keyframes scene-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scene-twinkle {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.14);
+    opacity: 1;
+  }
+}
+
+@keyframes scene-rock {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes scene-slide {
+  0%,
+  100% {
+    transform: translateX(-1.2px);
+  }
+  50% {
+    transform: translateX(1.2px);
+  }
+}
+
+@keyframes scene-glint {
+  0%,
+  100% {
+    transform: scaleX(0.82);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scene-halo {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
   }
 }
 
@@ -2651,6 +2799,72 @@ button:disabled {
   border: 1px solid color-mix(in srgb, var(--text) 40%, transparent);
 }
 
+/* ===== Terrain backdrop: a faint scene of the terrain the next take needs, behind the board =====
+   One layer of four stacked scenes, only the needed terrain's visible, 13% bright and mixed toward grey so
+   the theme's own colours stay. A new terrain crossfades by opacity alone over 600 ms (none under reduced
+   motion); before the first take nothing shows, and after the game it keeps the last tile's terrain.
+   The scene is static: no per-frame work. */
+.match {
+  isolation: isolate;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.backdrop-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.backdrop-layer .scene {
+  width: 100%;
+  height: 100%;
+}
+
+.backdrop[data-terrain='Forest'] .backdrop-layer[data-layer='Forest'],
+.backdrop[data-terrain='Water'] .backdrop-layer[data-layer='Water'],
+.backdrop[data-terrain='Mountain'] .backdrop-layer[data-layer='Mountain'],
+.backdrop[data-terrain='Desert'] .backdrop-layer[data-layer='Desert'] {
+  opacity: 0.13;
+}
+
+.backdrop .backdrop-layer.terrain-forest {
+  --sa: color-mix(in srgb, var(--forest-ink) 55%, var(--grey));
+}
+
+.backdrop .backdrop-layer.terrain-water {
+  --sa: color-mix(in srgb, var(--water-ink) 55%, var(--grey));
+}
+
+.backdrop .backdrop-layer.terrain-mountain {
+  --sa: color-mix(in srgb, var(--mountain-ink) 55%, var(--grey));
+}
+
+.backdrop .backdrop-layer.terrain-desert {
+  --sa: color-mix(in srgb, var(--desert-ink) 55%, var(--grey));
+}
+
+/* The winning line beats the last-move ring on every tile of the line, whoever owns it: the win outline
+   is declared after, and more specifically than, both last-move rings. */
+.cell.taken.winning[data-owner] {
+  box-shadow:
+    inset 0 0 0 3px var(--win),
+    inset 0 3px 5px color-mix(in srgb, var(--shade) 30%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell.taken.winning[data-owner] {
+  box-shadow:
+    inset 0 0 0 3px var(--win),
+    0 0 16px color-mix(in srgb, var(--win) 60%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2673,8 +2887,8 @@ button:disabled {
 
 .cell[data-glow='true'] .tile-face::before {
   box-shadow:
-    inset 0 0 0 2px var(--wash),
-    inset 0 0 0 3.5px color-mix(in srgb, var(--shade) 55%, transparent);
+    inset 0 0 0 1px var(--wash),
+    inset 0 0 10px 1px color-mix(in srgb, var(--wash) 38%, transparent);
 }
 
 .win-stroke-line {
@@ -2691,8 +2905,4 @@ button:disabled {
   color: var(--text);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .board[data-glow-player] .cell:not([data-glow='true']) .scene * {
-    animation-play-state: paused;
-  }
-}
+

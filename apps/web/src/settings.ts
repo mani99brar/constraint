@@ -36,10 +36,12 @@ export interface Settings {
   readonly countdown: boolean;
   /** Haptic feedback for takes, refusals, the countdown and the result; on by default, off at first under reduced motion. */
   readonly haptics: boolean;
+  /** A faint scene of the terrain the next take needs, behind the board; on by default. */
+  readonly backdrop: boolean;
 }
 
 export const SETTINGS_KEY = 'okiya.settings';
-export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true, haptics: true };
+export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true };
 
 /**
  * The remembered settings; a missing or corrupt value falls back to the defaults, field by field, so
@@ -62,6 +64,7 @@ export function loadSettings(storage: KeyValueStorage | null, reducedMotion = fa
     clockB: isClockChoice(stored.clockB) ? stored.clockB : DEFAULT_SETTINGS.clockB,
     countdown: flag(stored.countdown, DEFAULT_SETTINGS.countdown),
     haptics: flag(stored.haptics, defaults.haptics),
+    backdrop: flag(stored.backdrop, defaults.backdrop),
   };
 }
 

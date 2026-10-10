@@ -136,8 +136,8 @@ export function SymbolEmblem({ symbol }: { symbol: TileSymbol }) {
   }
   return (
     <svg {...glyph} className="emblem-svg" data-shape={symbol.toLowerCase()}>
-      <circle cx="12" cy="12" r="11" fill="var(--chip)" stroke={color} strokeWidth="1.6" />
-      {mark}
+      <circle cx="12" cy="12" r="11.5" fill="var(--chip)" opacity="0.88" />
+      <g className="emblem-mark">{mark}</g>
     </svg>
   );
 }
