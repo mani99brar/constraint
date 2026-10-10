@@ -118,9 +118,7 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   for (const { name, viewport } of VIEWPORTS) {
     await page.setViewportSize(viewport);
     await expect(board(page)).toBeVisible();
-    // The neon themes glow over the gaps, so no bare well shows beside a ring; their rings are checked
-    // against the well by the unit tests of the tokens (RING_PAIRS), in the one dark set they have.
-    for (const palette of PALETTES.filter((id) => !['night-circuit', 'neon-frost', 'synth-horizon', 'midnight-aurora'].includes(id))) {
+    for (const palette of PALETTES) {
       for (const colorScheme of ['light', 'dark'] as const) {
         await page.emulateMedia({ colorScheme });
         await setPalette(page, palette);

@@ -19,10 +19,10 @@ const rules = [...css.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g,
 /** The end sequence's rules (PRD U10): the cells' and the stroke's data-end parts. */
 const isEndRule = (selector: string) => /\[data-end=/.test(selector);
 const endRules = rules.filter(({ selector }) => isEndRule(selector));
-/** The neon family's idle motion: the only animations that loop, each in the no-preference block. */
-const isIdleRule = (body: string) => /animation(-delay)?:[^;]*(idle-shimmer|idle-drift|legal-breathe|\bcalc\(var\(--i)/.test(body);
-const idleRules = rules.filter(({ body }) => isIdleRule(body));
-const otherRules = rules.filter(({ selector, body }) => !isEndRule(selector) && !isIdleRule(body));
+/** The scenes' motion inside the tiles: the only animations that loop, each in the no-preference block. */
+const isIdleRule = (selector: string) => /^\.board \.cell \.sc-/.test(selector);
+const idleRules = rules.filter(({ selector }) => isIdleRule(selector));
+const otherRules = rules.filter(({ selector }) => !isEndRule(selector) && !isIdleRule(selector));
 
 /** Every declaration of a property across the given rules, without its `!important`. */
 function declarations(property: string, within = otherRules): string[] {
@@ -49,22 +49,26 @@ const rule = (selector: string) =>
     .map((candidate) => candidate.body)
     .join(';');
 
-describe('the neon family’s idle motion', () => {
-  it('lives only in the no-preference block, moves by transform and opacity alone, and wakes one tile at a time', () => {
-    expect(idleRules.length).toBeGreaterThanOrEqual(3);
+describe('the motion inside the tile art', () => {
+  it('lives only in the no-preference block, moves by transform and opacity alone, each tile on its own phase, and never touches the legal highlight', () => {
+    expect(idleRules.length).toBeGreaterThanOrEqual(8);
     const block = /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{([\s\S]*?)\n\}\n/.exec(css)?.[1] ?? '';
     for (const { selector } of idleRules) expect(block, selector).toContain(selector);
-    for (const name of ['idle-shimmer', 'idle-drift', 'legal-breathe']) {
+    for (const name of ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-pulse', 'scene-flicker']) {
       const body = new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)\\s*\\}`).exec(css)?.[1] ?? '';
       expect(body, name).not.toBe('');
       const properties = [...body.matchAll(/([a-z-]+)\s*:/g)].map((match) => match[1]);
       for (const property of properties) expect(['transform', 'opacity'], `${name} animates ${property}`).toContain(property);
     }
-    // One tile at a time: 16 tiles at 0.8 s each fill the 12.8 s cycle, and the sweep rests while any tile is legal.
-    expect(css).toMatch(/idle-shimmer 12\.8s linear infinite/);
-    expect(css).toMatch(/animation-delay:\s*calc\(var\(--i, 0\) \* 0\.8s\)/);
-    expect(css).toMatch(/\.board:not\(\[data-glow-player\]\):not\(\[data-end-kind\]\) \.cell:not\(\.taken\)::after/);
-    expect(css).toMatch(/idle-shimmer \{[\s\S]*?5\.5%[\s\S]*?6\.25%/);
+    // Every scene animation sits on a board cell's own part of the art, with a negative delay by the cell's index.
+    for (const { selector, body } of idleRules) {
+      expect(selector, selector).toMatch(/^\.board \.cell \.sc-/);
+      if (/animation-delay/.test(body)) expect(body, selector).toMatch(/animation-delay:\s*calc\(var\(--i, 0\) \* -\d/);
+    }
+    // The scenes rest while the tab is hidden; the card has no sweep over it, and the highlight no loop.
+    expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \* \{\s*animation-play-state:\s*paused/);
+    expect(css).not.toMatch(/idle-shimmer|idle-drift|legal-breathe/);
+    expect(rule(".cell[data-glow='true'] .tile-face::before")).not.toMatch(/animation/);
   });
 });
 
@@ -241,8 +245,8 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     expect(delays.every((delay, index) => index === 0 || delay > delays[index - 1]!)).toBe(true);
     expect(new Set(delays).size).toBe(11);
     expect(Math.max(...delays) + duration).toBeLessThan(400);
-    // The pop has static delays only; the idle sweep's one calc() delay (by tile index) belongs to the neon family alone.
-    expect(css.replace(/animation-delay:\s*calc\(var\(--i, 0\) \* 0\.8s\)/g, "")).not.toMatch(/animation-delay:\s*calc\(/);
+    // The pop has static delays only; the scenes' calc() delays (by tile index) belong to the art inside the tiles alone.
+    expect(css.replace(/animation-delay:\s*calc\(var\(--i, 0\) \* -[\d.]+s( - \d+s)?\)/g, "")).not.toMatch(/animation-delay:\s*calc\(/);
   });
 
   it('fades the other free tiles by a veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {

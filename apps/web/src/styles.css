@@ -1335,7 +1335,7 @@ button:disabled {
 }
 
 .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 25%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 33%, transparent);
 }
 
 /* A taken cell shows the taker's token in a bare, sunken slot instead of its tile (PRD U1). */
@@ -2403,18 +2403,34 @@ button:disabled {
   box-shadow: inset 0 0 0 3px var(--win), 0 0 16px color-mix(in srgb, var(--win) 60%, transparent);
 }
 
-/* Legal tiles lift and glow in the mover's colour; the other free tiles are veiled back. */
+/* Legal tiles are the clearest thing on the board: a 3 px ring in the mover's colour (a 1 px border and a
+   2 px inner edge), a halo kept inside the gap so the bare well shows between tiles, a firmer tint, a
+   larger badge with the mover's mark, and the other free tiles veiled and their rims quieted. Never animated. */
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] {
+  border-width: 1px;
   border-color: var(--wash);
   box-shadow:
-    0 0 0 1.5px var(--wash),
-    0 0 16px color-mix(in srgb, var(--wash) 70%, transparent),
-    0 7px 8px -4px color-mix(in srgb, var(--shade) 70%, transparent);
+    0 0 calc(var(--gap) / 4) calc(var(--gap) / 6) color-mix(in srgb, var(--wash) 65%, transparent),
+    0 5px 0 color-mix(in srgb, var(--shade) 50%, transparent);
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] .tile-face::before {
+  background-color: color-mix(in srgb, var(--wash) 14%, transparent);
+  box-shadow: inset 0 0 0 2px var(--wash);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .move-badge {
+  width: 34%;
+  border-width: 2px;
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board[data-glow-player] .cell:not([data-glow='true']):not(.taken) {
+  border-color: color-mix(in srgb, var(--sa) 22%, transparent);
+}
+
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 52%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 58%, transparent);
 }
 
 /* The emblem sits in its own bubble, larger and brighter. */
@@ -2480,74 +2496,136 @@ button:disabled {
   filter: drop-shadow(0 0 3px var(--win));
 }
 
-/* ----- Idle motion: one thing moves at a time, on the compositor only (transform and opacity) -----
-   While nothing is legal to take (the bot's turn, highlights off), a single tile at a time wakes: a
-   shimmer band crosses it and its far layer drifts 2 px, 0.8 s each, tile after tile round the board in
-   a 12.8 s cycle. While the player has legal tiles, the sweep rests and only the legal tiles breathe, all
-   together, in opacity. Placement and the legal lift are the table's own animations above. All of it is
-   off under reduced motion (and the legal glow stays, still). */
+/* ----- Scene motion: the art itself moves, slowly, inside its tile -----
+   Swells roll under a bobbing boat, clouds drift across the peaks, pines sway, the desert sun pulses and
+   heat lines flicker. Only transform and opacity change, each tile on its own negative delay (by its
+   index) so no two neighbours move together, and nothing moves faster than a few pixels a second. A
+   tile under a token has no scene to move. The scenes rest while the tab is hidden and under reduced
+   motion. The legal-tile highlight is never animated, so nothing washes it out. */
 
 @media (prefers-reduced-motion: no-preference) {
-  :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board:not([data-glow-player]):not([data-end-kind]) .cell:not(.taken)::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    pointer-events: none;
-    background-image: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--shine) 38%, transparent) 50%, transparent 65%);
-    transform: translateX(-110%);
-    opacity: 0;
-    animation: idle-shimmer 12.8s linear infinite;
-    animation-delay: calc(var(--i, 0) * 0.8s);
+  .board .cell .sc-swell-a {
+    animation: scene-roll 9s linear infinite;
+    animation-delay: calc(var(--i, 0) * -2.3s);
   }
 
-  :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board:not([data-glow-player]):not([data-end-kind]) .cell:not(.taken) .scene-far {
-    animation: idle-drift 12.8s linear infinite;
-    animation-delay: calc(var(--i, 0) * 0.8s);
+  .board .cell .sc-swell-b {
+    animation: scene-roll 14s linear infinite reverse;
+    animation-delay: calc(var(--i, 0) * -3.1s);
   }
 
-  :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] .tile-face::before {
-    animation: legal-breathe 2.4s ease-in-out infinite;
+  .board .cell .sc-boat {
+    transform-box: fill-box;
+    transform-origin: 50% 90%;
+    animation: scene-bob 5.5s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -1.7s);
+  }
+
+  .board .cell .sc-cloud-1 {
+    animation: scene-drift 26s linear infinite;
+    animation-delay: calc(var(--i, 0) * -4.1s);
+  }
+
+  .board .cell .sc-cloud-2 {
+    animation: scene-drift 38s linear infinite;
+    animation-delay: calc(var(--i, 0) * -5.3s - 9s);
+  }
+
+  .board .cell .sc-tree {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: scene-sway 6s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -1.3s);
+  }
+
+  .board .cell .sc-tree-2 {
+    animation-duration: 7.5s;
+  }
+
+  .board .cell .sc-tree-3 {
+    animation-duration: 5s;
+  }
+
+  .board .cell .sc-sun {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: scene-pulse 5s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -1.9s);
+  }
+
+  .board .cell .sc-heat {
+    animation: scene-flicker 4s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -2.7s);
+  }
+
+  :root[data-hidden] .board .cell .scene * {
+    animation-play-state: paused;
   }
 }
 
-@keyframes idle-shimmer {
-  0% {
-    transform: translateX(-110%);
-    opacity: 0;
-  }
-  1% {
-    opacity: 1;
-  }
-  5.5% {
-    transform: translateX(110%);
-    opacity: 1;
-  }
-  6.25%,
-  100% {
-    transform: translateX(110%);
-    opacity: 0;
-  }
-}
-
-@keyframes idle-drift {
-  0%,
-  6.25%,
-  100% {
+@keyframes scene-roll {
+  from {
     transform: translateX(0);
   }
-  3% {
-    transform: translateX(2px);
+  to {
+    transform: translateX(32px);
   }
 }
 
-@keyframes legal-breathe {
+@keyframes scene-bob {
   0%,
   100% {
-    opacity: 0.7;
+    transform: translateY(0) rotate(-2deg);
   }
   50% {
+    transform: translateY(-1.6px) rotate(2deg);
+  }
+}
+
+@keyframes scene-drift {
+  0% {
+    transform: translateX(-22px);
+    opacity: 0;
+  }
+  12%,
+  88% {
     opacity: 1;
+  }
+  100% {
+    transform: translateX(80px);
+    opacity: 0;
+  }
+}
+
+@keyframes scene-sway {
+  0%,
+  100% {
+    transform: rotate(-1.8deg);
+  }
+  50% {
+    transform: rotate(1.8deg);
+  }
+}
+
+@keyframes scene-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 1;
+  }
+}
+
+@keyframes scene-flicker {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 

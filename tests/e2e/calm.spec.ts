@@ -110,8 +110,9 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
       expect(look.tintEdge.some((edge) => sameColour(edge, colour) && edge.a === 1), `${look.cell} ring's inner edge`).toBe(true);
       expect(sameColour(look.shadows[0]!, colour), `${look.cell} has a halo of the mover's colour`).toBe(true);
       expect(sameColour(look.tint, colour), `${look.cell} is tinted in the mover's colour`).toBe(true);
-      expect(look.tint.a, look.cell).toBeGreaterThanOrEqual(0.25);
-      expect(look.tint.a, look.cell).toBeLessThanOrEqual(0.35);
+      // A light wash (8 to 14%) so the tile's art still reads under it.
+      expect(look.tint.a, look.cell).toBeGreaterThanOrEqual(0.07);
+      expect(look.tint.a, look.cell).toBeLessThanOrEqual(0.2);
       expect(look.badge, look.cell).not.toBeNull();
       expect(sameColour(look.badge!.colour, colour), `${look.cell} badge`).toBe(true);
       expect(look.badge!.mark, look.cell).toBe(mover === 'A' ? 'ring' : 'diamond');
@@ -128,7 +129,7 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
     } else if (!look.glow) {
       expect(look.faded, look.cell).toBe(true);
       // A veil of the ground fades the art back.
-      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.45);
+      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.3);
       expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.65);
     }
   }
@@ -435,9 +436,10 @@ async function watchTheEnd(page: Page) {
 async function endNow(page: Page) {
   return page.evaluate(() => {
     const board = document.querySelector('[data-testid="board"]')!;
-    const all = document.getAnimations() as CSSAnimation[];
+    // The scenes' own slow loops inside the tiles are not part of the end sequence.
+    const all = (document.getAnimations() as CSSAnimation[]).filter((animation) => !String(animation.animationName ?? '').startsWith('scene-'));
     // The board's CSS animations: the sequence (transitions, such as a tile settling back, are not part of it).
-    const running = board.getAnimations({ subtree: true }).filter((animation) => animation instanceof CSSAnimation) as CSSAnimation[];
+    const running = board.getAnimations({ subtree: true }).filter((animation) => animation instanceof CSSAnimation && !animation.animationName.startsWith('scene-')) as CSSAnimation[];
     const lifts = [...board.querySelectorAll('[data-end="lift"]')].map((cell) => {
       const animation = cell.querySelector('[data-testid="token"]')!.getAnimations().find((candidate) => (candidate as CSSAnimation).animationName === 'end-lift');
       return { cell: cell.getAttribute('data-cell')!, order: Number(cell.getAttribute('data-lift-order')), delay: animation ? Number(animation.effect!.getTiming().delay) : null, state: animation?.playState ?? null };

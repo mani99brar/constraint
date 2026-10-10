@@ -71,6 +71,14 @@ export function App({ storage: given }: AppProps) {
   }, [sound]);
 
   useEffect(() => {
+    // The scenes on the tiles rest while the tab is hidden.
+    const mark = () => document.documentElement.toggleAttribute('data-hidden', document.hidden);
+    mark();
+    document.addEventListener('visibilitychange', mark);
+    return () => document.removeEventListener('visibilitychange', mark);
+  }, []);
+
+  useEffect(() => {
     // The colour theme (PRD U5): index.html sets it before the first paint; a new choice applies at once.
     document.documentElement.setAttribute('data-palette', settings.palette);
   }, [settings.palette]);
