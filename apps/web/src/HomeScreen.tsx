@@ -7,6 +7,7 @@ import type { ClockChoice } from './clock';
 import { ClockSlider } from './ClockSlider';
 import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
 import { MenuDialog } from './MenuDialog';
+import type { HapticsPlayer } from './haptics';
 import { RadioSwitch } from './RadioSwitch';
 import { OPPONENTS, type Opponent, type Settings } from './settings';
 import { TITLE } from './title';
@@ -24,6 +25,7 @@ export interface HomeScreenProps {
   readonly onHowTo: (opener: HTMLElement) => void;
   readonly onResetResults: () => void;
   readonly onSettings: (settings: Settings) => void;
+  readonly haptics?: HapticsPlayer;
 }
 
 /** The hero's little board: a fixed deal of the 16 tiles with a few tokens on it, drawn with the tile art. */
@@ -58,7 +60,7 @@ function HeroBoard() {
  * chosen, each player's clock while a friend is chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
  * Settings, which holds the results' reset. One tap on Play starts a game.
  */
-export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings }: HomeScreenProps) {
+export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings, haptics }: HomeScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
   return (
     <main className="home" data-testid="home-screen">
@@ -138,6 +140,7 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
           returnFocusTo={menu.opener}
           onResetResults={onResetResults}
           canReset={model.canReset}
+          haptics={haptics}
         />
       )}
     </main>

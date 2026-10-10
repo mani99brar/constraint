@@ -23,6 +23,7 @@ import { refusalToast } from './toasts';
 import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
 import { Countdown } from './Countdown';
+import { NO_HAPTICS, type HapticsPlayer } from './haptics';
 import { useClock } from './useClock';
 import { useCountdown } from './useCountdown';
 import { useGame } from './useGame';
@@ -38,6 +39,8 @@ export interface MatchScreenProps {
   readonly settings: Settings;
   readonly onSettings?: (settings: Settings) => void;
   readonly sound?: SoundPlayer;
+  /** Haptics for the same moments as the sounds, plus the countdown's ticks; none by default. */
+  readonly haptics?: HapticsPlayer;
   /** Hears every new state once, to save the game, count its result and update the score. */
   readonly onChange?: (state: GameState) => void;
   readonly onHowTo?: (opener: HTMLElement) => void;
@@ -60,7 +63,7 @@ export interface MatchScreenProps {
  * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
-  const { initialState, mode, score, settings, onSettings, sound = SILENT, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false } = props;
+  const { initialState, mode, score, settings, onSettings, sound = SILENT, haptics = NO_HAPTICS, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false } = props;
   const start = useCountdown(countdown && initialState.takes.length === 0 && !initialState.result);
   const { state, attempt, timeOut } = useGame(initialState, mode, onChange, start.counting);
   const [menu, setMenu] = useState<{ opener: HTMLElement | null } | null>(null);
@@ -92,8 +95,19 @@ export function MatchScreen(props: MatchScreenProps) {
     const feedback = takeFeedback(state, heard.current, mode);
     heard.current = state.takes.length;
     afterTake(feedback);
-    if (feedback.sound) sound.play(feedback.sound);
-  }, [state, mode, sound, afterTake]);
+    if (feedback.sound) {
+      sound.play(feedback.sound);
+      haptics.play(feedback.sound);
+    }
+  }, [state, mode, sound, haptics, afterTake]);
+
+  // The countdown ticks once for each of 3, 2, 1 and gives a firmer one when the game starts.
+  const counted = useRef(start.count);
+  useEffect(() => {
+    if (start.count === counted.current) return;
+    counted.current = start.count;
+    haptics.play(start.count > 0 ? 'tick' : 'go');
+  }, [start.count, haptics]);
 
   const board = boardModel(state, { mode, highlights: settings.highlights, tileNames: settings.tileNames, waiting: start.counting });
   // The avatars react to the last event, derived here from the takes and the refusals, never the board.
@@ -106,6 +120,7 @@ export function MatchScreen(props: MatchScreenProps) {
       setRefusal((previous) => ({ by: state.toMove, atTakes: state.takes.length, count: (previous?.count ?? 0) + 1 }));
       push([refusalToast(describeRefusal(refused, state), shortRefusal(refused))]);
       sound.play('refuse');
+      haptics.play('refuse');
     }
   }
 
@@ -163,6 +178,7 @@ export function MatchScreen(props: MatchScreenProps) {
           onSettings={(next) => onSettings?.(next)}
           onClose={() => setMenu(null)}
           returnFocusTo={menu.opener}
+          haptics={haptics}
           onHowTo={onHowTo}
           onQuit={onLeave}
         />

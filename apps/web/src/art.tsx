@@ -5,53 +5,69 @@ import type { Player, Terrain, TileSymbol } from '@okiya/game';
 
 const glyph = { 'aria-hidden': true, focusable: false, viewBox: '0 0 24 24' } as const;
 
-/** A terrain's scene, filling its tile behind the token: pines, waves, peaks or dunes. */
+/**
+ * A terrain's scene, filling its tile behind the token: pines on a ridge, a sailboat on swells, a
+ * snow-capped range or dunes with a cactus. Drawn in three tones of the terrain's ink (`--sa` the lit
+ * face, `--sb` the shade, `--sc` the highlight, set per terrain in styles.css) in two layers: `scene-far`
+ * (ridge, sail, sun) and `scene-near` (foreground), which the tile's idle motion drifts apart.
+ */
 export function TerrainScene({ terrain }: { terrain: Terrain }) {
-  const ink = `var(--${terrain.toLowerCase()}-ink)`;
-  const props = { 'aria-hidden': true, focusable: false, viewBox: '0 0 100 100', preserveAspectRatio: 'xMidYMid slice', className: 'scene' } as const;
+  const props = { 'aria-hidden': true, focusable: false, viewBox: '0 0 64 64', preserveAspectRatio: 'xMidYMid slice', className: 'scene' } as const;
+  const a = { fill: 'var(--sa)' };
+  const b = { fill: 'var(--sb)' };
+  const c = { fill: 'var(--sc)' };
   switch (terrain) {
     case 'Forest':
       return (
         <svg {...props} data-shape="pines">
-          <path d="M0 82q25-12 50-4t50-6v28H0z" fill={ink} opacity="0.28" />
-          {[
-            [22, 30, 1],
-            [78, 26, 0.9],
-            [64, 48, 0.75],
-          ].map(([x, y, s]) => (
-            <g key={x} transform={`translate(${x} ${y}) scale(${s})`} fill={ink} opacity="0.62">
-              <path d="M0-18 13 4H5l10 14H-15L-5 4h-8z" />
-              <rect x="-2.5" y="18" width="5" height="9" />
-            </g>
-          ))}
+          <g className="scene-far">
+            <path d="M-4 46 14 30 24 41 38 26 52 39 68 32V68H-4z" style={c} opacity=".5" />
+          </g>
+          <g className="scene-near">
+            <path d="M16 17 25 35H7zM16 27 27 47H5zM42 11 54 34H30zM42 24 57 50H27z" style={a} />
+            <path d="M57 30 63 42H51zM57 38 64 52H50z" style={b} />
+            <path d="M40 50h4v8h-4zM14 46h4v8h-4z" style={b} />
+            <path d="M-4 56Q32 47 68 56V68H-4z" style={b} />
+          </g>
         </svg>
       );
     case 'Water':
       return (
         <svg {...props} data-shape="waves">
-          <g fill="none" stroke={ink} strokeWidth="3.2" strokeLinecap="round" opacity="0.55">
-            <path d="M-4 22q8-7 16 0t16 0 16 0 16 0 16 0 16 0 16 0" />
-            <path d="M-12 50q8-7 16 0t16 0 16 0 16 0 16 0 16 0 16 0" opacity="0.7" />
-            <path d="M-4 78q8-7 16 0t16 0 16 0 16 0 16 0 16 0 16 0" />
+          <g className="scene-far">
+            <path d="M29 10v26H14zM33 14v22h13z" style={c} />
+            <path d="M12 38h38l-4 6H16z" style={b} />
           </g>
-          <path d="M80 62a9 6 0 1 1-1-.2l-8 3z" fill={ink} opacity="0.5" />
+          <g className="scene-near">
+            <path d="M-4 44q8-6 16 0t16 0 16 0 16 0 16 0V68H-4z" style={a} />
+            <path d="M-4 54q8-6 16 0t16 0 16 0 16 0 16 0V68H-4z" style={b} />
+            <path d="M6 49q4-3 8 0M36 58q4-3 8 0" fill="none" stroke="var(--sc)" strokeWidth="1.6" strokeLinecap="round" />
+          </g>
         </svg>
       );
     case 'Mountain':
       return (
         <svg {...props} data-shape="peaks">
-          <path d="M-6 92 30 30l18 28 14-20 44 54z" fill={ink} opacity="0.5" />
-          <path d="M30 30 21 46l7-3 4 5 5-6zM62 38l-7 10 6-2 4 4 4-5z" fill="var(--surface)" opacity="0.85" />
+          <g className="scene-far">
+            <path d="M-4 58 20 24l14 22 10-15 24 27z" style={a} />
+          </g>
+          <g className="scene-near">
+            <path d="M-6 68 26 16l32 52z" style={b} />
+            <path d="M26 16 18.5 31 23 29l3 6 4-6 4.5 2z" style={c} />
+            <path d="M26 16 40 40 32 68h-6z" fill="#000" opacity=".18" />
+          </g>
         </svg>
       );
     case 'Desert':
       return (
         <svg {...props} data-shape="dunes">
-          <path d="M-4 70q30-22 58-4t50-8v42H-4z" fill={ink} opacity="0.32" />
-          <path d="M-4 88q34-16 62-2t46-4v18H-4z" fill={ink} opacity="0.45" />
-          <g fill={ink} opacity="0.65" transform="translate(80 30)">
-            <rect x="-3" y="0" width="6" height="30" rx="3" />
-            <path d="M-3 16h-6a3 3 0 0 1-3-3V6a2.5 2.5 0 0 1 5 0v5h4zM3 12h5V4a2.5 2.5 0 0 1 5 0v8a4 4 0 0 1-4 4H3z" />
+          <g className="scene-far">
+            <circle cx="48" cy="16" r="7" style={c} opacity=".85" />
+          </g>
+          <g className="scene-near">
+            <path d="M-4 42Q20 28 40 40T68 36V68H-4z" style={a} />
+            <path d="M45 52V32a3 3 0 0 1 6 0v20zM45 42h-6v-6a3 3 0 0 1 6 0zM51 40h6v-7a3 3 0 0 0-6 0z" style={c} />
+            <path d="M-4 54Q24 40 68 56V68H-4z" style={b} />
           </g>
         </svg>
       );
@@ -117,7 +133,7 @@ export function SymbolEmblem({ symbol }: { symbol: TileSymbol }) {
   }
   return (
     <svg {...glyph} className="emblem-svg" data-shape={symbol.toLowerCase()}>
-      <circle cx="12" cy="12" r="11" fill="var(--chip)" stroke={color} strokeWidth="1.4" />
+      <circle cx="12" cy="12" r="11" fill="var(--chip)" stroke={color} strokeWidth="1.6" />
       {mark}
     </svg>
   );
@@ -133,6 +149,15 @@ export function TokenMark({ player }: { player: Player }) {
         <path d="M12 4.5 19.5 12 12 19.5 4.5 12z" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
       )}
     </svg>
+  );
+}
+
+/** A terrain's scene alone, as the picture of a Match card chip. */
+export function TerrainThumb({ terrain }: { terrain: Terrain }) {
+  return (
+    <span className={`terrain-thumb tile-art terrain-${terrain.toLowerCase()}`} data-terrain={terrain} aria-hidden="true">
+      <TerrainScene terrain={terrain} />
+    </span>
   );
 }
 

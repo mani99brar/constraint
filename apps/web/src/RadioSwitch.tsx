@@ -11,6 +11,8 @@ export function RadioSwitch<T extends string>({
   value,
   afterKey,
   onChange,
+  columns,
+  swatches,
 }: {
   label: string;
   testId: string;
@@ -18,6 +20,10 @@ export function RadioSwitch<T extends string>({
   value: T;
   afterKey: (current: T, key: string) => T | null;
   onChange: (value: T) => void;
+  /** Columns of the group; one per option by default. */
+  columns?: number;
+  /** Colour dots drawn before an option's label, for a choice of looks. */
+  swatches?: Readonly<Record<T, readonly string[]>>;
 }) {
   const buttons = useRef(new Map<T, HTMLButtonElement>());
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -28,7 +34,7 @@ export function RadioSwitch<T extends string>({
     buttons.current.get(next)?.focus();
   }
   return (
-    <div className="radio-switch" role="radiogroup" aria-label={label} data-testid={testId} data-value={value} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div className="radio-switch" role="radiogroup" aria-label={label} data-testid={testId} data-value={value} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, minmax(0, 1fr))` }}>
       {options.map(({ id, label: text }) => (
         <button
           key={id}
@@ -44,6 +50,13 @@ export function RadioSwitch<T extends string>({
           onClick={() => onChange(id)}
           onKeyDown={onKeyDown}
         >
+          {swatches && (
+            <span className="swatches" aria-hidden="true">
+              {swatches[id].map((color, index) => (
+                <i key={index} style={{ backgroundColor: color }} />
+              ))}
+            </span>
+          )}
           {text}
         </button>
       ))}

@@ -40,17 +40,30 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(bar.match(/<button/g)).toHaveLength(1);
     expect(bar).toContain('data-testid="menu-button"');
     expect(bar).not.toContain('data-testid="match-card"');
-    // The score of the sitting shows once, in the scoreboard row: Player 1's score, the Match card, Player 2's
-    // score, in that order, the draws line kept but hidden at zero; the seats have no Wins of their own.
+    // The score of the sitting shows once on each seat's own nameplate as its wins, with the token mark,
+    // one pip per token and "N left"; the scoreboard row holds the Match card and the draws line, kept but
+    // hidden at zero, and its accessible name reads the whole score.
     expect(html.match(/data-testid="scoreboard"/g)).toHaveLength(1);
     const row = /<section class="scoreboard"[\s\S]*?<\/section>/.exec(html)![0];
     expect(row).toContain('aria-label="You 0, Bot 0"');
-    expect(row.indexOf('data-testid="score-A"')).toBeLessThan(row.indexOf('data-testid="match-card"'));
     expect(row.indexOf('data-testid="match-card"')).toBeLessThan(row.indexOf('data-testid="score-draws"'));
-    expect(row.indexOf('data-testid="score-draws"')).toBeLessThan(row.indexOf('data-testid="score-B"'));
     expect(row).toContain('class="score-draws empty"');
-    expect(row).toMatch(/data-testid="score-A"[\s\S]*?data-shape="ring"/);
-    expect(row).toMatch(/data-testid="score-B"[\s\S]*?data-shape="diamond"/);
+    expect(row).not.toContain('data-testid="score-A"');
+    for (const [player, shape] of [['A', 'ring'], ['B', 'diamond']] as const) {
+      const seat = new RegExp(`<section[^>]*data-testid="seat-${player}"[\\s\\S]*?</section>`).exec(html)![0];
+      expect(seat).toContain(`data-testid="score-${player}"`);
+      expect(seat).toContain(`data-shape="${shape}"`);
+      expect(seat.match(/<i( class="full")?><\/i>/g)).toHaveLength(8);
+      expect(seat).toMatch(/\d left<\/span>/);
+    }
+    // The Match card says what the next take needs: "Next tile needs", then a terrain chip and a symbol chip.
+    expect(html).toContain('Next tile needs');
+    expect(html).toContain('class="match-chip chip-terrain"');
+    expect(html).toContain('class="match-chip chip-symbol"');
+    // The board has no A-D or 1-4 labels.
+    expect(html).not.toContain('frame-labels');
+    expect(html).not.toContain('frame-columns');
+    expect(html).not.toContain('frame-rows');
     expect(html).not.toMatch(/>Wins</);
     expect(html).not.toContain('seat-A-score');
     for (const heading of ['Log', 'Last actions', 'Status', 'Settings', 'Legend']) expect(html).not.toMatch(new RegExp(`<h[1-6][^>]*>${heading}</h`));

@@ -22,6 +22,8 @@ export interface CellView {
   readonly popOrder: number | null;
   /** Fades back: a free tile that is not a legal take, while a person is to move with highlights on. */
   readonly faded: boolean;
+  /** Why a glowing tile is legal: it shares the last tile's terrain, its symbol or both; null when it does not glow. */
+  readonly match: 'terrain' | 'symbol' | 'both' | null;
   /** The latest take, marked until the next one by a ring in its taker's colour (PRD I2). */
   readonly last: boolean;
   /** One of the winning shape's four cells, once the game has ended. */
@@ -100,6 +102,9 @@ export function boardModel(state: GameState, { mode, highlights, tileNames = fal
     const token = tokenAt(state, cell);
     const glow = highlights && legal.has(cell);
     const faded = highlights && acceptsTakes && token === null && !legal.has(cell);
+    const sharesTerrain = state.lastTile ? tile.terrain === state.lastTile.terrain : false;
+    const sharesSymbol = state.lastTile ? tile.symbol === state.lastTile.symbol : false;
+    const match = glow ? (sharesTerrain && sharesSymbol ? 'both' : sharesTerrain ? 'terrain' : sharesSymbol ? 'symbol' : null) : null;
     const ending = end?.cells.find((view) => view.cell === cell);
     const parts: string[] = [cell, token === null ? tileName(tile) : `${possessive(mode, token)} token`];
     if (glow) parts.push('legal take');
@@ -114,6 +119,7 @@ export function boardModel(state: GameState, { mode, highlights, tileNames = fal
       glow,
       popOrder: null,
       faded,
+      match,
       last: cell === last,
       winning: winning.has(cell),
       end: ending?.mark ?? null,

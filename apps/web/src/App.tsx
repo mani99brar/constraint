@@ -12,6 +12,7 @@ import { loadResults, recordFinishedGame, resetResults, type Results } from './r
 import { clearSavedGame, loadSavedGame, saveGame, type SavedGame } from './save';
 import { addResult, NO_SCORE, scoreAfter, type Score } from './score';
 import { loadSettings, saveSettings, type Settings } from './settings';
+import { browserHaptics, prefersReducedMotion } from './haptics';
 import { browserAudioContext, createSoundPlayer } from './sound';
 import { rememberStarter, starterForNewGame } from './starter';
 import { browserStorage, type KeyValueStorage } from './storage';
@@ -32,7 +33,7 @@ export interface AppProps {
  */
 export function App({ storage: given }: AppProps) {
   const storage = useMemo(() => (given === undefined ? browserStorage() : given), [given]);
-  const [settings, setSettings] = useState<Settings>(() => loadSettings(storage));
+  const [settings, setSettings] = useState<Settings>(() => loadSettings(storage, prefersReducedMotion()));
   const [results, setResults] = useState<Results>(() => loadResults(storage));
   const [saved, setSaved] = useState<SavedGame | null>(() => loadSavedGame(storage));
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
@@ -55,6 +56,8 @@ export function App({ storage: given }: AppProps) {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const sound = useMemo(() => createSoundPlayer({ createContext: browserAudioContext, muted: () => !settingsRef.current.sound }), []);
+
+  const haptics = useMemo(() => browserHaptics(() => settingsRef.current.haptics), []);
 
   useEffect(() => {
     // Sound may start only inside a user gesture's own handler (PRD E4). A touch activates the
@@ -158,6 +161,7 @@ export function App({ storage: given }: AppProps) {
           settings={settings}
           onSettings={changeSettings}
           sound={sound}
+          haptics={haptics}
           onChange={(state) => gameChanged(state, mode)}
           onHowTo={(opener) => setHowTo({ opener })}
           onPlayAgain={(finished) => {
@@ -173,6 +177,7 @@ export function App({ storage: given }: AppProps) {
     case 'home':
       content = (
         <HomeScreen
+          haptics={haptics}
           model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length } : null, settings, results)}
           settings={settings}
           onContinue={() => {

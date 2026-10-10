@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { cellColumn, cellRow, COLUMNS, ROWS, type CellId } from '@okiya/game';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { ALL_CELLS as ALL, cellColumn, cellRow, ROWS, type CellId } from '@okiya/game';
 import { SymbolEmblem, TerrainScene, TokenMark } from './art';
 import type { BoardModel, WinningShape } from './boardModel';
 import { liftOrder } from './end';
@@ -116,16 +116,6 @@ export function Board({ model, onCellClick }: BoardProps) {
 
   return (
     <div className="board-frame" data-testid="board-frame">
-      <div className="frame-labels frame-columns" aria-hidden="true">
-        {COLUMNS.map((column) => (
-          <span key={column}>{column}</span>
-        ))}
-      </div>
-      <div className="frame-labels frame-rows" aria-hidden="true">
-        {ROWS.map((row) => (
-          <span key={row}>{row}</span>
-        ))}
-      </div>
       <div
         ref={boardRef}
         role="grid"
@@ -166,6 +156,8 @@ export function Board({ model, onCellClick }: BoardProps) {
                       data-symbol={tile.symbol}
                       data-edge={view.edge}
                       data-glow={view.glow}
+                      data-match={view.match ?? undefined}
+                      style={{ '--i': ALL.indexOf(cell) } as CSSProperties}
                       data-pop-order={view.popOrder ?? undefined}
                       data-faded={view.faded}
                       data-taken={token !== null}
@@ -199,6 +191,7 @@ export function Board({ model, onCellClick }: BoardProps) {
                             <span className="tile-symbol">
                               <SymbolEmblem symbol={tile.symbol} />
                             </span>
+                            {(view.match === 'terrain' || view.match === 'both') && <span className="reason-bar" aria-hidden="true" data-testid="reason-bar" />}
                             {view.glow && model.mover && (
                               <span className={`move-badge p${model.mover === 'A' ? 1 : 2}`} data-testid="move-badge" data-mark={model.badge ?? undefined} aria-hidden="true">
                                 <TokenMark player={model.mover} />

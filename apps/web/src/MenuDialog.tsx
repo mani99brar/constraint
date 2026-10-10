@@ -2,8 +2,12 @@ import { useRef } from 'react';
 import { Dialog } from './Dialog';
 import { paletteAfterKey } from './home';
 import { RadioSwitch } from './RadioSwitch';
-import { PALETTES } from './theme';
+import { PALETTES, THEMES, type PaletteId } from './theme';
+
+/** The three dots of a theme's button: its ground, its first player and its second. */
+const SWATCHES = Object.fromEntries(PALETTES.map(({ id }) => [id, [THEMES[id].dark.ground, THEMES[id].dark.p1, THEMES[id].dark.p2]])) as unknown as Record<PaletteId, readonly string[]>;
 import type { Settings } from './settings';
+import type { HapticsPlayer } from './haptics';
 
 function Switch({ label, on, hint, onToggle, testId }: { label: string; on: boolean; hint: string; onToggle: () => void; testId: string }) {
   return (
@@ -34,13 +38,15 @@ export interface MenuDialogProps {
   readonly onResetResults?: (() => void) | undefined;
   /** Whether the reset is enabled: once a bot game was counted. */
   readonly canReset?: boolean;
+  /** Haptics, to hide their switch on a device that has none. */
+  readonly haptics?: HapticsPlayer | undefined;
 }
 
 /**
  * The menu (PRD U4, E3, E5, U5): resume, How to Play, the colour theme, the highlight, tile-name and sound
  * settings, and quit to title; on the home screen, as Settings, it also holds the reset of the results.
  */
-export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false }: MenuDialogProps) {
+export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false, haptics }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
   return (
     <Dialog titleId="menu-title" className="menu-dialog" testId="menu" onClose={onClose} returnFocusTo={returnFocusTo} initialFocus={first}>
@@ -67,9 +73,11 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
               options={PALETTES}
               value={settings.palette}
               afterKey={paletteAfterKey}
+              columns={2}
+              swatches={SWATCHES}
               onChange={(palette) => onSettings({ ...settings, palette })}
             />
-            <span className="help">Colours for the table and both players. Each follows your device's light or dark setting.</span>
+            <span className="help">The look of the table, the tiles and both players. The neon themes are always dark; Walnut, Sea glass and Clear follow your device's light or dark setting.</span>
           </div>
           <Switch
             label="Highlight legal tiles"
@@ -92,6 +100,15 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
             hint="A short 3, 2, 1 before a new game starts. A tap or Enter starts at once."
             onToggle={() => onSettings({ ...settings, countdown: !settings.countdown })}
           />
+          {haptics?.supported && (
+            <Switch
+              label="Haptics"
+              testId="setting-haptics"
+              on={settings.haptics}
+              hint="A short buzz for takes, refused takes, the countdown and the result. Off at first if your device asks for reduced motion."
+              onToggle={() => onSettings({ ...settings, haptics: !settings.haptics })}
+            />
+          )}
           <Switch
             label="Sound"
             testId="setting-sound"
