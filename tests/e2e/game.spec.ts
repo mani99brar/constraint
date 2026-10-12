@@ -152,7 +152,7 @@ async function expectHero(page: Page) {
   expect((await wordmark.boundingBox())!.y).toBeLessThan(board!.y);
 }
 
-/** The play panel: the Opponent switch, the difficulty only while the bot is chosen, one Play button labelled with the choice. */
+/** The play panel: the Opponent switch, the Difficulty row only while the bot is chosen, a this-device note only while a friend is, one Play button labelled with the choice. */
 async function expectPlayPanel(page: Page) {
   const panel = page.getByTestId('play-panel');
   const opponents = panel.getByRole('radiogroup', { name: 'Opponent' }).getByRole('radio');
@@ -160,31 +160,56 @@ async function expectPlayPanel(page: Page) {
   await expect(panel.getByRole('radio', { name: 'Bot' })).toHaveAttribute('aria-checked', 'true');
   const radios = panel.getByRole('radiogroup', { name: 'Bot difficulty' }).getByRole('radio');
   expect(await radios.allTextContents()).toEqual(['Easy', 'Normal', 'Hard']);
+  expect(await panel.locator('.panel-label').allTextContents()).toEqual(['Opponent', 'Difficulty']);
+  await expect(panel.getByTestId('friend-note')).toHaveCount(0);
   await expect(panel.getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'true');
   // One Play button on the whole page, labelled with the choice.
   await expect(page.getByRole('button', { name: /^Play\b/ })).toHaveCount(1);
   await expect(playButton(page)).toHaveText('Play · Normal bot');
-  // A friend: the difficulty switch leaves the page, and Play says so; back to the bot, it returns.
+  // A friend: the difficulty switch leaves the page, a quiet note says the friend plays on this device, and Play says so; back to the bot, it returns.
   await opponentSwitch(page).getByRole('radio', { name: 'Friend' }).click();
   await expect(difficultySwitch(page)).toHaveCount(0);
+  await expect(panel.getByTestId('friend-note')).toHaveText('Take turns on this device.');
+  await expect(opponentSwitch(page)).toHaveAttribute('aria-describedby', 'friend-note');
   await expect(playButton(page)).toHaveText('Play · with a friend');
   await expect(page.getByRole('button', { name: /^Play\b/ })).toHaveCount(1);
   await opponentSwitch(page).getByRole('radio', { name: 'Bot' }).click();
   await expect(difficultySwitch(page)).toBeVisible();
+  await expect(panel.getByTestId('friend-note')).toHaveCount(0);
   await expect(playButton(page)).toHaveText('Play · Normal bot');
 }
 
-test('[scenario:home-screen] the home screen shows the wordmark on one line over a board with both avatars, Continue only for a saved game, one play panel, one line of results, How to play and Settings, wide and at 390 × 844, where it fits without scrolling', async ({ page }, testInfo) => {
+test('[scenario:home-screen] a first visit opens on the home screen with a dismissible one-line intro, never on How to Play; the home screen shows the wordmark on one line over a board with both avatars, Continue only for a saved game, one play panel, a line of results only once a bot game counted, How to play and Settings, wide and at 390 × 844, where it fits without scrolling', async ({ page }, testInfo) => {
   // The app reads no URL parameters: playtest parameters change nothing.
   await fixRandomness(page, HUMAN_STARTS);
   await page.goto('/?seed=7&preset=spec-v0.2&scenario=paper-test-01&difficulty=hard');
   await expect(page).toHaveTitle(TITLE);
   const home = page.getByTestId('home-screen');
 
-  // How to Play opens by itself on the very first visit.
-  await expect(page.getByTestId('how-to-play')).toBeVisible();
-  await page.getByRole('button', { name: 'Close How to play' }).click();
-  await expect(page.getByTestId('how-to-play')).toHaveCount(0);
+  // A first visit opens on the home screen, not on How to Play: one calm line of the rules, above the play panel.
+  await expect(home).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const intro = page.getByTestId('intro');
+  await expect(intro).toHaveText(/^Take an edge tile first\. Then match terrain or symbol\. Win with a line, a square, or no move left for your opponent\./);
+  expect((await intro.boundingBox())!.y + (await intro.boundingBox())!.height).toBeLessThanOrEqual((await page.getByTestId('play-panel').boundingBox())!.y);
+  // It blocks nothing: the play panel works under it.
+  await opponentSwitch(page).getByRole('radio', { name: 'Friend' }).click();
+  await opponentSwitch(page).getByRole('radio', { name: 'Bot' }).click();
+  // On a phone it fits with the rest, its dismiss a full-size target.
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
+  const dismiss = intro.getByRole('button', { name: 'Got it' });
+  const dismissBox = (await dismiss.boundingBox())!;
+  expect(Math.min(dismissBox.width, dismissBox.height)).toBeGreaterThanOrEqual(44);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // Dismissed, it leaves focus on Play and does not come back after a reload.
+  await dismiss.click();
+  await expect(intro).toHaveCount(0);
+  await expect(playButton(page)).toBeFocused();
+  await page.reload();
+  await expect(home).toBeVisible();
+  await expect(page.getByTestId('intro')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 
   await expectHero(page);
   // Continue only for a saved game.
@@ -194,17 +219,15 @@ test('[scenario:home-screen] the home screen shows the wordmark on one line over
   // No tagline box and no play cards.
   await expect(page.locator('.tagline, [data-testid="card-bot"], [data-testid="card-two"]')).toHaveCount(0);
 
-  // The results: one quiet line, zero for each difficulty; no table and no reset on the page.
+  // The results: zero for each difficulty, so no line of zeros shows yet; no table and no reset on the page.
   const results = page.getByTestId('results');
-  await expect(results).toContainText('Easy 0–0–0 · Normal 0–0–0 · Hard 0–0–0 (W–L–D)');
+  await expect(results).toBeHidden();
   for (const difficulty of ['easy', 'normal', 'hard']) {
     const row = results.locator(`[data-difficulty="${difficulty}"]`);
     await expect(row).toHaveAttribute('data-wins', '0');
     await expect(row).toHaveAttribute('data-losses', '0');
     await expect(row).toHaveAttribute('data-draws', '0');
   }
-  const resultsBox = (await results.boundingBox())!;
-  expect(resultsBox.height).toBeLessThan(40);
   await expect(home.locator('table')).toHaveCount(0);
   await expect(home.getByTestId('reset-results')).toHaveCount(0);
 
@@ -244,7 +267,7 @@ test('[scenario:home-screen] the home screen shows the wordmark on one line over
   await expectHero(page);
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-  for (const id of ['hero', 'continue', 'play-panel', 'play', 'results', 'open-how-to-play', 'open-settings']) {
+  for (const id of ['hero', 'continue', 'play-panel', 'play', 'open-how-to-play', 'open-settings']) {
     const box = (await page.getByTestId(id).boundingBox())!;
     expect(box.y + box.height, id).toBeLessThanOrEqual(844);
     expect(box.x + box.width, id).toBeLessThanOrEqual(390);
@@ -704,7 +727,7 @@ test('[scenario:how-to-play] How to Play opens from the home screen and the game
   // The pages in order, each with its diagrams drawn with the real tile art.
   const page1 = dialog.locator('[data-section="taking"]');
   await expect(page1).toContainText('same terrain or the same symbol');
-  await expect(dialog.getByTestId('matching-example')).toContainText('✓ matches (same terrain)');
+  await expect(dialog.getByTestId('matching-example')).toContainText('✓ same terrain');
   await expect(dialog.getByTestId('matching-example')).toContainText('✗ no match');
   await expect(dialog.getByTestId('matching-example').locator('.tile-art svg.scene')).toHaveCount(4);
   await expect(dialog.getByTestId('howto-back')).toBeDisabled();
@@ -876,6 +899,7 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
   const kind = result.startsWith('You win') ? 'data-wins' : result.startsWith('Draw') ? 'data-draws' : 'data-losses';
   await expect(easy).toHaveAttribute(kind, '1');
   const counted = { 'data-wins': 'Easy 1–0–0', 'data-losses': 'Easy 0–1–0', 'data-draws': 'Easy 0–0–1' }[kind];
+  await expect(page.getByTestId('results')).toBeVisible();
   await expect(page.getByTestId('results')).toContainText(counted);
   await expect(page.getByTestId('continue')).toHaveCount(0);
   await page.reload();
@@ -889,7 +913,8 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
   await expect(reset).toBeDisabled();
   await page.keyboard.press('Escape');
   expect(await total()).toBe(0);
-  await expect(page.getByTestId('results')).toContainText('Easy 0–0–0 · Normal 0–0–0 · Hard 0–0–0');
+  // Back at zero, the line of zeros leaves the page again.
+  await expect(page.getByTestId('results')).toBeHidden();
   await page.reload();
   expect(await total()).toBe(0);
 });

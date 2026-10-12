@@ -13,7 +13,9 @@ import { DEFAULT_SETTINGS } from './settings';
 import { App } from './App';
 import { homeModel } from './home';
 import { HomeScreen } from './HomeScreen';
-import { emptyResults } from './results';
+import { HOWTO_SEEN_KEY, INTRO_TEXT } from './howto';
+import { MenuDialog } from './MenuDialog';
+import { emptyResults, recordResult } from './results';
 import { saveGame } from './save';
 import type { KeyValueStorage } from './storage';
 
@@ -251,5 +253,61 @@ describe('the avatars’ reactions on the match screen (PRD U9)', () => {
 
   it('shows the bot thinking on its turn', () => {
     expect(renderMatch(newGame({ seed: 4, starter: 'B' }))).toMatch(/data-testid="seat-B"[^>]*data-expression="thinking"/);
+  });
+});
+
+describe('the first visit, the home copy and the menu groups', () => {
+  const noop = () => {};
+  const memory = (): KeyValueStorage => {
+    const data = new Map<string, string>();
+    return { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => void data.set(key, value), removeItem: (key) => void data.delete(key) };
+  };
+  const home = (model: ReturnType<typeof homeModel>, intro = false) =>
+    decode(
+      renderToStaticMarkup(
+        createElement(HomeScreen, { model, settings: DEFAULT_SETTINGS, onContinue: noop, onPlay: noop, onOpponent: noop, onDifficulty: noop, onClock: noop, onHowTo: noop, onResetResults: noop, onSettings: noop, intro }),
+      ),
+    );
+
+  it('opens a first visit on the home screen with the one-line intro, not on How to Play; a taught player sees neither', () => {
+    const fresh = decode(renderToStaticMarkup(createElement(App, { storage: memory() })));
+    expect(fresh).toContain('data-testid="home-screen"');
+    expect(fresh).toContain('data-testid="intro"');
+    expect(fresh).toContain(INTRO_TEXT);
+    expect(fresh).toContain('data-testid="intro-dismiss"');
+    expect(fresh).not.toContain('data-testid="how-to-play"');
+    const taught = memory();
+    taught.setItem(HOWTO_SEEN_KEY, 'true');
+    const again = renderToStaticMarkup(createElement(App, { storage: taught }));
+    expect(again).not.toContain('data-testid="intro"');
+    expect(again).not.toContain('data-testid="how-to-play"');
+    // Without storage nothing could remember a dismissal, so the intro stays away.
+    expect(renderToStaticMarkup(createElement(App, { storage: null }))).not.toContain('data-testid="intro"');
+  });
+
+  it('labels the bot row Difficulty, says a friend plays on this device, and hides the results line until a bot game was counted', () => {
+    const bot = home(homeModel(null, DEFAULT_SETTINGS, emptyResults()));
+    expect(bot).toMatch(/class="panel-label"[^>]*>Difficulty</);
+    expect(bot).not.toMatch(/class="panel-label"[^>]*>Bot</);
+    expect(bot).not.toContain('data-testid="friend-note"');
+    expect(bot).toMatch(/data-testid="results" hidden=""/);
+    const friend = home(homeModel(null, { ...DEFAULT_SETTINGS, opponent: 'friend' }, emptyResults()));
+    expect(friend).toContain('data-testid="friend-note"');
+    expect(friend).toMatch(/aria-describedby="friend-note"/);
+    const storage = memory();
+    const counted = home(homeModel(null, DEFAULT_SETTINGS, recordResult(storage, 'easy', 'win')));
+    expect(counted).toMatch(/data-testid="results">/);
+    expect(counted).toContain('Easy 1–0–0');
+  });
+
+  it('groups the menu: resume, How to play and quit first, then the preferences under their own heading', () => {
+    const menu = decode(renderToStaticMarkup(createElement(MenuDialog, { title: 'Menu', settings: DEFAULT_SETTINGS, onSettings: noop, onClose: noop, returnFocusTo: null, onHowTo: noop, onQuit: noop })));
+    const order = ['menu-resume', 'menu-how-to-play', 'menu-quit', 'menu-settings'].map((id) => menu.indexOf(`data-testid="${id}"`));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const preferences = menu.slice(menu.lastIndexOf('<section', order[3]));
+    expect(preferences).toMatch(/aria-labelledby="menu-preferences"/);
+    expect(preferences).toMatch(/<h3 id="menu-preferences"[^>]*>Preferences<\/h3>/);
+    for (const id of ['setting-palette', 'setting-highlights', 'setting-tile-names', 'setting-countdown', 'setting-sound']) expect(preferences).toContain(`data-testid="${id}"`);
   });
 });

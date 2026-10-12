@@ -81,12 +81,12 @@ export async function skipStartCountdown(page: Page) {
   });
 }
 
-/** Marks How to Play as already seen, so it does not open by itself on the first visit. */
+/** Marks a newcomer as already taught, so the home screen shows no first-game intro. */
 export async function skipFirstVisitHowTo(page: Page) {
   await page.addInitScript(() => window.localStorage.setItem('okiya.howto.seen', 'true'));
 }
 
-/** Opens the home screen with fixed randomness and How to Play already seen. */
+/** Opens the home screen with fixed randomness and no first-game intro. */
 export async function openHome(page: Page, seed: number = HUMAN_STARTS) {
   await fixRandomness(page, seed);
   await skipFirstVisitHowTo(page);

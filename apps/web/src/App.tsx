@@ -3,7 +3,7 @@ import type { GameState } from '@okiya/game';
 import { homeModel } from './home';
 import { HomeScreen } from './HomeScreen';
 import { HowToPlay } from './HowToPlay';
-import { howToOpensFirst, rememberHowToSeen } from './howto';
+import { introShows, rememberIntroSeen } from './howto';
 import { HUMAN, nextStarter, startGame } from './match';
 import { MatchScreen } from './MatchScreen';
 import { twoPlayers, versusBot, type GameMode } from './mode';
@@ -29,7 +29,7 @@ export interface AppProps {
 
 /**
  * The published game (PRD §5.7, §5.8): the home screen, where one tap on Play starts the game its play
- * panel shows, a bot game at the remembered difficulty or a two-player game, the game with the score of its sitting, How to Play, the
+ * panel shows, a bot game at the remembered difficulty or a two-player game, a newcomer's first-game intro, the game with the score of its sitting, How to Play, the
  * remembered settings, the saved game and the results by difficulty.
  */
 export function App({ storage: given }: AppProps) {
@@ -39,7 +39,9 @@ export function App({ storage: given }: AppProps) {
   const [saved, setSaved] = useState<SavedGame | null>(() => loadSavedGame(storage));
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
   const [score, setScoreState] = useState<Score>(NO_SCORE);
-  const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(() => (howToOpensFirst(storage) ? { opener: null } : null));
+  const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(null);
+  // A first visit opens on the home screen with a one-line intro, never on How to Play.
+  const [intro, setIntro] = useState(() => introShows(storage));
   const matchKey = useRef(0);
   // A timed game's clocks are read when the game is saved: after every take, on leaving and when the page hides.
   const readClock = useRef<(() => ClockTimes | null) | null>(null);
@@ -91,8 +93,14 @@ export function App({ storage: given }: AppProps) {
     saveSettings(storage, next);
   }
 
+  /** The newcomer was taught: the intro was dismissed, How to Play was read or a first game started. */
+  function introSeen() {
+    rememberIntroSeen(storage);
+    setIntro(false);
+  }
+
   function closeHowTo() {
-    rememberHowToSeen(storage);
+    introSeen();
     setHowTo(null);
   }
 
@@ -136,6 +144,7 @@ export function App({ storage: given }: AppProps) {
   /** A game started from the home screen: a new sitting with its score at zero. */
   function newGame(mode: GameMode) {
     sound.play('select');
+    if (intro) introSeen();
     setScore(scoreAfter('new-game', scoreRef.current));
     play(startGame(undefined, starterForNewGame(storage)), mode);
   }
@@ -208,6 +217,8 @@ export function App({ storage: given }: AppProps) {
           onHowTo={(opener) => setHowTo({ opener })}
           onResetResults={() => setResults(resetResults(storage))}
           onSettings={changeSettings}
+          intro={intro}
+          onDismissIntro={introSeen}
         />
       );
       break;

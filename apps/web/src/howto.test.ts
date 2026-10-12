@@ -12,10 +12,11 @@ import {
   diagramState,
   DIAGRAMS,
   HOWTO_SEEN_KEY,
-  howToOpensFirst,
   howToPages,
+  INTRO_TEXT,
+  introShows,
   MATCHING_EXAMPLE,
-  rememberHowToSeen,
+  rememberIntroSeen,
   type Diagram,
 } from './howto';
 import type { KeyValueStorage } from './storage';
@@ -51,6 +52,10 @@ describe('How to Play pages (PRD E2)', () => {
     expect(pages.map((page) => page.id)).toEqual(['taking', 'opening', 'shapes', 'blockade', 'draw']);
     expect(text('taking')).toContain('same terrain or the same symbol');
     expect(text('taking')).toContain('Match card');
+    expect(text('taking')).toContain('Hold a tile to read its name.');
+    // One short paragraph, so the example and its board show without scrolling on a phone.
+    expect(pages[0]!.paragraphs).toHaveLength(1);
+    expect(text('taking').length).toBeLessThanOrEqual(260);
     expect(text('opening')).toContain('any tile on the edge');
     expect(text('shapes')).toMatch(/row.*column.*diagonal.*2×2 square/);
     expect(text('blockade')).toContain('no tile left on the board matches the last tile');
@@ -67,10 +72,10 @@ describe('How to Play pages (PRD E2)', () => {
 
   it('illustrates matching with a tile of each kind, drawn with the tile art', () => {
     for (const tile of MATCHING_EXAMPLE.tiles) expect(tilesMatch(tile, MATCHING_EXAMPLE.lastTile)).toBe(tile.matches);
-    expect(html).toContain('To match: <strong>Forest–Moon</strong>');
-    expect(html).toContain('✓ matches (same terrain)');
-    expect(html).toContain('✓ matches (same symbol)');
-    expect(html).toContain('✗ no match (neither)');
+    expect(html).toContain('To match: <strong>Forest–Star</strong>');
+    expect(html).toContain('✓ same terrain');
+    expect(html).toContain('✓ same symbol');
+    expect(html).toContain('✗ no match');
     expect(html.match(/data-testid="matching-example"[\s\S]*?<\/figure>/)![0].match(/class="tile-art /g)).toHaveLength(4);
   });
 });
@@ -104,6 +109,7 @@ describe('How to Play diagrams agree with the rules (spec §1–§4)', () => {
     const state = diagramState(DIAGRAMS.matching);
     expect(state.result).toBeNull();
     expect(tileName(state.lastTile!)).toBe('Forest–Star');
+    expect(DIAGRAMS.matching.caption).toContain('Forest–Star');
     expect(marked(DIAGRAMS.matching, 'glow')).toEqual(legalTakes(state));
     expect(marked(DIAGRAMS.matching, 'glow').length).toBeGreaterThan(0);
     expect(marked(DIAGRAMS.matching, 'dead')).toEqual(free(state).filter((cell) => !legalTakes(state).includes(cell)));
@@ -139,13 +145,34 @@ describe('How to Play diagrams agree with the rules (spec §1–§4)', () => {
     expect(state.tokens.filter((token) => token === 'B')).toHaveLength(8);
   });
 
-  it('opens by itself only on the very first visit, and not when storage fails', () => {
+  it('shows the matching example on the diagram’s own board: the same last tile, and tiles still free there, glowing exactly when they match', () => {
+    const state = diagramState(DIAGRAMS.matching);
+    expect(MATCHING_EXAMPLE.lastTile).toEqual(state.lastTile);
+    const cells = diagramCells(DIAGRAMS.matching);
+    for (const tile of MATCHING_EXAMPLE.tiles) {
+      const view = cells.find((cell) => tileName(cell.tile) === tileName(tile))!;
+      expect(view.token, tileName(tile)).toBeNull();
+      expect(view.mark, tileName(tile)).toBe(tile.matches ? 'glow' : 'dead');
+    }
+  });
+});
+
+describe('first-game intro', () => {
+  it('shows only until a newcomer was taught, and not when storage fails; How to Play never opens by itself', () => {
     const storage = memoryStorage();
-    expect(howToOpensFirst(storage)).toBe(true);
-    expect(rememberHowToSeen(storage)).toBe(true);
+    expect(introShows(storage)).toBe(true);
+    expect(rememberIntroSeen(storage)).toBe(true);
     expect(storage.data.get(HOWTO_SEEN_KEY)).toBe('true');
-    expect(howToOpensFirst(storage)).toBe(false);
-    expect(howToOpensFirst(null)).toBe(false);
+    expect(introShows(storage)).toBe(false);
+    expect(introShows(null)).toBe(false);
+    // The playtest build's guide dismissal counts as taught.
+    const legacy = memoryStorage();
+    legacy.data.set('okiya.guide.dismissed', 'true');
+    expect(introShows(legacy)).toBe(false);
+  });
+
+  it('is the one line of the rules a first game needs', () => {
+    expect(INTRO_TEXT).toBe('Take an edge tile first. Then match terrain or symbol. Win with a line, a square, or no move left for your opponent.');
   });
 });
 

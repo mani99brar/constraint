@@ -281,6 +281,32 @@ button:disabled {
   width: 44%;
 }
 
+/* A newcomer's first-game intro: one quiet line on the results line's plate, with its one dismiss. */
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  width: min(100%, 440px);
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+.intro p {
+  flex: 1 1 16em;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.intro button {
+  flex: none;
+  padding-inline: 16px;
+}
+
 .continue {
   width: min(100%, 440px);
   min-height: 56px;
@@ -307,6 +333,14 @@ button:disabled {
   color: var(--muted);
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+/* While Friend is chosen: a quiet line under the switch, in its column. */
+.panel-note {
+  grid-column: 2;
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .replaces {
@@ -1907,12 +1941,18 @@ button:disabled {
   font-weight: 700;
 }
 
+/* The menu's second group: the preferences, under a small heading, set apart from what to do now. */
 .menu-settings {
   display: grid;
   gap: 10px;
-  padding: 10px 0;
+  margin-top: 8px;
+  padding: 14px 0 4px;
   border-top: 1px solid var(--surface-2);
-  border-bottom: 1px solid var(--surface-2);
+}
+
+.menu-heading {
+  margin: 0;
+  font-size: 1.05rem;
 }
 
 .setting {
@@ -1955,20 +1995,25 @@ button:disabled {
   margin-bottom: 6px;
 }
 
+/* The three example tiles side by side, each with its name and verdict under it, so the page's
+   example and its board fit a phone screen without scrolling. */
 .howto-example ul {
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 420px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .example-tile {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
   color: var(--text);
+  text-align: center;
 }
 
 .example-art {
@@ -1981,11 +2026,12 @@ button:disabled {
 
 .example-name {
   font-weight: 600;
-  min-width: 8em;
+  font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 .verdict {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .howto-page {

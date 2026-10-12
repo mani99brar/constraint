@@ -13,6 +13,7 @@ export function RadioSwitch<T extends string>({
   onChange,
   columns,
   swatches,
+  describedBy,
 }: {
   label: string;
   testId: string;
@@ -24,6 +25,8 @@ export function RadioSwitch<T extends string>({
   columns?: number;
   /** Colour dots drawn before an option's label, for a choice of looks. */
   swatches?: Readonly<Record<T, readonly string[]>>;
+  /** The id of a note about the choice, read with the group. */
+  describedBy?: string | undefined;
 }) {
   const buttons = useRef(new Map<T, HTMLButtonElement>());
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -34,7 +37,7 @@ export function RadioSwitch<T extends string>({
     buttons.current.get(next)?.focus();
   }
   return (
-    <div className="radio-switch" role="radiogroup" aria-label={label} data-testid={testId} data-value={value} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, minmax(0, 1fr))` }}>
+    <div className="radio-switch" role="radiogroup" aria-label={label} aria-describedby={describedBy} data-testid={testId} data-value={value} style={{ gridTemplateColumns: `repeat(${columns ?? options.length}, minmax(0, 1fr))` }}>
       {options.map(({ id, label: text }) => (
         <button
           key={id}
