@@ -5,8 +5,8 @@ import { legalTakes, newGame, take, tileAt, type GameState } from '@okiya/game';
 import { board, cellAt, continueSaved, nearWin, openHome, PALETTES, setPalette } from './helpers';
 
 // The selection outline is the same on every side of every legal tile, in every row and column, edge
-// tiles included; the same-symbol cue is a perfect circle (a square box); and on a finished game the win
-// outline beats the last-move ring on every tile of the line.
+// tiles included; the same-symbol cue lights the symbol itself, with a bar centred under it and no disc or
+// ring; and on a finished game the win outline beats the last-move ring on every tile of the line.
 
 /** A real position with Player 2 to move whose legal tiles include one in the bottom row, one in the last column and a symbol-only match. */
 function edgePosition(): GameState {
@@ -27,7 +27,7 @@ function edgePosition(): GameState {
   throw new Error('no edge position was found');
 }
 
-test('[scenario:legal-outline-edges] a legal tile’s outline is complete on all four sides in every row and column and every theme, and its symbol is a circle', async ({ page }) => {
+test('[scenario:legal-outline-edges] a legal tile’s outline is complete on all four sides in every row and column and every theme, and its symbol sits in a square box', async ({ page }) => {
   test.setTimeout(120_000);
   await openHome(page);
   await continueSaved(page, edgePosition(), 'two-player');
@@ -36,7 +36,7 @@ test('[scenario:legal-outline-edges] a legal tile’s outline is complete on all
     const legal = await page.locator('[data-glow="true"]').evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-cell')!));
     expect(legal.some((cell) => cell.startsWith('D')), `${palette}: a bottom-row tile is legal`).toBe(true);
     expect(legal.some((cell) => cell.endsWith('4')), `${palette}: a last-column tile is legal`).toBe(true);
-    // Every cell's symbol box is square, so its disc and its glow are circles.
+    // Every cell's symbol box is square, so no symbol is ever stretched.
     const boxes = await page.locator('[data-testid="board"] .tile-symbol').evaluateAll((symbols) => symbols.map((symbol) => { const box = symbol.getBoundingClientRect(); return Math.abs(box.width - box.height); }));
     expect(Math.max(...boxes), `${palette}: symbol boxes are square`).toBeLessThan(0.6);
     const shot = (await board(page).screenshot()).toString('base64');
@@ -119,41 +119,52 @@ test.describe('on an Android phone', () => {
   });
 
   for (const symbol of ['Moon', 'Sun', 'Star', 'Wave']) {
-    test(`[scenario:symbol-cue-circle] the same-${symbol.toLowerCase()} cue is a perfect circle centred on its badge on every tile that matches by symbol`, async ({ page }) => {
+    test(`[scenario:symbol-cue-circle] the same-${symbol.toLowerCase()} cue is the symbol lit in the mover's colour, with a bar centred under it and no disc or ring, on every tile that matches by symbol`, async ({ page }) => {
       await openHome(page);
       await continueSaved(page, symbolPosition(symbol), 'two-player');
       const looks = await page.locator('[data-match="symbol"], [data-match="both"]').evaluateAll((cells) =>
         cells.map((cell) => {
-          const box = cell.querySelector('.tile-symbol')!;
+          const box = cell.querySelector('.tile-symbol') as HTMLElement;
+          const mark = box.querySelector('svg.symbol-mark')!;
           const rect = box.getBoundingClientRect();
-          const disc = box.querySelector('circle')!.getBoundingClientRect();
-          const glow = getComputedStyle(box, '::after');
-          const inset = glow.inset.split(' ').map(parseFloat);
+          const tile = cell.querySelector('.tile-face')!.getBoundingClientRect();
+          const bar = getComputedStyle(box, '::after');
+          const barTop = rect.top + parseFloat(bar.top);
           return {
             cell: cell.getAttribute('data-cell')!,
+            shape: mark.getAttribute('data-shape'),
             squareBox: Math.abs(rect.width - rect.height),
-            offCentre: Math.hypot(rect.left + rect.width / 2 - (disc.left + disc.width / 2), rect.top + rect.height / 2 - (disc.top + disc.height / 2)),
-            discRound: Math.abs(disc.width - disc.height),
-            glowRound: Math.abs(parseFloat(glow.width) - parseFloat(glow.height)),
-            glowEven: Math.max(...inset) - Math.min(...inset),
-            fill: getComputedStyle(box.querySelector('circle')!).fill,
+            ink: getComputedStyle(mark).color,
             wash: getComputedStyle(cell).borderTopColor,
+            barColour: bar.backgroundColor,
+            barWidth: rect.width - parseFloat(bar.left) - parseFloat(bar.right),
+            barHeight: parseFloat(bar.height),
+            offCentre: Math.abs(parseFloat(bar.left) - parseFloat(bar.right)),
+            below: barTop - rect.bottom,
+            inside: tile.bottom - (barTop + parseFloat(bar.height)),
+            children: box.children.length,
+            badge: getComputedStyle(box).backgroundColor,
             ring: getComputedStyle(box).boxShadow,
-            stroke: getComputedStyle(box.querySelector('circle')!).strokeWidth,
           };
         }),
       );
       expect(looks.length, `${symbol}: tiles matching by symbol`).toBeGreaterThanOrEqual(2);
       for (const look of looks) {
+        expect(look.shape, `${look.cell} shows its own symbol`).toBe(symbol.toLowerCase());
         expect(look.squareBox, `${look.cell} box is square`).toBeLessThan(0.6);
-        expect(look.offCentre, `${look.cell} disc is centred on its box`).toBeLessThan(0.6);
-        expect(look.discRound, `${look.cell} disc is round`).toBeLessThan(0.6);
-        expect(look.glowRound, `${look.cell} glow is round`).toBeLessThan(0.6);
-        expect(look.glowEven, `${look.cell} glow is even on every side`).toBeLessThan(0.6);
-        expect(look.fill, `${look.cell} symbol is lit in the mover's colour`).toBe(look.wash);
-        // No second ring: no box-shadow ring on the badge and no stroke on its disc.
+        expect(look.ink, `${look.cell} symbol is lit in the mover's colour`).toBe(look.wash);
+        // The bar is the shape that says "same symbol", so colour is never the only signal: under the symbol,
+        // centred on it, inside the tile, in the mover's colour.
+        expect(look.barColour, `${look.cell} bar is in the mover's colour`).toBe(look.wash);
+        expect(look.barWidth, `${look.cell} bar is visible`).toBeGreaterThanOrEqual(8);
+        expect(look.barHeight, `${look.cell} bar is visible`).toBeGreaterThanOrEqual(3);
+        expect(look.offCentre, `${look.cell} bar is centred under the symbol`).toBeLessThan(0.6);
+        expect(look.below, `${look.cell} bar is under the symbol`).toBeGreaterThanOrEqual(0);
+        expect(look.inside, `${look.cell} bar is inside the tile`).toBeGreaterThan(0);
+        // No disc and no second ring: the symbol stands alone in its box, with no background or ring.
+        expect(look.children, `${look.cell} has nothing but its symbol`).toBe(1);
+        expect(look.badge, `${look.cell} has no badge`).toBe('rgba(0, 0, 0, 0)');
         expect(look.ring, `${look.cell} badge has no ring`).toBe('none');
-        expect(look.stroke, `${look.cell} disc has no stroke`).toMatch(/^(0px|1px)$/);
       }
     });
   }

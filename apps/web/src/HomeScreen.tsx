@@ -48,7 +48,7 @@ function HeroBoard() {
                 <TokenMark player={token} />
               </span>
             ) : (
-              <TileArt terrain={tile.terrain} symbol={tile.symbol} />
+              <TileArt terrain={tile.terrain} symbol={tile.symbol} variant="icon" />
             )}
           </span>
         );

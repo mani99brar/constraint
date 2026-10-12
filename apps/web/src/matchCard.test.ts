@@ -4,15 +4,15 @@ import { matchCardModel, OPENING_LABEL } from './matchCard';
 import { afterTakes, handBuilt } from './playouts.test-helper';
 
 describe('Match card model (PRD I1)', () => {
-  it('says "Any edge tile" at the opening', () => {
+  it('says "First take: any edge tile" at the opening', () => {
     const model = matchCardModel(handBuilt([], 'A', null));
     expect(OPENING_LABEL).toBe('Any edge tile');
-    expect(model).toMatchObject({ terrain: null, symbol: null, text: 'Any edge tile', label: 'Tile to match: any edge tile', cell: null, takes: 0 });
+    expect(model).toMatchObject({ terrain: null, symbol: null, text: 'Any edge tile', label: 'First take: any edge tile', cell: null, takes: 0 });
   });
 
-  it('gives the last tile’s terrain, symbol and names', () => {
+  it('gives the last tile’s terrain, symbol and names, and says either one matches: "Match Desert or Moon"', () => {
     const model = matchCardModel(handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' }));
-    expect(model).toMatchObject({ terrain: 'Desert', symbol: 'Moon', text: 'Desert–Moon', label: 'Tile to match: Desert–Moon', cell: 'A1', takes: 1 });
+    expect(model).toMatchObject({ terrain: 'Desert', symbol: 'Moon', text: 'Desert–Moon', label: 'Match Desert or Moon', cell: 'A1', takes: 1 });
   });
 
   it('follows the latest take of a real game', () => {
@@ -34,7 +34,7 @@ describe('Match card model (PRD I1)', () => {
 
   it('marks a finished game, a blockade excepted, so the card says it shows the last tile taken', () => {
     const line = handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' }, { result: { kind: 'win', winner: 'A', by: 'line', cells: ['A1', 'A2', 'A3', 'A4'] } });
-    expect(matchCardModel(line).ended).toBe(true);
+    expect(matchCardModel(line)).toMatchObject({ ended: true, label: 'Last tile taken: Desert–Moon' });
     expect(matchCardModel(handBuilt(['A'], 'B', { terrain: 'Desert', symbol: 'Moon' })).ended).toBe(false);
     const blockade = handBuilt(['A', 'B', 'A'], 'B', { terrain: 'Desert', symbol: 'Star' }, { result: { kind: 'win', winner: 'A', by: 'blockade' } });
     expect(matchCardModel(blockade).ended).toBe(false);

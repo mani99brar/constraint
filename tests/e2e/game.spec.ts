@@ -371,12 +371,15 @@ test('[scenario:match-screen] the game is the board, a slim nameplate for each p
   // On a wide screen You sit left of the board and the bot right of it.
   await expectSeatsBeside(page);
 
-  // The Match card: the last tile's scene, emblem and both names.
+  // The Match card says the choice as one sentence, "Match Desert or Sun": the terrain's chip with its
+  // scene, "or", the symbol's chip drawing it as the tiles print it; its accessible name is that sentence.
   const last = (await readLastTile(page))!;
   const card = matchCard(page);
-  await expect(card).toHaveAttribute('aria-label', `Tile to match: ${tile(last)}`);
+  await expect(card).toHaveAttribute('aria-label', `Match ${last.terrain} or ${last.symbol}`);
+  await expect(card.locator('.match-heading')).toHaveText('Match');
+  await expect(card.locator('.match-or')).toHaveText('or');
   await expect(card.locator(`.terrain-thumb[data-terrain="${last.terrain}"] svg.scene`)).toBeVisible();
-  await expect(card.locator('.chip-emblem svg.emblem-svg')).toBeVisible();
+  await expect(card.locator(`.chip-emblem svg.symbol-mark[data-shape="${last.symbol.toLowerCase()}"]`)).toBeVisible();
   await expect(page.getByTestId('match-card-terrain')).toHaveText(last.terrain);
   await expect(page.getByTestId('match-card-symbol')).toHaveText(last.symbol);
 
@@ -509,6 +512,9 @@ test('[scenario:opening-take] at the opening only the 12 edge tiles stand out, a
   await expect(seatStatus(page, 'A')).toHaveText('Your move');
   await expect(matchCard(page)).toHaveAttribute('data-opening', 'true');
   await expect(page.getByTestId('match-card-opening')).toHaveText('Any edge tile');
+  await expect(matchCard(page).locator('.match-heading')).toHaveText('First take');
+  await expect(matchCard(page)).toHaveAttribute('aria-label', 'First take: any edge tile');
+  await expect(matchCard(page)).toHaveAttribute('aria-label', 'First take: any edge tile');
 
   const cells = await readBoard(page);
   const lit = cells.filter((cell) => cell.glow).map((cell) => cell.cell);
@@ -726,7 +732,7 @@ test('[scenario:how-to-play] How to Play opens from the home screen and the game
       await expect(diagram.locator('.mini-cell')).toHaveCount(16);
       const free = await diagram.locator('.mini-cell:not([data-token])').count();
       await expect(diagram.locator('.mini-cell .tile-art svg.scene')).toHaveCount(free);
-      await expect(diagram.locator('.mini-cell .tile-art svg.emblem-svg')).toHaveCount(free);
+      await expect(diagram.locator('.mini-cell .tile-art svg.symbol-mark')).toHaveCount(free);
     }
   }
   await expect(dialog.getByTestId('diagram-draw').locator('[data-token]')).toHaveCount(16);

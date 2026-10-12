@@ -1,4 +1,4 @@
-import { SymbolEmblem, TerrainThumb } from './art';
+import { SymbolMark, TerrainThumb } from './art';
 import type { MatchCardModel } from './matchCard';
 
 /** The 4 x 4 board with its edge ring lit: where the first take may go. */
@@ -16,9 +16,10 @@ function EdgeDiagram() {
 }
 
 /**
- * The Match card (PRD I1): what the next take needs, as "Next tile needs" with two chips, the terrain
- * with its picture and the symbol with its emblem, either of which makes a tile legal; at the opening a
- * diagram of the edge ring and "Any edge tile"; after a blockade it says that no tile matches (PRD U10).
+ * The Match card (PRD I1): what the next take needs, said as one sentence, "Match Desert or Sun": the
+ * word Match, then two chips, the terrain with its picture and the symbol drawn as on the tiles, joined
+ * by "or", either of which makes a tile legal. At the opening it says "First take: Any edge tile" beside a
+ * diagram of the edge ring; after a blockade it says that no tile matches (PRD U10).
  * A new tile changes in place with a short crossfade under 200 ms (PRD U8): nothing flies in. On a
  * phone the names area keeps one size, so the blockade says "No match" there in one line, and the
  * card's accessible name keeps the whole sentence.
@@ -38,7 +39,7 @@ export function MatchCard({ model }: { model: MatchCardModel }) {
       data-ended={model.ended || undefined}
     >
       <span className="match-heading" aria-hidden="true">
-        {terrain === null ? 'First tile' : model.ended ? 'Last tile taken' : 'Next tile needs'}
+        {terrain === null ? 'First take' : model.ended || model.blocked ? 'Last tile taken' : 'Match'}
       </span>
       <span key={model.takes} className="match-text" aria-hidden="true">
         {model.blocked ? (
@@ -55,10 +56,10 @@ export function MatchCard({ model }: { model: MatchCardModel }) {
                 <b data-testid="match-card-terrain">{terrain}</b>
               </span>
             </span>
-            <span className="match-or">or</span>
+            {!model.ended && <span className="match-or">or</span>}
             <span className="match-chip chip-symbol">
               <span className="chip-emblem">
-                <SymbolEmblem symbol={symbol} />
+                <SymbolMark symbol={symbol} variant="icon" />
               </span>
               <span className="chip-text">
                 <i>Symbol</i>
@@ -71,7 +72,6 @@ export function MatchCard({ model }: { model: MatchCardModel }) {
             <span className="match-chip chip-opening">
               <EdgeDiagram />
               <span className="chip-text">
-                <i>Place on</i>
                 <b data-testid="match-card-opening">{model.text}</b>
               </span>
             </span>

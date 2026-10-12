@@ -35,18 +35,31 @@ import {
 
 /** The tiles, tokens, avatars and seats of the game on screen, read from the page, for the theme checks. */
 async function expectDistinguishable(page: Page, neon = false) {
-  // Four terrains, each with its own colour and scene; four symbols, each with its own emblem.
+  // Four terrains, each with its own colour and scene; four symbols, each with its own shape, printed into
+  // the art with no badge: at the same place in every tile (its upper-left corner, inset 8%), a third of
+  // the tile wide up to 40 px, and in one ink for all four, the theme's text colour.
   const tiles = await board(page)
     .locator('[data-cell]:not([data-owner])')
     .evaluateAll((elements) =>
-      elements.map((cell) => ({
-        terrain: cell.getAttribute('data-terrain')!,
-        symbol: cell.getAttribute('data-symbol')!,
-        colour: getComputedStyle(cell).backgroundColor,
-        scene: cell.querySelector('svg.scene')!.getAttribute('data-shape'),
-        emblem: cell.querySelector('.tile-symbol svg')!.getAttribute('data-shape'),
-        emblemSize: cell.querySelector('.tile-symbol')!.getBoundingClientRect().width,
-      })),
+      elements.map((cell) => {
+        const box = cell.querySelector('.tile-face')!.getBoundingClientRect();
+        const mark = cell.querySelector('.tile-symbol svg.symbol-mark')!;
+        const symbol = mark.getBoundingClientRect();
+        return {
+          terrain: cell.getAttribute('data-terrain')!,
+          symbol: cell.getAttribute('data-symbol')!,
+          colour: getComputedStyle(cell).backgroundColor,
+          scene: cell.querySelector('svg.scene')!.getAttribute('data-shape'),
+          shape: mark.getAttribute('data-shape'),
+          ink: getComputedStyle(mark).color,
+          text: getComputedStyle(document.body).color,
+          lit: ['symbol', 'both'].includes(cell.getAttribute('data-match') ?? ''),
+          size: symbol.width,
+          share: symbol.width / box.width,
+          inset: [(symbol.left - box.left) / box.width, (symbol.top - box.top) / box.height],
+          badge: [...mark.parentElement!.children].length !== 1 || getComputedStyle(mark.parentElement!).backgroundColor !== 'rgba(0, 0, 0, 0)' || getComputedStyle(mark.parentElement!).boxShadow !== 'none',
+        };
+      }),
     );
   expect(tiles).toHaveLength(14);
   const byTerrain = new Map(tiles.map((cell) => [cell.terrain, cell]));
@@ -55,10 +68,19 @@ async function expectDistinguishable(page: Page, neon = false) {
   expect(new Set([...byTerrain.values()].map((cell) => cell.scene)).size).toBe(4);
   for (const cell of tiles) {
     expect(new Set(tiles.filter((other) => other.terrain === cell.terrain).map((other) => other.scene)).size).toBe(1);
-    expect(new Set(tiles.filter((other) => other.symbol === cell.symbol).map((other) => other.emblem)).size).toBe(1);
-    expect(cell.emblemSize).toBeGreaterThanOrEqual(20);
+    expect(new Set(tiles.filter((other) => other.symbol === cell.symbol).map((other) => other.shape)).size).toBe(1);
+    expect(cell.size).toBeGreaterThanOrEqual(20);
+    expect(cell.size).toBeLessThanOrEqual(40.5);
+    if (cell.size < 40) expect(cell.share).toBeCloseTo(0.36, 2);
+    expect(cell.inset[0]).toBeCloseTo(0.08, 2);
+    expect(cell.inset[1]).toBeCloseTo(0.08, 2);
+    expect(cell.badge, `${cell.terrain}–${cell.symbol} has no badge behind its symbol`).toBe(false);
   }
-  expect(new Set(tiles.map((cell) => cell.emblem)).size).toBe(4);
+  expect(new Set(tiles.map((cell) => cell.shape)).size).toBe(4);
+  // One ink, the theme's text colour, for every symbol not lit by the same-symbol cue.
+  const unlit = tiles.filter((cell) => !cell.lit);
+  expect(new Set(unlit.map((cell) => cell.ink)).size).toBe(1);
+  expect(unlit[0]!.ink).toBe(unlit[0]!.text);
 
   // Player 1's token and Player 2's (the bot's) differ in colour, rim and mark, and stand out from the tiles and the bare slot.
   const tokens = await board(page)
@@ -233,7 +255,7 @@ async function readableInPalette(page: Page, palette: PaletteId, scheme: 'light'
 test.describe('dark colour scheme', () => {
   test.use({ colorScheme: 'dark' });
 
-  test('[scenario:dark-theme] for each colour theme in dark, on the home screen and in a game, the ground, board, tiles, emblems, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the scoreboard and the result card included, reads at 4.5:1', async ({ page }, testInfo) => {
+  test('[scenario:dark-theme] for each colour theme in dark, on the home screen and in a game, the ground, board, tiles, their symbols, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the scoreboard and the result card included, reads at 4.5:1', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await openHome(page);
     // The default theme's dark set is in use, on its warm charcoal ground.
@@ -370,7 +392,7 @@ test.describe('phone viewport', () => {
     expect((await page.getByTestId('avatar-A').boundingBox())!.width).toBeGreaterThanOrEqual(76);
     expect((await page.getByTestId('match-card').boundingBox())!.height).toBeCloseTo(64, 0);
 
-    // Take a tile by touch so the last tile shows its emblems, and the bot replies. Mid-game with no toast,
+    // Take a tile by touch so the Match card shows the last tile and its sentence, and the bot replies. Mid-game with no toast,
     // still no scrolling and no empty band.
     const before = await takeCount(page);
     await glowing(page).first().tap();

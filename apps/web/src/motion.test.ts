@@ -56,7 +56,7 @@ describe('the motion inside the tile art', () => {
     expect(idleRules.length).toBeGreaterThanOrEqual(12);
     const block = /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{([\s\S]*?)\n\}\n/.exec(css)?.[1] ?? '';
     for (const { selector } of idleRules) expect(block, selector).toContain(selector);
-    const names = ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-pulse', 'scene-flicker', 'scene-spin', 'scene-twinkle', 'scene-rock', 'scene-slide', 'scene-glint', 'scene-halo'];
+    const names = ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-flicker', 'scene-spin', 'scene-twinkle', 'scene-rock', 'scene-slide', 'scene-glint'];
     for (const name of names) {
       const body = new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)\\s*\\}`).exec(css)?.[1] ?? '';
       expect(body, name).not.toBe('');
@@ -72,11 +72,13 @@ describe('the motion inside the tile art', () => {
     expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \*,/);
     expect(css).not.toMatch(/idle-shimmer|idle-drift|legal-breathe/);
     expect(rule(".cell[data-glow='true'] .tile-face::before")).not.toMatch(/animation/);
-    // No second ring: the same-symbol cue lights the symbol itself, in a square box, so it is a circle at any size.
-    expect(css).not.toMatch(/scene-ring/);
+    // No second ring and no disc: the same-symbol cue lights the symbol itself, in its square box, and a bar
+    // under it glints like the terrain's bar.
+    expect(css).not.toMatch(/scene-ring|scene-halo|emblem-svg|emblem-mark/);
     expect(rule('.tile-symbol')).toMatch(/aspect-ratio:\s*1/);
-    expect(rule('.tile-symbol .emblem-svg')).toMatch(/display:\s*block/);
-    expect(rule('.emblem-svg')).toMatch(/overflow:\s*visible/);
+    expect(rule('.tile-symbol .symbol-mark')).toMatch(/display:\s*block/);
+    expect(rule('.symbol-mark')).toMatch(/overflow:\s*visible/);
+    expect(rule(".board .cell[data-match='symbol'] .tile-symbol::after,\n  .board .cell[data-match='both'] .tile-symbol::after")).toMatch(/animation:\s*scene-glint/);
     // Scenes move at a calm but lively pace: no loop longer than 25 s, none shorter than 2 s.
     for (const { body } of idleRules) for (const ms of times(/animation(?:-duration)?\s*:\s*([^;]+)/.exec(body)?.[1] ?? '')) {
       expect(ms).toBeGreaterThanOrEqual(2000);
