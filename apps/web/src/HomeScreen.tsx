@@ -5,7 +5,8 @@ import { Avatar } from './Avatar';
 import { DIFFICULTY_OPTIONS, type Difficulty } from './difficulty';
 import type { ClockChoice } from './clock';
 import { ClockSlider } from './ClockSlider';
-import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
+import { ConfirmDialog } from './ConfirmDialog';
+import { difficultyAfterKey, opponentAfterKey, replaceConfirmation, REPLACES_NOTE, RESET_CONFIRMATION, type HomeModel } from './home';
 import { MenuDialog } from './MenuDialog';
 import { UpdateNotice } from './UpdateNotice';
 import type { HapticsPlayer } from './haptics';
@@ -61,10 +62,13 @@ function HeroBoard() {
  * The home screen (PRD S1, E1, E5): a hero with the drawn wordmark over a board in its frame and both
  * avatars, Continue for a saved game, one play panel (the opponent, the bot's difficulty while the bot is
  * chosen, each player's clock while a friend is chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
- * Settings, which holds the results' reset. One tap on Play starts a game.
+ * Settings, which holds the results' reset. One tap on Play starts a game; with a saved game, Play first asks
+ * whether to replace it, and the reset of the results asks too.
  */
 export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings, haptics, updateReady = false }: HomeScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: 'replace' | 'reset'; opener: HTMLElement } | null>(null);
+  const confirmation = confirm?.kind === 'replace' && model.continueGame ? replaceConfirmation(model.continueGame.note) : RESET_CONFIRMATION;
   return (
     <main className="home" data-testid="home-screen">
       {updateReady && <UpdateNotice />}
@@ -113,7 +117,14 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
             {REPLACES_NOTE}
           </p>
         )}
-        <button type="button" className="primary play" data-testid="play" aria-describedby={model.replacesSaved ? 'play-replaces' : undefined} onClick={onPlay}>
+        <button
+          type="button"
+          className="primary play"
+          data-testid="play"
+          aria-haspopup={model.replacesSaved ? 'dialog' : undefined}
+          aria-describedby={model.replacesSaved ? 'play-replaces' : undefined}
+          onClick={(event) => (model.replacesSaved ? setConfirm({ kind: 'replace', opener: event.currentTarget }) : onPlay())}
+        >
           {model.playLabel}
         </button>
       </section>
@@ -142,10 +153,30 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
           onSettings={onSettings}
           onClose={() => setMenu(null)}
           returnFocusTo={menu.opener}
-          onResetResults={onResetResults}
+          onResetResults={() => {
+            // The reset asks in its own dialog, in place of Settings; Cancel or the reset returns to Settings' button.
+            setConfirm({ kind: 'reset', opener: menu.opener });
+            setMenu(null);
+          }}
           canReset={model.canReset}
           haptics={haptics}
           updateReady={updateReady}
+        />
+      )}
+
+      {confirm && (
+        <ConfirmDialog
+          title={confirmation.title}
+          text={confirmation.text}
+          confirmLabel={confirmation.confirmLabel}
+          testId={confirm.kind === 'replace' ? 'confirm-replace' : 'confirm-reset'}
+          returnFocusTo={confirm.opener}
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => {
+            setConfirm(null);
+            if (confirm.kind === 'replace') onPlay();
+            else onResetResults();
+          }}
         />
       )}
     </main>

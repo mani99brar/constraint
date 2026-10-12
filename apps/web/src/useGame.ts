@@ -5,8 +5,9 @@ import { personToMove, type GameMode } from './mode';
 
 /**
  * Holds the game state and lets the person to move attempt a take; in a bot game the bot takes after
- * a short pause, and a two-player game has no bot and no pause. `onChange` hears every new state once,
- * to save the game or record its result.
+ * a short pause, and a two-player game has no bot and no pause. While `waiting` (the countdown, the menu,
+ * a hidden page) nobody takes and the bot's take waits. `onChange` hears every new state once, to save
+ * the game or record its result.
  */
 export function useGame(initialState: GameState, mode: GameMode, onChange?: (state: GameState) => void, waiting = false) {
   const [state, setState] = useState(initialState);
@@ -23,7 +24,7 @@ export function useGame(initialState: GameState, mode: GameMode, onChange?: (sta
   }, [state]);
 
   useEffect(() => {
-    // The bot waits for the countdown before a new game, like everyone else.
+    // The bot waits while the game is paused, like everyone else; a cancelled take is scheduled again on resume.
     if (difficulty === null || waiting || !botToMove(state)) return;
     // StrictMode mounts effects twice: the first schedule is cancelled, and `botStep` only takes for the
     // scheduled turn. The bot chooses once, outside the state updater, which StrictMode may call twice.

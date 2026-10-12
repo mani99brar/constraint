@@ -14,6 +14,7 @@ import {
   match,
   nearEnding,
   openHome,
+  pressPlay,
   PALETTES,
   readBoard,
   readScore,
@@ -263,7 +264,7 @@ test('[scenario:colour-themes] the menu and Settings offer Walnut (the default),
 
   // The game menu: Clear, then back to Walnut; the board's well follows.
   await page.getByTestId('opponent-switch').getByRole('radio', { name: 'Friend' }).click();
-  await page.getByTestId('play').click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   const seaglassWell = (await pageColours(page)).well;
   await page.getByTestId('menu-button').click();

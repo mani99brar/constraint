@@ -3,6 +3,7 @@ import { Dialog } from './Dialog';
 import { UpdateNotice } from './UpdateNotice';
 import { paletteAfterKey } from './home';
 import { RadioSwitch } from './RadioSwitch';
+import { quitNote } from './save';
 import { PALETTES, THEMES, type PaletteId } from './theme';
 
 /** The three dots of a theme's button: its ground, its first player and its second. */
@@ -35,6 +36,8 @@ export interface MenuDialogProps {
   readonly onHowTo?: ((opener: HTMLElement) => void) | undefined;
   /** Present during a game: back to the title screen; the saved game is kept. */
   readonly onQuit?: (() => void) | undefined;
+  /** During a game: whether the browser saved it; when not, it is kept only while the tab stays open. */
+  readonly saved?: boolean;
   /** Present on the home screen: sets the results by difficulty back to zero. */
   readonly onResetResults?: (() => void) | undefined;
   /** Whether the reset is enabled: once a bot game was counted. */
@@ -49,7 +52,7 @@ export interface MenuDialogProps {
  * The menu (PRD U4, E3, E5, U5): resume, How to Play, the colour theme, the highlight, tile-name and sound
  * settings, and quit to title; on the home screen, as Settings, it also holds the reset of the results.
  */
-export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false, haptics, updateReady = false }: MenuDialogProps) {
+export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, saved = true, onResetResults, canReset = false, haptics, updateReady = false }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
   return (
     <Dialog titleId="menu-title" className="menu-dialog" testId="menu" onClose={onClose} returnFocusTo={returnFocusTo} initialFocus={first}>
@@ -146,7 +149,9 @@ export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo
         {onQuit && (
           <button type="button" data-testid="menu-quit" onClick={onQuit}>
             Quit to title
-            <span className="menu-note">Your game is saved; Continue picks it up.</span>
+            <span className="menu-note" data-testid="menu-save-note" data-saved={saved}>
+              {quitNote(saved)}
+            </span>
           </button>
         )}
       </div>

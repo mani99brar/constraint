@@ -12,6 +12,7 @@ import {
   match,
   nearWin,
   playButton,
+  pressPlay,
   readBoard,
   recordedLooks,
   recordReactions,
@@ -206,17 +207,17 @@ async function readMaterials(page: Page) {
 }
 
 function expectMaterials(materials: Awaited<ReturnType<typeof readMaterials>>) {
-  // The calm ground: solid paper or slate under radial layers only (grain dots, one glow, a vignette),
+  // The calm ground: solid paper or slate under two radial layers only (one glow, a vignette), no dots,
   // no felt and no repeating or directional pattern, on the screen itself with nothing laid over it.
   expect(materials.ground).toMatch(/radial-gradient/);
   expect(materials.ground).not.toMatch(/repeating-|linear-gradient|conic-gradient/);
-  expect(materials.ground.match(/radial-gradient/g)!.length).toBe(4);
+  expect(materials.ground.match(/radial-gradient/g)!.length).toBe(2);
   expect(materials.bodyGround).toBe(materials.ground);
   expect(materials.groundColour).toMatch(/^rgb\(/);
   expect(materials.overlays).toEqual(['none', 'none']);
-  // The grain tiles at two co-prime sizes; the glow and the vignette cover the screen.
-  expect(materials.groundSize).toBe('5px 5px, 7px 7px, 100% 100%, 100% 100%');
-  // Wood: a repeating grain across the frame over its solid colour.
+  // The glow and the vignette cover the screen; nothing tiles.
+  expect(materials.groundSize).toBe('100% 100%, 100% 100%');
+  // Wood: a soft, wide repeating grain across the frame over its solid colour.
   expect(materials.wood).toMatch(/^repeating-linear-gradient/);
   expect(materials.woodColour).not.toBe(materials.groundColour);
   // Tiles: an edge (inset shadows) and depth (an outer shadow), and no filter on a cell.
@@ -442,7 +443,7 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(match(page)).toHaveAttribute('data-takes', /^[01]$/);
   await checkToastsBesideBoard(page, 'phone');
   // Nothing on the phone layout scrolls to fit them.

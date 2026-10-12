@@ -1,8 +1,9 @@
 /**
- * Short, non-blocking notices (PRD U3): a refused take with its reason, and in a bot game the bot's
- * take. The end of the game is shown by the end screen and the seats, never by a toast.
+ * Short, non-blocking notices (PRD U3): a refused take with its reason, in a bot game the bot's take, and
+ * once when the browser could not save the game. The end of the game is shown by the end screen and the
+ * seats, never by a toast.
  */
-export type ToastKind = 'refusal' | 'take';
+export type ToastKind = 'refusal' | 'take' | 'save';
 
 export interface ToastSpec {
   readonly kind: ToastKind;
@@ -23,6 +24,11 @@ export function refusalToast(reason: string, short: string = reason): ToastSpec 
 /** The other side's take, for example "Bot took D3, Desert–Star", or "Bot took D3" on a phone. */
 export function takeToast(text: string, short: string = text): ToastSpec {
   return { kind: 'take', text, short, tone: 'info' };
+}
+
+/** The browser refused to save the game: said once, quietly, with what to do. */
+export function saveFailedToast(text: string): ToastSpec {
+  return { kind: 'save', text, short: 'Not saved: keep this tab open', tone: 'info' };
 }
 
 /** How long a toast stays, the fade at its end (under 400 ms, PRD U8) and how many show at once. */

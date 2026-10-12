@@ -23,6 +23,7 @@ import {
   difficultySwitch,
   opponentSwitch,
   playButton,
+  pressPlay,
   openHome,
   playToEnd,
   readBoard,
@@ -252,7 +253,7 @@ test('[scenario:home-screen] the home screen shows the wordmark on one line over
   await expect(page.getByRole('button', { name: /^Play\b/ })).toHaveCount(1);
 });
 
-test('[scenario:start-from-home] Play starts the chosen setup at once, the bot at the chosen difficulty or two players; the opponent and the difficulty survive a reload, and with a saved game the panel says Play replaces it', async ({ page, browser }, testInfo) => {
+test('[scenario:start-from-home] Play starts the chosen setup at once, the bot at the chosen difficulty or two players; the opponent and the difficulty survive a reload, and with a saved game the panel says Play replaces it and Play asks before replacing it', async ({ page, browser }, testInfo) => {
   await openHome(page, HUMAN_STARTS);
 
   // The Normal bot at first: one tap shows the board with all 16 tiles.
@@ -289,7 +290,19 @@ test('[scenario:start-from-home] Play starts the chosen setup at once, the bot a
   await expect(difficultySwitch(page).getByRole('radio', { name: 'Easy' })).toHaveAttribute('aria-checked', 'true');
   await expect(difficultySwitch(page).getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'false');
   await expect(playButton(page)).toHaveText('Play · Easy bot');
+  // With a saved game Play asks first, in one dialog naming the saved game; Cancel (focused first) or Escape keeps it.
+  await expect(playButton(page)).toHaveAttribute('aria-haspopup', 'dialog');
   await playButton(page).click();
+  const confirm = page.getByRole('dialog', { name: 'Start a new game?' });
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText(/This replaces your saved game \(Normal bot, \d+ tiles? taken\)\./);
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(confirm).toHaveCount(0);
+  await expect(playButton(page)).toBeFocused();
+  await expect(page.getByTestId('continue')).toBeVisible();
+  await playButton(page).click();
+  await confirm.getByRole('button', { name: 'Start new game' }).click();
   await expect(page.getByTestId('seat-B-name')).toHaveText('Bot · Easy');
   await expect(page.getByTestId('continue')).toHaveCount(0);
   await attachScreenshot(page, testInfo, 'start-from-home');
@@ -302,7 +315,7 @@ test('[scenario:start-from-home] Play starts the chosen setup at once, the bot a
   await expect(opponentSwitch(page).getByRole('radio', { name: 'Friend' })).toHaveAttribute('aria-checked', 'true');
   await expect(difficultySwitch(page)).toHaveCount(0);
   await expect(playButton(page)).toHaveText('Play · with a friend');
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(match(page)).toHaveAttribute('data-mode', 'two-player');
   await expect(page.getByTestId('seat-A-name')).toHaveText('Player 1');
@@ -881,11 +894,28 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
   await page.reload();
   expect(await total()).toBe(before + 1);
 
-  // Settings' reset is enabled now that a bot game counted; pressing it sets every difficulty back to zero.
-  await page.getByTestId('open-settings').click();
+  // Settings' reset is enabled now that a bot game counted; it asks first in one dialog of its own, in
+  // place of Settings. Cancel keeps every count and returns focus to Settings.
+  const openSettings = page.getByTestId('open-settings');
+  await openSettings.click();
   const reset = page.getByRole('dialog', { name: 'Settings' }).getByTestId('reset-results');
   await expect(reset).toBeEnabled();
   await reset.click();
+  const confirm = page.getByRole('dialog', { name: 'Reset results?' });
+  await expect(confirm).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(openSettings).toBeFocused();
+  expect(await total()).toBe(before + 1);
+  // Confirmed, it sets every difficulty back to zero.
+  await openSettings.click();
+  await reset.click();
+  await confirm.getByRole('button', { name: 'Reset results' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(openSettings).toBeFocused();
+  await openSettings.click();
   await expect(reset).toBeDisabled();
   await page.keyboard.press('Escape');
   expect(await total()).toBe(0);

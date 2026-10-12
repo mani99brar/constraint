@@ -11,6 +11,7 @@ import {
   difficultySwitch,
   opponentSwitch,
   playButton,
+  pressPlay,
   glowing,
   lowContrastText,
   nearEnding,
@@ -358,7 +359,7 @@ test.describe('phone viewport', () => {
 
     // A game: the whole table fits with no scrolling in either direction and no empty band at the bottom.
     await difficultySwitch(page).getByRole('radio', { name: 'Easy' }).tap();
-    await playButton(page).tap();
+    await pressPlay(page, 'tap');
     await expect(board(page)).toBeVisible();
     const fits = ['top-bar', 'scoreboard', 'score-A', 'score-B', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'board-frame'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
@@ -595,6 +596,16 @@ test('[scenario:keyboard-play] with the keyboard only, the player switches the o
   await expect(opponentSwitch(page).getByRole('radio', { name: 'Friend' })).toHaveAttribute('aria-checked', 'true');
   await tabTo(page, '[data-testid="play"]');
   await expect(playButton(page)).toHaveText('Play · with a friend');
+  await page.keyboard.press('Enter');
+  // The saved bot game is replaced only on confirmation: Cancel has focus, Tab wraps to the action and
+  // stays inside the dialog, Enter confirms.
+  const confirm = page.getByRole('dialog', { name: 'Start a new game?' });
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(confirm.getByRole('button', { name: 'Start new game' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Enter');
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');

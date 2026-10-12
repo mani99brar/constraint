@@ -41,6 +41,10 @@ export function App({ storage: given }: AppProps) {
   const [score, setScoreState] = useState<Score>(NO_SCORE);
   const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(() => (howToOpensFirst(storage) ? { opener: null } : null));
   const matchKey = useRef(0);
+  // Whether the browser saved the running game at its last save. When it refused, the game is kept here
+  // instead, so Continue picks it up while the tab stays open, and an older save never comes back in its place.
+  const [lastSaveOk, setLastSaveOk] = useState(true);
+  const unsaved = useRef<SavedGame | null>(null);
   // A timed game's clocks are read when the game is saved: after every take, on leaving and when the page hides.
   const readClock = useRef<(() => ClockTimes | null) | null>(null);
   const running = useRef<{ state: GameState; mode: GameMode } | null>(null);
@@ -96,10 +100,18 @@ export function App({ storage: given }: AppProps) {
     setHowTo(null);
   }
 
+  /** Saves a running game and remembers whether the browser took it; a refused one stays in memory. */
+  function store(state: GameState, mode: GameMode, clockLeft: ClockTimes | null) {
+    const ok = saveGame(storage, state, mode, scoreRef.current, clockLeft);
+    unsaved.current = ok ? null : { state, mode, score: scoreRef.current, clockLeft };
+    if (!ok) clearSavedGame(storage);
+    setLastSaveOk(ok);
+  }
+
   /** Saves the running game again with its clocks as they stand now. */
   function saveClocks() {
     const current = running.current;
-    if (current && !current.state.result && readClock.current?.()) saveGame(storage, current.state, current.mode, scoreRef.current, readClock.current());
+    if (current && !current.state.result && readClock.current?.()) store(current.state, current.mode, readClock.current());
   }
 
   useEffect(() => {
@@ -120,7 +132,7 @@ export function App({ storage: given }: AppProps) {
     running.current = null;
     readClock.current = null;
     setScore(scoreAfter('leave', scoreRef.current));
-    setSaved(loadSavedGame(storage));
+    setSaved(unsaved.current ?? loadSavedGame(storage));
     setResults(loadResults(storage));
     setScreen({ kind: 'home' });
   }
@@ -130,12 +142,15 @@ export function App({ storage: given }: AppProps) {
     rememberStarter(storage, state.starter);
     matchKey.current += 1;
     running.current = { state, mode };
+    setLastSaveOk(true);
     setScreen({ kind: 'match', state, mode, key: matchKey.current, clockLeft, countdown: fresh && settingsRef.current.countdown });
   }
 
   /** A game started from the home screen: a new sitting with its score at zero. */
   function newGame(mode: GameMode) {
     sound.play('select');
+    // A new game replaces the saved one, or the one kept in memory when the browser could not save it.
+    unsaved.current = null;
     setScore(scoreAfter('new-game', scoreRef.current));
     play(startGame(undefined, starterForNewGame(storage)), mode);
   }
@@ -147,11 +162,12 @@ export function App({ storage: given }: AppProps) {
   function gameChanged(state: GameState, mode: GameMode) {
     running.current = { state, mode };
     if (state.result) {
+      unsaved.current = null;
       clearSavedGame(storage);
       setScore(addResult(scoreRef.current, state.result));
       setResults(recordFinishedGame(storage, mode, state.result, HUMAN));
     } else {
-      saveGame(storage, state, mode, scoreRef.current, readClock.current?.() ?? null);
+      store(state, mode, readClock.current?.() ?? null);
     }
   }
 
@@ -166,6 +182,7 @@ export function App({ storage: given }: AppProps) {
           mode={mode}
           clockLeft={screen.clockLeft}
           countdown={screen.countdown}
+          saved={lastSaveOk}
           onClockReader={onClockReader}
           score={score}
           settings={settings}
@@ -190,10 +207,10 @@ export function App({ storage: given }: AppProps) {
         <HomeScreen
           haptics={haptics}
           updateReady={updateReady}
-          model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length } : null, settings, results)}
+          model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length, unsaved: saved === unsaved.current } : null, settings, results)}
           settings={settings}
           onContinue={() => {
-            const current = loadSavedGame(storage);
+            const current = unsaved.current ?? loadSavedGame(storage);
             if (!current) return setSaved(null);
             setScore(current.score);
             play(current.state, current.mode, current.clockLeft, false);
