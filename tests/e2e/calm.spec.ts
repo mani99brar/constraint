@@ -30,7 +30,7 @@ import {
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
-/** The look of every cell as the page paints it: lift, ring, halo, tint, badge, veil, outline and opacity. */
+/** The look of every cell as the page paints it: lift, ring, shadows, tint, badge, veil, outline and opacity. */
 async function cellLooks(page: Page) {
   return board(page)
     .locator('[data-cell]')
@@ -59,7 +59,7 @@ async function cellLooks(page: Page) {
           faceOpacity: Number(getComputedStyle(face).opacity),
           outline: style.outlineStyle,
           ring: parse(style.borderTopColor),
-          // The ring: the cell's border and the tint layer's inset edge ("<colour> 0px 0px 0px 2px inset").
+          // The ring: the cell's border, plus any inset edge on the art layer ("<colour> 0px 0px 0px 2px inset").
           ringWidth: parseFloat(style.borderTopWidth) + (edge === 'none' ? 0 : Number(/0px 0px 0px ([\d.]+)px inset/.exec(edge)?.[1] ?? 0)),
           shadows: shadowColours(style.boxShadow),
           tint: parse(getComputedStyle(face, '::before').backgroundColor),
@@ -87,10 +87,10 @@ async function playerColours(page: Page): Promise<Record<'A' | 'B', Rgba>> {
 const sameColour = (a: Rgba, b: Rgba) => Math.abs(a.r - b.r) < 2 && Math.abs(a.g - b.g) < 2 && Math.abs(a.b - b.b) < 2;
 
 /**
- * With highlights on and a person to move: the legal tiles stay raised with a halo, a 3 px ring, a tint
- * of about 30% and a corner badge, all in the mover's colour and mark; the other free tiles fade under a
- * veil while the cell stays opaque; taken cells never fade; the last take carries a soft ring in its
- * taker's colour.
+ * With highlights on and a person to move: the legal tiles stay slightly raised with a crisp 2 px ring in
+ * the mover's colour and nothing over their art (no halo, tint or badge); the other free tiles fade under
+ * a light veil while the cell stays opaque; taken cells never fade; the last take carries a soft ring in
+ * its taker's colour.
  */
 async function expectLegalLook(page: Page, mover: 'A' | 'B') {
   const { legal } = await legalFromPage(page);
@@ -105,17 +105,13 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
     if (look.glow) {
       expect(look.translate, look.cell).toMatch(/^0px -[1-9]\d*(\.\d+)?px$/);
       expect(sameColour(look.ring, colour), `${look.cell} is ringed in the mover's colour`).toBe(true);
-      expect(look.ringWidth, look.cell).toBeGreaterThanOrEqual(2);
-      expect(look.ringWidth, look.cell).toBeLessThanOrEqual(3);
-      expect(look.tintEdge.some((edge) => sameColour(edge, colour) && edge.a === 1), `${look.cell} ring's inner edge`).toBe(true);
-      expect(sameColour(look.shadows[0]!, colour), `${look.cell} has a halo of the mover's colour`).toBe(true);
-      expect(sameColour(look.tint, colour), `${look.cell} is tinted in the mover's colour`).toBe(true);
-      // A light wash (8 to 14%) so the tile's art still reads under it.
-      expect(look.tint.a, look.cell).toBeGreaterThanOrEqual(0.07);
-      expect(look.tint.a, look.cell).toBeLessThanOrEqual(0.2);
-      expect(look.badge, look.cell).not.toBeNull();
-      expect(sameColour(look.badge!.colour, colour), `${look.cell} badge`).toBe(true);
-      expect(look.badge!.mark, look.cell).toBe(mover === 'A' ? 'ring' : 'diamond');
+      expect(look.ringWidth, look.cell).toBe(2);
+      expect(look.tintEdge, `${look.cell} has one ring, the border`).toEqual([]);
+      // No halo: none of the cell's own shadows is in the mover's colour.
+      expect(look.shadows.some((shadow) => sameColour(shadow, colour)), `${look.cell} has no halo of the mover's colour`).toBe(false);
+      // The art untouched: no tint, no badge, no veil.
+      expect(look.tint.a, look.cell).toBe(0);
+      expect(look.badge, look.cell).toBeNull();
       expect(look.veil.a, look.cell).toBe(0);
     } else {
       expect(look.translate, look.cell).toMatch(/^(none|0px)$/);
@@ -128,9 +124,9 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
       expect(look.veil.a, look.cell).toBe(0);
     } else if (!look.glow) {
       expect(look.faded, look.cell).toBe(true);
-      // A veil of the ground fades the art back.
-      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.3);
-      expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.65);
+      // A light veil of the ground quiets the art, keeping its terrain and symbol readable.
+      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.1);
+      expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.15);
     }
   }
   // The last take: a soft ring in its taker's colour on its slot, the other taken cells without one.
@@ -154,7 +150,7 @@ async function recordHighlights(page: Page) {
       w.__highlights.push({
         toMove: screen.getAttribute('data-to-move'),
         accepts: screen.getAttribute('data-accepts-takes'),
-        lit: screen.querySelectorAll('[data-glow="true"], [data-faded="true"], [data-testid="move-badge"], [data-pop-order], [data-pop-turn], [data-glow-player]').length,
+        lit: screen.querySelectorAll('[data-glow="true"], [data-faded="true"], [data-pop-turn], [data-glow-player]').length,
       });
     w.__highlightObserver = new MutationObserver(snapshot);
     w.__highlightObserver.observe(screen, { attributes: true, subtree: true, childList: true });
@@ -162,7 +158,7 @@ async function recordHighlights(page: Page) {
   });
 }
 
-test('[scenario:legal-tiles] with highlights on and a person to move, the legal tiles stay raised with a halo, a ring, a tint and a corner badge in the mover’s colour and mark, the others fade, taken cells do not, and the last take carries a soft ring in its taker’s colour, wide and at 390 × 844; in a two-player game the colour and badge follow the mover, and on the bot’s turn nothing is highlighted', async ({ page }, testInfo) => {
+test('[scenario:legal-tiles] with highlights on and a person to move, the legal tiles stay slightly raised with a crisp ring in the mover’s colour and no halo, tint or badge, the others fade under a light veil, taken cells do not, and the last take carries a soft ring in its taker’s colour, wide and at 390 × 844; in a two-player game the ring’s colour follows the mover, and on the bot’s turn nothing is highlighted', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await startGame(page);
   await recordHighlights(page);
@@ -170,7 +166,7 @@ test('[scenario:legal-tiles] with highlights on and a person to move, the legal 
   await waitForHumanTurn(page);
   await expectLegalLook(page, 'A');
   await expect(board(page)).toHaveAttribute('data-glow-player', 'A');
-  // While the bot chose, nothing popped, faded, glowed or carried a badge.
+  // While the bot chose, nothing rose, faded or carried a ring.
   const record = await page.evaluate(() => (window as unknown as { __highlights: { toMove: string | null; accepts: string | null; lit: number }[] }).__highlights);
   const botTurn = record.filter((entry) => entry.toMove === 'B');
   expect(botTurn.length).toBeGreaterThan(0);
@@ -182,7 +178,7 @@ test('[scenario:legal-tiles] with highlights on and a person to move, the legal 
   await expect(seat(page, 'A')).toBeVisible();
   await expectLegalLook(page, 'A');
 
-  // In a two-player game the colour and the badge follow the mover: Player 1's ring, then Player 2's diamond.
+  // In a two-player game the ring's colour follows the mover: Player 1's, then Player 2's.
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
@@ -222,7 +218,7 @@ async function shownPlates(page: Page): Promise<string[]> {
     .evaluateAll((elements) => elements.filter((element) => getComputedStyle(element.querySelector('.tile-name')!).display !== 'none').map((element) => element.getAttribute('data-cell')!));
 }
 
-test('[scenario:tile-names] tile names are not drawn by default, show on hover, focus and a long press on a solid plate without taking the tile, a tap still takes it, every cell’s accessible name has its tile, and the Tile names setting shows them all and survives a reload', async ({ page, browser }, testInfo) => {
+test('[scenario:tile-names] tile names are not drawn by default, show on hover, focus (an offset outline unlike the legal ring) and a long press on a solid plate without taking the tile, a tap still takes it, every cell’s accessible name has its tile, and the Tile names setting shows them all and survives a reload', async ({ page, browser }, testInfo) => {
   test.setTimeout(90_000);
   await startTwoPlayerGame(page);
   const cells = await readBoard(page);
@@ -231,7 +227,7 @@ test('[scenario:tile-names] tile names are not drawn by default, show on hover, 
   expect(await shownPlates(page)).toEqual([]);
   for (const cell of cells) expect(cell.label).toContain(`${cell.cell}, ${cell.terrain}–${cell.symbol}`);
 
-  // Hover: the name shows on a solid plate above the wash and the veil, and nothing is taken.
+  // Hover: the name shows on a solid plate above the art and the veil, and nothing is taken.
   const inner = cells.find((cell) => cell.cell === 'B2')!;
   await cellAt(page, 'B2').hover();
   expect(await plateOf(page, 'B2')).toEqual({ shown: true, text: `${inner.terrain}–${inner.symbol}`, onTop: true, solid: true, zIndex: '3' });
@@ -245,6 +241,17 @@ test('[scenario:tile-names] tile names are not drawn by default, show on hover, 
   for (let i = 0; i < 30 && !(await page.evaluate(() => document.activeElement?.hasAttribute('data-cell'))); i += 1) await page.keyboard.press('Tab');
   const focused = (await page.evaluate(() => document.activeElement?.getAttribute('data-cell')))!;
   expect((await plateOf(page, focused))!.shown).toBe(true);
+  // Focus never reads as "legal": the focused legal tile keeps its ring and gains an outline in the focus
+  // colour, set off from the tile by a strip of the well.
+  await expect(cellAt(page, focused)).toHaveAttribute('data-glow', 'true');
+  const ring = await cellAt(page, focused).evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outline: style.outlineStyle, offset: parseFloat(style.outlineOffset), width: parseFloat(style.outlineWidth), outlineColour: style.outlineColor, ringColour: style.borderTopColor };
+  });
+  expect(ring.outline).toBe('solid');
+  expect(ring.offset).toBeGreaterThanOrEqual(2);
+  expect(ring.width).toBeGreaterThanOrEqual(2);
+  expect(ring.outlineColour).not.toBe(ring.ringColour);
   await page.keyboard.press('ArrowRight');
   const next = (await page.evaluate(() => document.activeElement?.getAttribute('data-cell')))!;
   expect(await shownPlates(page)).toEqual([next]);

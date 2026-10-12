@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyTakeToasts,
-  dropRefusals,
+  dropSuperseded,
   EMPTY_TOASTS,
   enqueueToasts,
   FADE_MS,
@@ -36,7 +36,19 @@ describe('toasts (PRD U3)', () => {
     expect(visibleToasts(changed, 10)).toEqual([]);
     const botTook = applyTakeToasts(refused, { turnChanged: true, toasts: [takeToast('Bot took D3, Desert–Star')] }, 10);
     expect(visibleToasts(botTook, 10).map(({ toast }) => [toast.kind, toast.text])).toEqual([['take', 'Bot took D3, Desert–Star']]);
-    expect(dropRefusals(botTook)).toBe(botTook);
+    expect(dropSuperseded(EMPTY_TOASTS)).toBe(EMPTY_TOASTS);
+  });
+
+  it('drops the earlier take toast when the next take is made, so a notice never outlives its take', () => {
+    // The bot took; then your take supersedes its notice at once, well before the notice would leave.
+    const botTook = enqueueToasts(EMPTY_TOASTS, [takeToast('Bot took D3, Desert–Star', 'Bot took D3')], 0);
+    const yours = applyTakeToasts(botTook, { turnChanged: true, toasts: [] }, 10);
+    expect(visibleToasts(yours, 10)).toEqual([]);
+    // A refusal shown beside it goes too; the bot's next take then shows on its own.
+    const refused = enqueueToasts(botTook, [refusalToast('Water–Sun matches neither Forest nor Star')], 5);
+    expect(visibleToasts(applyTakeToasts(refused, { turnChanged: true, toasts: [] }, 10), 10)).toEqual([]);
+    const next = applyTakeToasts(yours, { turnChanged: true, toasts: [takeToast('Bot took A1, Forest–Sun')] }, 900);
+    expect(visibleToasts(next, 900).map(({ toast }) => toast.text)).toEqual(['Bot took A1, Forest–Sun']);
   });
 
   it('keeps only the newest take toast', () => {
@@ -57,11 +69,12 @@ describe('the phone’s one toast (PRD U3, U6)', () => {
     expect(shown).toHaveLength(2);
     const refusalId = shown.find(({ toast }) => toast.kind === 'refusal')!.toast.id;
     expect(phoneToast(shown)).toBe(refusalId);
-    // A newer take never hides the refusal; once the refusal goes, the take shows again.
+    // A newer take never hides the refusal; once the refusal leaves, the take shows again.
     const newer = enqueueToasts(refused, [takeToast('Bot took A1, Forest–Sun', 'Bot took A1')], 20);
     expect(phoneToast(visibleToasts(newer, 20))).toBe(refusalId);
-    const cleared = dropRefusals(newer);
-    expect(visibleToasts(cleared, 20).find(({ toast }) => toast.id === phoneToast(visibleToasts(cleared, 20)))!.toast.short).toBe('Bot took A1');
+    const later = 10 + TOAST_MS + 5;
+    const cleared = tickToasts(newer, later);
+    expect(visibleToasts(cleared, later).find(({ toast }) => toast.id === phoneToast(visibleToasts(cleared, later)))!.toast.short).toBe('Bot took A1');
   });
 });
 

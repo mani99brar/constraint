@@ -28,9 +28,9 @@ export function describeRefusal(refusal: TakeRefusal, state: GameState): string 
 }
 
 /**
- * A refusal in one short line for a phone's toast (PRD R3, U6), chosen by its kind: "Edge tiles only at
- * the start", "That tile is already taken" or "Desert–Moon doesn't match Forest–Star". The full reason stays in
- * the announcement.
+ * A refusal in a short form for a phone's toast (PRD R3, U6), at most two lines, chosen by its kind:
+ * "Edge tiles only at the start", "That tile is already taken" or "Desert–Moon doesn't match Forest–Star". The
+ * full reason stays in the announcement.
  */
 export function shortRefusal(refusal: TakeRefusal): string {
   switch (refusal.code) {
