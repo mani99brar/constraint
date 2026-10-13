@@ -1,7 +1,7 @@
 import type { Theme } from './theme';
 
 /**
- * The neon family: four dark themes that share one art set (illustrated scenes, emblem bubbles, glowing
+ * The neon family: four dark themes that share one art set (illustrated scenes, printed symbols, glowing
  * tokens) and differ in their tokens and a few family rules in styles.css. Each is dark under both
  * system schemes, so a theme means the same look whatever the device's setting.
  */

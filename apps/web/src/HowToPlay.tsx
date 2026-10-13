@@ -16,7 +16,7 @@ function MatchingExample() {
   return (
     <figure className="howto-example" data-testid="matching-example">
       <figcaption>
-        <TileArt terrain={lastTile.terrain} symbol={lastTile.symbol} className="example-art" />
+        <TileArt terrain={lastTile.terrain} symbol={lastTile.symbol} className="example-art" variant="icon" />
         <span>
           To match: <strong>{tileName(lastTile)}</strong>
         </span>
@@ -24,7 +24,7 @@ function MatchingExample() {
       <ul>
         {tiles.map((tile) => (
           <li key={tileName(tile)} className="example-tile">
-            <TileArt terrain={tile.terrain} symbol={tile.symbol} className="example-art" />
+            <TileArt terrain={tile.terrain} symbol={tile.symbol} className="example-art" variant="icon" />
             <span className="example-name">{tileName(tile)}</span>
             <strong className="verdict">{tile.matches ? `✓ matches (${tile.why})` : `✗ no match (${tile.why})`}</strong>
           </li>
@@ -46,7 +46,7 @@ function MiniBoard({ diagram }: { diagram: Diagram }) {
                 <TokenMark player={token} />
               </span>
             ) : (
-              <TileArt terrain={tile.terrain} symbol={tile.symbol} />
+              <TileArt terrain={tile.terrain} symbol={tile.symbol} variant="icon" />
             )}
           </span>
         ))}

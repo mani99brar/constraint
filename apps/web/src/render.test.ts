@@ -57,8 +57,12 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
       expect(seat.match(/<i( class="full")?><\/i>/g)).toHaveLength(8);
       expect(seat).toMatch(/\d left<\/span>/);
     }
-    // The Match card says what the next take needs: "Next tile needs", then a terrain chip and a symbol chip.
-    expect(html).toContain('Next tile needs');
+    // The Match card says what the next take needs as a sentence: "Match", a terrain chip, "or", a symbol
+    // chip drawing the symbol as the tiles print it; its accessible name is the same sentence.
+    expect(html).toMatch(/class="match-heading" aria-hidden="true">Match</);
+    expect(html).toMatch(/aria-label="Match \w+ or \w+"/);
+    expect(html).toContain('class="match-or">or<');
+    expect(html).toMatch(/class="chip-emblem"><svg[^>]*class="symbol-mark"[^>]*data-variant="icon"/);
     expect(html).toContain('class="match-chip chip-terrain"');
     expect(html).toContain('class="match-chip chip-symbol"');
     // The board has no A-D or 1-4 labels.

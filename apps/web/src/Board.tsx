@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { ALL_CELLS as ALL, cellColumn, cellRow, ROWS, type CellId } from '@okiya/game';
-import { SymbolEmblem, TerrainScene } from './art';
+import { SymbolMark, TerrainScene } from './art';
 import type { BoardModel, WinningShape } from './boardModel';
 import { liftOrder } from './end';
 import { boardKey, tabStop } from './keyboard';
@@ -189,7 +189,7 @@ export function Board({ model, onCellClick }: BoardProps) {
                           <>
                             <TerrainScene terrain={tile.terrain} />
                             <span className="tile-symbol">
-                              <SymbolEmblem symbol={tile.symbol} />
+                              <SymbolMark symbol={tile.symbol} />
                             </span>
                             {(view.match === 'terrain' || view.match === 'both') && <span className="reason-bar" aria-hidden="true" data-testid="reason-bar" />}
                           </>

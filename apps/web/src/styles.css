@@ -65,15 +65,14 @@ p {
   white-space: nowrap;
 }
 
-.glyph,
-.emblem-svg {
+.glyph {
   width: 1.3em;
   height: 1.3em;
   flex: none;
 }
 
-/* An emblem's ring is drawn to the edge of its box; never clip it. */
-.emblem-svg {
+/* A symbol's softened points reach the edge of its box; never clip them. */
+.symbol-mark {
   overflow: visible;
 }
 
@@ -277,6 +276,7 @@ button:disabled {
   box-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 35%, transparent);
 }
 
+/* The hero's tiles are small: their symbols take the icon drawing, a little larger. */
 .hero-cell .tile-art .tile-symbol {
   width: 44%;
 }
@@ -878,9 +878,10 @@ button:disabled {
   height: 70%;
 }
 
-/* The Match card (PRD I1): what the next take needs. "Next tile needs", then a terrain chip with its
-   picture and a symbol chip with its emblem, joined by "or": a tile with either is legal. At the opening
-   a diagram of the edge ring stands in for the chips. A new tile changes in place with a crossfade under
+/* The Match card (PRD I1): what the next take needs. "Match", then a terrain chip with its
+   picture and a symbol chip with the symbol as the tiles print it, joined by "or": a tile with either is
+   legal, so the card reads "Match Desert or Sun". At the opening, "First take" and a diagram of the edge
+   ring stand in for the chips. A new tile changes in place with a crossfade under
    200 ms (PRD U8); nothing flies in. One size in every turn, so nothing around it ever moves. */
 .match-card {
   display: grid;
@@ -962,9 +963,9 @@ button:disabled {
   place-items: center;
 }
 
-.chip-emblem .emblem-svg {
-  width: 28px;
-  height: 28px;
+.chip-emblem .symbol-mark {
+  width: 24px;
+  height: 24px;
 }
 
 .chip-text {
@@ -1141,7 +1142,7 @@ button:disabled {
   background-color: var(--desert);
 }
 
-/* The tile's art layer: the scene and the emblem, or the token, with two layers over them that never hold
+/* The tile's art layer: the scene with its symbol, or the token, with two layers over them that never hold
    text, used by the end sequence and the veil of a faded tile. The name plate sits above the whole layer. */
 .tile-face {
   position: absolute;
@@ -1169,17 +1170,22 @@ button:disabled {
   pointer-events: none;
 }
 
+/* The symbol is printed into the art, not set on a badge: always in the upper-left corner, inset 8%, about
+   a third of the tile and never over 40 px, in the theme's text colour, which reaches 4.5:1 on every
+   terrain's colour in every theme (theme.ts TEXT_PAIRS); each scene keeps that corner clear. */
 .tile-symbol {
   position: absolute;
-  top: 6%;
-  left: 6%;
-  width: 34%;
+  top: 8%;
+  left: 8%;
+  width: 36%;
+  max-width: 40px;
   height: auto;
   aspect-ratio: 1;
   line-height: 0;
+  color: var(--text);
 }
 
-.tile-symbol .emblem-svg {
+.tile-symbol .symbol-mark {
   display: block;
   width: 100%;
   height: 100%;
@@ -1995,8 +2001,9 @@ button:disabled {
   inset: 0;
 }
 
-.mini-cell .tile-symbol {
-  width: 46%;
+.mini-cell .tile-symbol,
+.example-art .tile-symbol {
+  width: 44%;
 }
 
 /* A diagram's playable tiles are ringed in the colour of its player to move, as on the board, with no tint. */
@@ -2190,7 +2197,7 @@ button:disabled {
 }
 
 /* Legal tiles show why, inside the art and clear of the outline: a short bar under the scene for the same
-   terrain, a ring round the emblem for the same symbol, both for both. The reasons are drawn, so colour is
+   terrain, the symbol lit for the same symbol, both for both. The reasons are drawn, so colour is
    never the only signal; the tile's own outline is the same on every side whatever the reason. */
 .reason-bar {
   position: absolute;
@@ -2204,36 +2211,34 @@ button:disabled {
   box-shadow: 0 0 6px color-mix(in srgb, var(--wash) 70%, transparent);
 }
 
-/* The same-symbol cue is the symbol itself lit: its disc fills with the mover's colour, its glyph turns
-   dark on it, and a soft round glow sits behind it. The tile-symbol box is square, so the disc and its
-   glow are perfect circles at any size; there is no second ring to drift out of line. */
-.cell[data-match='symbol'] .tile-symbol .emblem-svg circle,
-.cell[data-match='both'] .tile-symbol .emblem-svg circle {
-  fill: var(--wash);
-  opacity: 1;
+/* The same-symbol cue is the symbol itself lit, with the same mark as the terrain's: the symbol takes the
+   mover's colour inside a thin keyline, so it keeps its shape on any scene, and a short bar sits under it,
+   as the terrain's bar sits under the scene. The bar is drawn, so colour is never the only signal, and it
+   is centred under the symbol at any size; there is no disc and no second ring. */
+.cell[data-match='symbol'] .tile-symbol,
+.cell[data-match='both'] .tile-symbol {
+  color: var(--wash);
 }
 
-.cell[data-match='symbol'] .tile-symbol .emblem-mark *,
-.cell[data-match='both'] .tile-symbol .emblem-mark * {
-  fill: var(--on-wash);
-}
-
-.cell[data-match='symbol'] .tile-symbol [data-shape='wave'] .emblem-mark *,
-.cell[data-match='both'] .tile-symbol [data-shape='wave'] .emblem-mark *,
-.cell[data-match='symbol'] .tile-symbol [data-shape='sun'] .emblem-mark path,
-.cell[data-match='both'] .tile-symbol [data-shape='sun'] .emblem-mark path {
-  fill: none;
+.cell[data-match='symbol'] .tile-symbol .symbol-mark *,
+.cell[data-match='both'] .tile-symbol .symbol-mark * {
   stroke: var(--on-wash);
+  stroke-width: 2.2px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 
 .cell[data-match='symbol'] .tile-symbol::after,
 .cell[data-match='both'] .tile-symbol::after {
   content: '';
   position: absolute;
-  inset: -35%;
-  z-index: -1;
-  border-radius: 50%;
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--wash) 55%, transparent), transparent 68%);
+  left: 18%;
+  right: 18%;
+  top: calc(100% + 3px);
+  height: 3px;
+  border-radius: 3px;
+  background-color: var(--wash);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--on-wash) 55%, transparent);
   pointer-events: none;
 }
 
@@ -2402,17 +2407,6 @@ button:disabled {
   background-color: color-mix(in srgb, var(--ground) 14%, transparent);
 }
 
-/* The emblem sits in its own bubble, larger and brighter. */
-:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .tile-symbol {
-  width: 38%;
-  top: 5%;
-  left: 5%;
-}
-
-:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .emblem-svg circle {
-  fill: color-mix(in srgb, var(--chip) 86%, transparent);
-}
-
 /* Flat glowing tokens. */
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .token {
   border-width: 3px;
@@ -2471,9 +2465,9 @@ button:disabled {
 }
 
 /* ----- Scene motion: the art itself moves, inside its tile -----
-   Swells roll under a bobbing boat, clouds drift across the peaks, pines sway, the desert sun pulses and
-   heat lines flicker, on every tile that still shows its scene. The same small motions play in the Match
-   card's chips (the terrain's scene, the symbol's emblem); the legal tiles' reason marks keep still. Only
+   Swells roll under a bobbing boat, mist drifts across the slopes, pines sway and heat lines flicker, on
+   every tile that still shows its scene. The same small motions play in the Match card's chips (the
+   terrain's scene, the symbol); the legal tiles' reason marks keep still. Only
    transform and opacity change, each tile on its own negative delay (by its index) so no two neighbours
    move together. A tile under a token has no scene to move. The scenes rest while the tab is hidden and
    under reduced motion. The legal tile's outline is never animated, so nothing washes it out. */
@@ -2519,45 +2513,36 @@ button:disabled {
     animation-delay: calc(var(--i, 0) * -1.3s);
   }
 
-  .board .cell .sc-sun,
-  .terrain-thumb .sc-sun {
-    transform-box: fill-box;
-    transform-origin: 50% 50%;
-    animation: scene-pulse 3s ease-in-out infinite;
-    animation-delay: calc(var(--i, 0) * -1.9s);
-  }
-
   .board .cell .sc-heat,
   .terrain-thumb .sc-heat {
     animation: scene-flicker 2.4s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -2.7s);
   }
 
-  /* The symbol's emblem in the Match card: a sun turning, a star twinkling, a moon rocking, a wave sliding. */
-  .chip-emblem .emblem-mark {
-    transform-box: fill-box;
+  /* The symbol in the Match card: a sun turning, a star twinkling, a moon rocking, a wave sliding. */
+  .chip-emblem .symbol-mark {
     transform-origin: 50% 50%;
   }
 
-  .chip-emblem [data-shape='sun'] .emblem-mark {
+  .chip-emblem [data-shape='sun'] {
     animation: scene-spin 14s linear infinite;
   }
 
-  .chip-emblem [data-shape='star'] .emblem-mark {
+  .chip-emblem [data-shape='star'] {
     animation: scene-twinkle 2.4s ease-in-out infinite;
   }
 
-  .chip-emblem [data-shape='moon'] .emblem-mark {
+  .chip-emblem [data-shape='moon'] {
     animation: scene-rock 3.6s ease-in-out infinite;
   }
 
-  .chip-emblem [data-shape='wave'] .emblem-mark {
+  .chip-emblem [data-shape='wave'] {
     animation: scene-slide 2.8s ease-in-out infinite;
   }
 
   :root[data-hidden] .board .cell .scene *,
   :root[data-hidden] .terrain-thumb .scene *,
-  :root[data-hidden] .chip-emblem .emblem-mark {
+  :root[data-hidden] .chip-emblem .symbol-mark {
     animation-play-state: paused;
   }
 }
@@ -2641,18 +2626,6 @@ button:disabled {
   }
   50% {
     transform: rotate(1.8deg);
-  }
-}
-
-@keyframes scene-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1.16);
-    opacity: 1;
   }
 }
 
@@ -2741,7 +2714,7 @@ button:disabled {
 
 /* Scene motion off (Settings): the scenes, the chips and the reason marks keep still. */
 .match[data-scene-motion='false'] .scene *,
-.match[data-scene-motion='false'] .chip-emblem .emblem-mark,
+.match[data-scene-motion='false'] .chip-emblem .symbol-mark,
 .match[data-scene-motion='false'] .reason-bar,
 .match[data-scene-motion='false'] .tile-symbol::after {
   animation: none !important;
