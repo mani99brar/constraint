@@ -262,13 +262,17 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     expect(glow).not.toMatch(/border-width|border:/);
     expect(rule('.cell')).toMatch(/border:\s*2px solid/);
     // No wash layer over the art. The ring is 3 px: the border and a 1 px inset line of the same colour,
-    // a shadow, so it changes no size. Every other shadow in the mover's colour is a soft glow, at most
+    // a shadow on the art layer's ::before (above the scene, so no band covers it), so it changes no size.
+    // That ::before carries only shadows. Every other shadow in the mover's colour is a soft glow, at most
     // 60% of it, just inside the ring or a few pixels outside it.
-    expect(rules.filter(({ selector }) => /data-glow='true'\][^,]*\.tile-face/.test(selector))).toEqual([]);
-    for (const glowRule of [glow, rule(`:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true']`)]) {
-      const shadows = topLevel(/box-shadow:\s*([^;]+)/.exec(glowRule)![1]!);
-      expect(shadows[0]).toBe('inset 0 0 0 1px var(--wash)');
-      const glows = shadows.slice(1).filter((part) => /--wash/.test(part));
+    const neon = `:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora'])`;
+    const faceRules = rules.filter(({ selector }) => /data-glow='true'\][^,]*\.tile-face/.test(selector));
+    expect(faceRules.map(({ selector }) => selector).sort()).toEqual([`.cell[data-glow='true'] .tile-face::before`, `${neon} .cell[data-glow='true'] .tile-face::before`].sort());
+    for (const { selector, body } of faceRules) expect(body.trim(), selector).toMatch(/^box-shadow:[^;]+;?$/);
+    for (const [cellRule, lineRule] of [[glow, rule(`.cell[data-glow='true'] .tile-face::before`)], [rule(`${neon} .cell[data-glow='true']`), rule(`${neon} .cell[data-glow='true'] .tile-face::before`)]] as const) {
+      const inner = topLevel(/box-shadow:\s*([^;]+)/.exec(lineRule)![1]!);
+      expect(inner[0]).toBe('inset 0 0 0 1px var(--wash)');
+      const glows = [...inner.slice(1), ...topLevel(/box-shadow:\s*([^;]+)/.exec(cellRule)![1]!)].filter((part) => /--wash/.test(part));
       expect(glows.length).toBeGreaterThan(0);
       for (const part of glows) {
         expect(part).toMatch(/^(inset )?0 0 \d+px 1px color-mix\(in srgb, var\(--wash\) (\d+)%, transparent\)$/);
