@@ -16,7 +16,7 @@ export interface ResultsRow {
 
 /** Everything the home screen shows (PRD S1, E1, E5). */
 export interface HomeModel {
-  /** Continue, only for a saved game: its mode and number of takes in words. */
+  /** Continue, only for a saved game: its mode and number of takes in words, and whether only this tab keeps it. */
   readonly continueGame: { readonly mode: GameMode; readonly takes: number; readonly note: string } | null;
   /** The opponent the play panel's switch shows: the remembered one, the bot at first. */
   readonly opponent: Opponent;
@@ -36,6 +36,8 @@ export interface HomeModel {
   /** Whether Play replaces a saved game; the panel says so. */
   readonly replacesSaved: boolean;
   readonly results: readonly ResultsRow[];
+  /** Whether the results line shows: only once a bot game was counted, so a newcomer sees no row of zeros. */
+  readonly showResults: boolean;
   /** The results in one quiet line: "Easy 2–1–0 · Normal 0–0–0 · Hard 0–0–0 (W–L–D)". */
   readonly resultsLine: string;
   /** The same line in words, for screen readers. */
@@ -45,6 +47,26 @@ export interface HomeModel {
 }
 
 export const REPLACES_NOTE = 'Play replaces your saved game.';
+/** Under the Opponent switch while Friend is chosen: a friend plays on this device, not online. */
+export const FRIEND_NOTE = 'Take turns on this device.';
+
+/** What a confirmation asks before Play replaces a saved game, or before Settings resets the results. */
+export interface Confirmation {
+  readonly title: string;
+  readonly text: string;
+  readonly confirmLabel: string;
+}
+
+/** Play with a saved game: the saved game is named, so the player knows what goes. */
+export function replaceConfirmation(savedNote: string): Confirmation {
+  return { title: 'Start a new game?', text: `This replaces your saved game (${savedNote}).`, confirmLabel: 'Start new game' };
+}
+
+export const RESET_CONFIRMATION: Confirmation = {
+  title: 'Reset results?',
+  text: 'Your wins, losses and draws against the bot go back to zero. This can’t be undone.',
+  confirmLabel: 'Reset results',
+};
 
 /** The label of the one Play button for a choice (PRD S1), with a timed game's clocks: "Play · with a friend · 5:00 / 1:00". */
 export function playLabel(opponent: Opponent, difficulty: Difficulty, clockA: ClockChoice = 'off', clockB: ClockChoice = 'off'): string {
@@ -63,11 +85,18 @@ export function resultsLine(rows: readonly ResultsRow[]): { readonly line: strin
   };
 }
 
-export function homeModel(saved: { readonly mode: GameMode; readonly takes: number } | null, settings: Settings, results: Results): HomeModel {
+/**
+ * The home screen for a saved game (its mode, its takes, and `unsaved` when the browser refused to store it
+ * and it lives only in this tab), the settings and the results.
+ */
+export function homeModel(saved: { readonly mode: GameMode; readonly takes: number; readonly unsaved?: boolean } | null, settings: Settings, results: Results): HomeModel {
   const rows = DIFFICULTY_OPTIONS.map(({ id, label }) => ({ difficulty: id, label, ...results[id] }));
   const { line, spoken } = resultsLine(rows);
+  const counted = rows.some((row) => row.wins + row.losses + row.draws > 0);
   return {
-    continueGame: saved ? { mode: saved.mode, takes: saved.takes, note: `${modeLabel(saved.mode)}, ${saved.takes} ${saved.takes === 1 ? 'tile' : 'tiles'} taken` } : null,
+    continueGame: saved
+      ? { mode: saved.mode, takes: saved.takes, note: `${modeLabel(saved.mode)}, ${saved.takes} ${saved.takes === 1 ? 'tile' : 'tiles'} taken${saved.unsaved ? ', kept only in this tab' : ''}` }
+      : null,
     opponent: settings.opponent,
     difficulty: settings.difficulty,
     showDifficulty: settings.opponent === 'bot',
@@ -78,9 +107,10 @@ export function homeModel(saved: { readonly mode: GameMode; readonly takes: numb
     playLabel: playLabel(settings.opponent, settings.difficulty, settings.clockA, settings.clockB),
     replacesSaved: saved !== null,
     results: rows,
+    showResults: counted,
     resultsLine: line,
     resultsSpoken: spoken,
-    canReset: rows.some((row) => row.wins + row.losses + row.draws > 0),
+    canReset: counted,
   };
 }
 

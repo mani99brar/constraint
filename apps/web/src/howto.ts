@@ -1,19 +1,25 @@
 import { ALL_CELLS, legalTakes, take, type CellId, type GameState, type Player, type Terrain, type Tile, type TileSymbol } from '@okiya/game';
 import { readText, writeJson, type KeyValueStorage } from './storage';
-import { TITLE } from './title';
 
-/** The `localStorage` key that remembers the How to Play dialog was seen once (PRD E2). */
+/**
+ * The `localStorage` key that remembers a newcomer was taught once: the home screen's first-game intro
+ * was dismissed, a first game was started, or How to Play was read. Its name dates from when How to Play
+ * opened by itself on a first visit.
+ */
 export const HOWTO_SEEN_KEY = 'okiya.howto.seen';
-/** The playtest build's guide dismissal, honoured so its players are not shown the dialog again. */
+/** The playtest build's guide dismissal, honoured so its players are not taught again. */
 const LEGACY_GUIDE_KEY = 'okiya.guide.dismissed';
 
-/** Whether the dialog opens by itself: only on the very first visit, and never when storage fails. */
-export function howToOpensFirst(storage: KeyValueStorage | null): boolean {
+/** Whether the home screen shows the first-game intro: only until a newcomer was taught, and never when storage fails. */
+export function introShows(storage: KeyValueStorage | null): boolean {
   if (!storage) return false;
   return readText(storage, HOWTO_SEEN_KEY) !== 'true' && readText(storage, LEGACY_GUIDE_KEY) !== 'true';
 }
 
-export function rememberHowToSeen(storage: KeyValueStorage | null): boolean {
+/** The first-game intro, one short line on the home screen until it is dismissed or a first game starts. */
+export const INTRO_TEXT = 'Take an edge tile first. Then match terrain or symbol. Win with a line, a square, or no move left for your opponent.';
+
+export function rememberIntroSeen(storage: KeyValueStorage | null): boolean {
   return writeJson(storage, HOWTO_SEEN_KEY, true);
 }
 
@@ -133,8 +139,7 @@ export function howToPages(): HowToPage[] {
       id: 'taking',
       title: 'Take a matching tile',
       paragraphs: [
-        `${TITLE} is played by two sides on a 4×4 board of 16 tiles, each showing a terrain and a symbol. Take turns taking one tile; a token of yours goes on its cell.`,
-        'The tile just taken is shown in the Match card. The next take must have the same terrain or the same symbol, from anywhere on the board. With highlights on, the tiles you may take glow in your colour.',
+        'Take turns taking a tile from the 4×4 board; your token goes on its cell. The next take must have the same terrain or the same symbol as the last one, shown in the Match card. Hold a tile to read its name.',
       ],
       diagrams: [DIAGRAMS.matching],
     },
@@ -165,15 +170,18 @@ export function howToPages(): HowToPage[] {
   ];
 }
 
-/** Example tiles for the matching illustration, against the last tile Forest–Moon. */
+/**
+ * The matching illustration: the last take of the matching diagram, Forest–Star, and three tiles still
+ * free on that diagram's board, so the page shows one example throughout.
+ */
 export const MATCHING_EXAMPLE: {
   readonly lastTile: Tile;
   readonly tiles: readonly (Tile & { readonly matches: boolean; readonly why: string })[];
 } = {
-  lastTile: { terrain: 'Forest', symbol: 'Moon' },
+  lastTile: { terrain: 'Forest', symbol: 'Star' },
   tiles: [
-    { terrain: 'Forest', symbol: 'Sun', matches: true, why: 'same terrain' },
-    { terrain: 'Water', symbol: 'Moon', matches: true, why: 'same symbol' },
-    { terrain: 'Desert', symbol: 'Star', matches: false, why: 'neither' },
+    { terrain: 'Forest', symbol: 'Wave', matches: true, why: 'same terrain' },
+    { terrain: 'Water', symbol: 'Star', matches: true, why: 'same symbol' },
+    { terrain: 'Desert', symbol: 'Sun', matches: false, why: 'neither' },
   ],
 };

@@ -24,7 +24,7 @@ export function useToasts() {
     setQueue((current) => enqueueToasts(current, specs, time));
   }, []);
 
-  /** A new take: refusals clear when the turn changes, then the take's own toasts show. */
+  /** A new take: the refusals and the earlier take notice it supersedes clear, then its own toasts show. */
   const afterTake = useCallback((change: { readonly turnChanged: boolean; readonly toasts: readonly ToastSpec[] }) => {
     if (!change.turnChanged && change.toasts.length === 0) return;
     const time = Date.now();

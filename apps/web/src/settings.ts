@@ -34,18 +34,26 @@ export interface Settings {
   readonly clockB: ClockChoice;
   /** A short 3, 2, 1 countdown before a new game starts; on by default. */
   readonly countdown: boolean;
+  /** Haptic feedback for takes, refusals, the countdown and the result; on by default, off at first under reduced motion. */
+  readonly haptics: boolean;
+  /** A faint scene of the terrain the next take needs, behind the board; on by default. */
+  readonly backdrop: boolean;
+  /** The scenes on the tiles move; on by default. Off keeps them still, for a phone that struggles. */
+  readonly sceneMotion: boolean;
 }
 
 export const SETTINGS_KEY = 'okiya.settings';
-export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true };
+export const DEFAULT_SETTINGS: Settings = { highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: DEFAULT_DIFFICULTY, palette: DEFAULT_PALETTE, clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true };
 
 /**
  * The remembered settings; a missing or corrupt value falls back to the defaults, field by field, so
  * settings stored by older builds load as the Normal bot with tile names off and the Walnut theme.
  */
-export function loadSettings(storage: KeyValueStorage | null): Settings {
+export function loadSettings(storage: KeyValueStorage | null, reducedMotion = false): Settings {
+  // Haptics start off for a player who asks for reduced motion; their own choice, once stored, wins.
+  const defaults = reducedMotion ? { ...DEFAULT_SETTINGS, haptics: false } : DEFAULT_SETTINGS;
   const stored = readJson(storage, SETTINGS_KEY);
-  if (!isRecord(stored)) return DEFAULT_SETTINGS;
+  if (!isRecord(stored)) return defaults;
   const flag = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback);
   return {
     highlights: flag(stored.highlights, DEFAULT_SETTINGS.highlights),
@@ -57,6 +65,9 @@ export function loadSettings(storage: KeyValueStorage | null): Settings {
     clockA: isClockChoice(stored.clockA) ? stored.clockA : DEFAULT_SETTINGS.clockA,
     clockB: isClockChoice(stored.clockB) ? stored.clockB : DEFAULT_SETTINGS.clockB,
     countdown: flag(stored.countdown, DEFAULT_SETTINGS.countdown),
+    haptics: flag(stored.haptics, defaults.haptics),
+    backdrop: flag(stored.backdrop, defaults.backdrop),
+    sceneMotion: flag(stored.sceneMotion, defaults.sceneMotion),
   };
 }
 

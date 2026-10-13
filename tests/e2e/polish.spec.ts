@@ -14,6 +14,7 @@ import {
   match,
   nearEnding,
   openHome,
+  pressPlay,
   PALETTES,
   readBoard,
   readScore,
@@ -37,10 +38,9 @@ const VIEWPORTS = [
   { name: '390 × 844', viewport: { width: 390, height: 844 } },
 ] as const;
 
-/** One pop as the page ran it: the cell, its order, the animation, its delay and duration, and whose turn it was. */
+/** One rise as the page ran it: the cell, the animation, its delay and duration, and whose turn it was. */
 interface PopRecord {
   readonly cell: string;
-  readonly order: number;
   readonly name: string;
   readonly delay: number;
   readonly duration: number;
@@ -49,7 +49,7 @@ interface PopRecord {
   readonly transitions: number;
 }
 
-/** Starts recording every pop the page starts, with its timing and whose turn it is, from now on. */
+/** Starts recording every rise the page starts, with its timing and whose turn it is, from now on. */
 async function recordPops(page: Page) {
   await page.evaluate(() => {
     const w = window as unknown as { __pops: PopRecord[]; __popListener?: (event: AnimationEvent) => void };
@@ -63,13 +63,12 @@ async function recordPops(page: Page) {
       const screen = document.querySelector('[data-testid="match-screen"]');
       w.__pops.push({
         cell: cell.getAttribute('data-cell')!,
-        order: Number(cell.getAttribute('data-pop-order')),
         name: event.animationName,
         delay: Number(timing?.delay ?? -1),
         duration: Number(timing?.duration ?? -1),
         toMove: screen?.getAttribute('data-to-move') ?? null,
         takes: screen?.getAttribute('data-takes') ?? null,
-        // No CSS transition competes with the pop on any glowing cell when the turn starts.
+        // No CSS transition competes with the rise on any glowing cell when the turn starts.
         transitions: [...document.querySelectorAll('[data-testid="board"] [data-glow="true"]')].flatMap((glow) => glow.getAnimations().filter((candidate) => candidate instanceof CSSTransition)).length,
       });
     };
@@ -81,26 +80,24 @@ async function recordedPops(page: Page): Promise<PopRecord[]> {
   return page.evaluate(() => (window as unknown as { __pops: PopRecord[] }).__pops);
 }
 
-/** Every glowing cell with its data-pop-order. */
-async function popOrders(page: Page): Promise<{ cell: string; order: number }[]> {
-  return glowing(page).evaluateAll((cells) => cells.map((cell) => ({ cell: cell.getAttribute('data-cell')!, order: Number(cell.getAttribute('data-pop-order')) })));
+/** Every glowing cell. */
+async function glowingCells(page: Page): Promise<string[]> {
+  return glowing(page).evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-cell')!));
 }
 
-/** The pops of one turn: one per glowing cell, in data-pop-order, delays rising, the whole within 400 ms. */
-function expectOnePopPerTile(pops: PopRecord[], orders: { cell: string; order: number }[]) {
-  expect(pops.map((pop) => pop.cell).sort()).toEqual(orders.map((entry) => entry.cell).sort());
-  const byOrder = [...pops].sort((a, b) => a.order - b.order);
-  expect(byOrder.map((pop) => pop.order)).toEqual(orders.map((entry) => entry.order).sort((a, b) => a - b));
-  expect(byOrder.map((pop) => pop.order)).toEqual(byOrder.map((_pop, index) => index));
-  // The delays differ by order, rising with it, and the last pop ends within 400 ms of the turn's start.
-  const delays = byOrder.map((pop) => pop.delay);
-  expect(delays.every((delay, index) => index === 0 || delay > delays[index - 1]!), JSON.stringify(delays)).toBe(true);
-  expect(Math.max(...byOrder.map((pop) => pop.delay + pop.duration))).toBeLessThan(400);
-  expect(new Set(byOrder.map((pop) => pop.name)).size).toBe(1);
-  for (const pop of byOrder) expect(pop.transitions, pop.cell).toBe(0);
+/** The rise of one turn: one per glowing cell, all at the same moment with no delay, each 120–160 ms long. */
+function expectOneRise(pops: PopRecord[], cells: string[]) {
+  expect(pops.map((pop) => pop.cell).sort()).toEqual([...cells].sort());
+  for (const pop of pops) {
+    expect(pop.delay, pop.cell).toBe(0);
+    expect(pop.duration, pop.cell).toBeGreaterThanOrEqual(120);
+    expect(pop.duration, pop.cell).toBeLessThanOrEqual(160);
+    expect(pop.transitions, pop.cell).toBe(0);
+  }
+  expect(new Set(pops.map((pop) => pop.name)).size).toBe(1);
 }
 
-test('[scenario:move-highlight] in every colour theme, light and dark, wide and at 390 × 844, the rendered ring reaches 3:1 against the bare well and playable tiles stand 12 L* apart from faded ones; with motion on the playable tiles pop once in order within 400 ms when a person’s turn starts, never on the bot’s turn, and again for every legal tile on the next turn of a two-player game', async ({ browser }, testInfo) => {
+test('[scenario:move-highlight] in every colour theme, light and dark, wide and at 390 × 844, the rendered 3 px ring reaches 3:1 against the bare well and twice the contrast of a faded tile’s edge, and the faded tiles sit under a veil of 25 to 40%, 5 to 22 L* from playable ones; with motion on the playable tiles rise together once in 120–160 ms when a person’s turn starts, never on the bot’s turn, and again for every legal tile on the next turn of a two-player game', async ({ browser }, testInfo) => {
   test.setTimeout(240_000);
   // One seeded two-player position with Player 1 to move, where faded and taken tiles sit beside the rings.
   const position = seededPosition(4);
@@ -130,10 +127,43 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
           // Fails loudly when no bare well was found beside a ring, rather than measuring a halo or a shadow.
           expect(ring.wellPixels, `${where} ${ring.cell}: bare well beside the ring`).toBeGreaterThan(0);
           expect(ring.ratio, `${where} ${ring.cell}: ring against the well`).toBeGreaterThanOrEqual(3);
+          // The 1 px inset line lies over the art, so the ring is 3 px on the bottom too, where every
+          // scene has opaque bands: there the line matches the top one and holds 3:1 against the well.
+          expect(ring.innerBottom, `${where} ${ring.cell}: inset line along the bottom against the well`).toBeGreaterThanOrEqual(3);
+          expect(ring.innerDelta, `${where} ${ring.cell}: inset line the same colour at the top and the bottom`).toBeLessThan(8);
+        }
+        // Playable tiles stand apart by their ring: at the same points a faded tile's edge is a quiet one,
+        // under half the ring's contrast with the well (measured: rings 5.5–14.9:1, faded edges 1.4–2.8:1,
+        // so the ring is at least 2.6 times as strong in every theme).
+        expect(pixels.fadedEdges.length, where).toBeGreaterThan(0);
+        const weakestRing = Math.min(...pixels.rings.map((ring) => ring.ratio));
+        for (const edge of pixels.fadedEdges) {
+          expect(edge.wellPixels, `${where} ${edge.cell}: bare well beside the faded edge`).toBeGreaterThan(0);
+          expect(edge.ratio * 2, `${where} ${edge.cell}: faded edge against the weakest ring`).toBeLessThanOrEqual(weakestRing);
+        }
+        // The veil quiets the other free tiles, so the playable ones stand out at a glance while every
+        // terrain and symbol stays readable: 25 to 40% of the ground in every theme (30% in the classic
+        // themes, 34% in the neon ones), and a step of L* that clearly shows yet stays short of a blackout
+        // (measured at least 7.3 L* in every theme, the playable tiles' lit symbols, reason bars and inner
+        // glow included; the operator found the earlier 12–14% veil and its 5.7–11.7 L* too weak).
+        const veils = await board(page).locator('[data-faded="true"] .tile-face').evaluateAll((faces) =>
+          faces.map((face) => {
+            const value = getComputedStyle(face, '::after').backgroundColor;
+            const alpha = value.startsWith('color(') ? /\/\s*([\d.]+)/.exec(value)?.[1] : /rgba\([^)]*,\s*([\d.]+)\)/.exec(value)?.[1];
+            return Number(alpha ?? 1);
+          }),
+        );
+        for (const alpha of veils) {
+          expect(alpha, `${where}: the veil's strength`).toBeGreaterThanOrEqual(0.25);
+          expect(alpha, `${where}: the veil's strength`).toBeLessThanOrEqual(0.4);
         }
         expect(pixels.lightness.length, `${where}: a terrain with playable and faded tiles`).toBeGreaterThan(0);
-        for (const { terrain, playable, faded } of pixels.lightness) expect(Math.abs(playable - faded), `${where} ${terrain}: ${playable.toFixed(1)} against ${faded.toFixed(1)} L*`).toBeGreaterThanOrEqual(12);
-        report.push(`${where}: rings ≥ ${Math.min(...pixels.rings.map((ring) => ring.ratio)).toFixed(2)}:1, L* apart ≥ ${Math.min(...pixels.lightness.map(({ playable, faded }) => Math.abs(playable - faded))).toFixed(1)}`);
+        for (const { terrain, playable, faded } of pixels.lightness) {
+          const apart = Math.abs(playable - faded);
+          expect(apart, `${where} ${terrain}: ${playable.toFixed(1)} against ${faded.toFixed(1)} L*`).toBeGreaterThanOrEqual(5);
+          expect(apart, `${where} ${terrain}: the veil stays short of a blackout`).toBeLessThan(22);
+        }
+        report.push(`${where}: rings ≥ ${Math.min(...pixels.rings.map((ring) => ring.ratio)).toFixed(2)}:1, faded edges ≤ ${Math.max(...pixels.fadedEdges.map((edge) => edge.ratio)).toFixed(2)}:1, L* apart ≥ ${Math.min(...pixels.lightness.map(({ playable, faded }) => Math.abs(playable - faded))).toFixed(1)}`);
       }
     }
   }
@@ -144,11 +174,11 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   await attachScreenshot(page, testInfo, 'move-highlight');
   await context.close();
 
-  // With motion on, in a bot game: the pop plays when your turn starts, once, never on the bot's turn.
+  // With motion on, in a bot game: the rise plays when your turn starts, once, never on the bot's turn.
   const motion = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'no-preference' });
   const live = await motion.newPage();
   await startGame(live, { seed: HUMAN_STARTS, difficulty: 'Easy' });
-  // The opening's own pop finishes first, so every pop recorded below belongs to a later turn.
+  // The opening's own rise finishes first, so every rise recorded below belongs to a later turn.
   await live.waitForTimeout(450);
   await recordPops(live);
   await takeGlowing(live);
@@ -157,19 +187,19 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   await expect.poll(async () => (await recordedPops(live)).length, { timeout: 2_000 }).toBe(await glowing(live).count());
   await live.waitForTimeout(500);
   const turn = await recordedPops(live);
-  // Nothing popped while the bot chose: every pop came on your turn, after the bot's take.
-  expect(turn.map((pop) => [pop.toMove, pop.takes]), 'nothing pops on the bot’s turn').toEqual(turn.map(() => ['A', '2']));
-  expectOnePopPerTile(turn, await popOrders(live));
-  // A re-render (a refused tap, its toast and the wince) never replays the pop.
+  // Nothing rose while the bot chose: every rise came on your turn, after the bot's take.
+  expect(turn.map((pop) => [pop.toMove, pop.takes]), 'nothing rises on the bot’s turn').toEqual(turn.map(() => ['A', '2']));
+  expectOneRise(turn, await glowingCells(live));
+  // A re-render (a refused tap, its toast and the wince) never replays the rise.
   const { illegal } = await legalFromPage(live);
   await cellAt(live, illegal[0]!.cell).click();
   await expect(refusalToast(live)).toBeVisible();
   await live.waitForTimeout(450);
   expect(await recordedPops(live)).toHaveLength(turn.length);
-  // The glowing cells rest raised, the pop over.
-  expect(await glowing(live).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).translate))).toEqual(Array(turn.length).fill('0px -3px'));
+  // The glowing cells rest slightly raised, the rise over.
+  expect(await glowing(live).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).translate))).toEqual(Array(turn.length).fill('0px -2px'));
 
-  // In a two-player game the pop replays on the next turn for every legal tile, one legal on both turns too.
+  // In a two-player game the rise replays on the next turn for every legal tile, one legal on both turns too.
   await startTwoPlayerGame(live, { seed: HUMAN_STARTS });
   const opening = await readBoard(live);
   const glows = opening.filter((cell) => cell.glow);
@@ -187,7 +217,7 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   await expect.poll(async () => (await recordedPops(live)).length, { timeout: 2_000 }).toBe(await glowing(live).count());
   await live.waitForTimeout(450);
   const next = await recordedPops(live);
-  expectOnePopPerTile(next, await popOrders(live));
+  expectOneRise(next, await glowingCells(live));
   expect(next.map((pop) => pop.cell)).toContain(stays.cell);
   expect(next.every((pop) => pop.name === 'pop-odd')).toBe(true);
   await motion.close();
@@ -242,7 +272,7 @@ test('[scenario:colour-themes] the menu and Settings offer Walnut (the default),
   await page.getByTestId('open-settings').click();
   const settings = page.getByRole('dialog', { name: 'Settings' });
   const themes = settings.getByRole('radiogroup', { name: 'Theme' });
-  expect(await themes.getByRole('radio').allTextContents()).toEqual(['Walnut', 'Sea glass', 'Clear']);
+  expect(await themes.getByRole('radio').allTextContents()).toEqual(['Night Circuit', 'Neon Frost', 'Synth Horizon', 'Midnight Aurora', 'Walnut', 'Sea glass', 'Clear']);
   await expect(themes.getByRole('radio', { name: 'Walnut' })).toHaveAttribute('aria-checked', 'true');
   await themes.getByRole('radio', { name: 'Sea glass' }).click();
   await expect(themes.getByRole('radio', { name: 'Sea glass' })).toHaveAttribute('aria-checked', 'true');
@@ -263,7 +293,7 @@ test('[scenario:colour-themes] the menu and Settings offer Walnut (the default),
 
   // The game menu: Clear, then back to Walnut; the board's well follows.
   await page.getByTestId('opponent-switch').getByRole('radio', { name: 'Friend' }).click();
-  await page.getByTestId('play').click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   const seaglassWell = (await pageColours(page)).well;
   await page.getByTestId('menu-button').click();
@@ -288,41 +318,44 @@ test('[scenario:colour-themes] the menu and Settings offer Walnut (the default),
   await expect(page.getByRole('dialog')).toHaveCount(1);
 });
 
-/** The scoreboard row's layout and colours, at the current viewport. */
+/**
+ * The scoreboard row's layout and colours, at the current viewport: the row holds the Match card above the
+ * board, and each seat shows its own wins in its player's colour on its nameplate.
+ */
 async function expectScoreboard(page: Page, layout: 'wide' | 'phone', name: string) {
   const box = async (id: string) => (await page.getByTestId(id).boundingBox())!;
   const [row, one, card, two, frame, seatA, seatB, menu] = await Promise.all(['scoreboard', 'score-A', 'match-card', 'score-B', 'board-frame', 'seat-A', 'seat-B', 'menu-button'].map(box));
-  // Player 1's score, the Match card, Player 2's score, left to right in one row above the board.
-  expect(one!.x + one!.width).toBeLessThanOrEqual(card!.x);
-  expect(card!.x + card!.width).toBeLessThanOrEqual(two!.x);
-  for (const side of [one!, two!]) {
-    expect(side.y).toBeGreaterThanOrEqual(card!.y - 1);
-    expect(side.y + side.height).toBeLessThanOrEqual(card!.y + card!.height + 1);
-  }
   expect(row!.y + row!.height).toBeLessThanOrEqual(frame!.y);
-  // Each score in its player's colour, the token's own fill, with its token mark; the two apart.
+  // Each seat's wins sit inside its own nameplate, at its right end.
+  for (const [wins, seatBox] of [[one!, seatA!], [two!, seatB!]] as const) {
+    expect(wins.x).toBeGreaterThanOrEqual(seatBox.x);
+    expect(wins.x + wins.width).toBeLessThanOrEqual(seatBox.x + seatBox.width);
+    expect(wins.y).toBeGreaterThanOrEqual(seatBox.y);
+    expect(wins.y + wins.height).toBeLessThanOrEqual(seatBox.y + seatBox.height);
+  }
+  // Each score underlined in its player's colour, the token's own fill, with its token mark on the seat; the two apart.
   const looks = await page.evaluate(() =>
     ['A', 'B'].map((player) => {
-      const side = document.querySelector(`[data-testid="score-${player}"]`)!;
-      return { colour: getComputedStyle(side).color, token: getComputedStyle(side.querySelector('.count-token')!).backgroundColor, mark: side.querySelector('svg.token-mark')!.getAttribute('data-shape'), wins: side.textContent };
+      const wins = document.querySelector(`[data-testid="score-${player}"]`)!;
+      const seat = document.querySelector(`[data-testid="seat-${player}"]`)!;
+      return { colour: getComputedStyle(wins).borderBottomColor, token: getComputedStyle(seat.querySelector('.count-token')!).backgroundColor, mark: seat.querySelector('svg.token-mark')!.getAttribute('data-shape'), wins: wins.textContent };
     }),
   );
   expect(looks.map((look) => look.mark)).toEqual(['ring', 'diamond']);
   for (const look of looks) expect(look.colour).toBe(look.token);
   expect(looks[0]!.colour).not.toBe(looks[1]!.colour);
-  // Its accessible name reads the score; the draws line is hidden at zero; no floating score line is left.
+  // The group's accessible name reads the score; the draws line is hidden at zero; no floating score line is left.
   await expect(page.getByRole('group', { name, exact: true })).toBeVisible();
   await expect(page.getByTestId('sitting-score')).toHaveCount(0);
   if (layout === 'wide') {
-    // A compact strip at the top centre, over the board and not under a nameplate.
-    expect(row!.height).toBeLessThanOrEqual(64);
+    // A strip at the top centre, over the board and not under a nameplate.
+    expect(row!.height).toBeLessThanOrEqual(92);
     expect(Math.abs(card!.x + card!.width / 2 - (frame!.x + frame!.width / 2))).toBeLessThan(4);
     expect(card!.y + card!.height).toBeLessThanOrEqual(seatA!.y);
-    expect(card!.x).toBeGreaterThanOrEqual(seatA!.x + seatA!.width);
-    // At 1280 × 720 the height budget leaves the board frame at least 500 px tall, with no page scrolling.
+    // At 1280 × 720 the height budget leaves the board frame at least 460 px tall, with no page scrolling.
     const { width, height } = page.viewportSize()!;
     if (width >= 1280 && height <= 720) {
-      expect(frame!.height).toBeGreaterThanOrEqual(500);
+      expect(frame!.height).toBeGreaterThanOrEqual(460);
       expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
     }
   } else {
@@ -347,7 +380,7 @@ async function spills(page: Page, ids: readonly string[]) {
   return { out, overflow };
 }
 
-test('[scenario:scoreboard] the scoreboard row sits above the board, Player 1’s score left of the Match card and Player 2’s right, in their colours with their marks, the draws under the card hidden at zero, its name reading the score; at the top centre on a wide screen, the top row with the menu on a phone, nothing spilling at 761 px, and a draw shifting nothing', async ({ page }, testInfo) => {
+test('[scenario:scoreboard] the scoreboard row sits above the board holding the Match card, each seat’s wins sit on its own nameplate in its colour with its mark, the draws under the card hidden at zero, its name reading the score; at the top centre on a wide screen, the top row with the menu on a phone, nothing spilling at 761 px, and a draw shifting nothing', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await startGame(page);
   await takeGlowing(page);
@@ -396,4 +429,65 @@ test('[scenario:scoreboard] the scoreboard row sits above the board, Player 1’
     await expectScoreboard(page, viewport.width > 760 ? 'wide' : 'phone', 'Player 1 0, Player 2 0, 1 draw');
     await expect(seat(page, 'A')).toHaveAttribute('data-score', '0');
   }
+});
+
+test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols and scenes move, the symbols inside a still box, while the faded tiles’ symbols and scenes rest; the Scene motion setting and reduced motion keep them all still', async ({ browser }, testInfo) => {
+  /** Each free tile's symbol: whether its tile is legal, the scene animations on its ink, and its box. */
+  const symbols = (page: Page) =>
+    board(page)
+      .locator('[data-cell]:not([data-owner])')
+      .evaluateAll((cells) =>
+        cells.map((cell) => {
+          const ink = cell.querySelector('.tile-symbol .symbol-ink')!;
+          const box = cell.querySelector('.tile-symbol svg.symbol-mark')!.getBoundingClientRect();
+          return {
+            cell: cell.getAttribute('data-cell')!,
+            glow: cell.getAttribute('data-glow') === 'true',
+            moves: (ink.getAnimations() as CSSAnimation[]).filter((animation) => animation.playState === 'running').map((animation) => animation.animationName),
+            scene: [...cell.querySelectorAll('.scene *')].flatMap((part) => (part.getAnimations() as CSSAnimation[]).filter((animation) => animation.playState === 'running')).length,
+            box: [box.left, box.top, box.width, box.height].map((value) => Math.round(value * 10) / 10),
+          };
+        }),
+      );
+
+  const motion = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'no-preference' });
+  const page = await motion.newPage();
+  await startGame(page, { seed: HUMAN_STARTS, difficulty: 'Easy' });
+  await expect(glowing(page).first()).toBeVisible();
+  // The opening's rise is over, so every legal tile rests at its lift.
+  await page.waitForTimeout(400);
+  const before = await symbols(page);
+  expect(before.some((symbol) => symbol.glow)).toBe(true);
+  expect(before.some((symbol) => !symbol.glow)).toBe(true);
+  for (const symbol of before) {
+    if (symbol.glow) expect(symbol.moves, `${symbol.cell}: a legal tile's symbol moves`).toEqual([expect.stringMatching(/^scene-(spin|twinkle|rock|slide)$/)]);
+    else expect(symbol.moves, `${symbol.cell}: a faded tile's symbol rests`).toEqual([]);
+    // Its scene too: only the tiles a person may take move while they choose.
+    if (symbol.glow) expect(symbol.scene, `${symbol.cell}: a legal tile's scene moves`).toBeGreaterThan(0);
+    else expect(symbol.scene, `${symbol.cell}: a faded tile's scene rests`).toBe(0);
+  }
+  // Only the ink moves: the symbol's box stays where the tile prints it.
+  await page.waitForTimeout(700);
+  expect((await symbols(page)).map((symbol) => symbol.box)).toEqual(before.map((symbol) => symbol.box));
+  await attachScreenshot(page, testInfo, 'symbol-motion');
+
+  // Scene motion off in the menu: every symbol keeps still.
+  await page.getByTestId('menu-button').click();
+  await page.getByTestId('setting-scene-motion').click();
+  await expect(page.getByTestId('setting-scene-motion')).toHaveAttribute('aria-checked', 'false');
+  await page.getByTestId('menu-resume').click();
+  await expect(match(page)).toHaveAttribute('data-scene-motion', 'false');
+  for (const symbol of await symbols(page)) {
+    expect(symbol.moves, `${symbol.cell}: still with Scene motion off`).toEqual([]);
+    expect(symbol.scene, `${symbol.cell}: its scene still with Scene motion off`).toBe(0);
+  }
+  await motion.close();
+
+  // Under reduced motion nothing moves either.
+  const reduced = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'reduce' });
+  const still = await reduced.newPage();
+  await startGame(still, { seed: HUMAN_STARTS, difficulty: 'Easy' });
+  await expect(glowing(still).first()).toBeVisible();
+  for (const symbol of await symbols(still)) expect(symbol.moves, `${symbol.cell}: still under reduced motion`).toEqual([]);
+  await reduced.close();
 });

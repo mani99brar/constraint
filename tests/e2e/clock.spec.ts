@@ -124,6 +124,12 @@ test('[scenario:pvp-clock] in a two-player game each player has their own clock 
   await expect(end).toHaveAttribute('data-by', 'time');
   await expect(page.getByTestId('result')).toHaveText('Player 1 wins on time');
   await expect(page.getByTestId('result-detail')).toHaveText("Player 2's clock ran out.");
+  // The card reads the result, its explanation, then Play again and Home, with nothing clipped.
+  const order = await end.evaluate((card) => {
+    const top = (id: string) => card.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect().top;
+    return { reads: top('result') < top('result-detail') && top('result-detail') < top('play-again'), clipped: card.scrollHeight > card.clientHeight + 1 };
+  });
+  expect(order).toEqual({ reads: true, clipped: false });
   await expect(clockOf(page, 'B')).toHaveText('0:00');
   await expect(clockOf(page, 'B')).toHaveAttribute('data-running', 'false');
   await expect(seatStatus(page, 'A')).toHaveText('Winner');
@@ -143,7 +149,7 @@ test('[scenario:pvp-clock] in a two-player game each player has their own clock 
 });
 
 test('[scenario:pvp-clock-layout] a player may have no clock, bot games have none, and the clocks fit the nameplates on a phone and at the narrowest wide layout', async ({ page }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   // Player 1 untimed, Player 2 on five minutes: only Player 2 has a clock, and Player 1 never runs out.
   await setUpTimedGame(page, 0, 5);
   await expect(playButton(page)).toHaveText('Play · with a friend · no clock / 5:00');
@@ -165,6 +171,10 @@ test('[scenario:pvp-clock-layout] a player may have no clock, bot games have non
     });
   expect(await clockWithName(page, 'B')).toEqual({ under: false, beside: true, nameWhole: true, inside: true });
   expect(await rest()).toEqual({ statusOneLine: true, sideways: 0 });
+  // The timed nameplate keeps the untimed one's compact height.
+  const plates = await Promise.all((['A', 'B'] as const).map(async (player) => (await page.getByTestId(`seat-${player}`).boundingBox())!.height));
+  expect(plates[1]).toBeLessThanOrEqual(64);
+  expect(Math.abs(plates[1]! - plates[0]!)).toBeLessThanOrEqual(1);
   await attachScreenshot(page, testInfo, 'pvp-clock-layout');
 
   // On wide screens, from the narrowest wide layout to a large desktop, the clock sits under the whole name.

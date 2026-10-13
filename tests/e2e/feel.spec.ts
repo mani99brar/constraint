@@ -12,6 +12,7 @@ import {
   match,
   nearWin,
   playButton,
+  pressPlay,
   readBoard,
   recordedLooks,
   recordReactions,
@@ -206,17 +207,17 @@ async function readMaterials(page: Page) {
 }
 
 function expectMaterials(materials: Awaited<ReturnType<typeof readMaterials>>) {
-  // The calm ground: solid paper or slate under radial layers only (grain dots, one glow, a vignette),
+  // The calm ground: solid paper or slate under two radial layers only (one glow, a vignette), no dots,
   // no felt and no repeating or directional pattern, on the screen itself with nothing laid over it.
   expect(materials.ground).toMatch(/radial-gradient/);
   expect(materials.ground).not.toMatch(/repeating-|linear-gradient|conic-gradient/);
-  expect(materials.ground.match(/radial-gradient/g)!.length).toBe(4);
+  expect(materials.ground.match(/radial-gradient/g)!.length).toBe(2);
   expect(materials.bodyGround).toBe(materials.ground);
   expect(materials.groundColour).toMatch(/^rgb\(/);
   expect(materials.overlays).toEqual(['none', 'none']);
-  // The grain tiles at two co-prime sizes; the glow and the vignette cover the screen.
-  expect(materials.groundSize).toBe('5px 5px, 7px 7px, 100% 100%, 100% 100%');
-  // Wood: a repeating grain across the frame over its solid colour.
+  // The glow and the vignette cover the screen; nothing tiles.
+  expect(materials.groundSize).toBe('100% 100%, 100% 100%');
+  // Wood: a soft, wide repeating grain across the frame over its solid colour.
   expect(materials.wood).toMatch(/^repeating-linear-gradient/);
   expect(materials.woodColour).not.toBe(materials.groundColour);
   // Tiles: an edge (inset shadows) and depth (an outer shadow), and no filter on a cell.
@@ -340,7 +341,7 @@ async function frameBox(page: Page) {
   return (await page.getByTestId('board-frame').boundingBox())!;
 }
 
-/** The toasts a phone shows: each one's kind, short text, whether it is one line, where it sits, and what it overlaps. */
+/** The toasts a phone shows: each one's kind, short text, its lines, whether it is clipped, where it sits, and what it overlaps. */
 async function phoneToasts(page: Page) {
   return page.evaluate(() => {
     const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
@@ -351,11 +352,15 @@ async function phoneToasts(page: Page) {
       .filter((toast) => getComputedStyle(toast).display !== 'none')
       .map((toast) => {
         const rect = toast.getBoundingClientRect();
+        const style = getComputedStyle(toast);
+        const text = rect.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
         return {
           kind: toast.getAttribute('data-kind'),
           shown: getComputedStyle(toast, '::after').content.replace(/^"|"(\s*\/.*)?$/g, ''),
           full: toast.textContent,
-          oneLine: rect.height <= 34 && toast.scrollWidth <= toast.clientWidth,
+          // One line, or two for a long one: never more, never clipped across or down.
+          lines: Math.round(text / parseFloat(style.lineHeight)),
+          fits: toast.scrollWidth <= toast.clientWidth && toast.scrollHeight <= toast.clientHeight + 1,
           // Tall enough to read: a toast squeezed into a thin strip is clipped, not shown.
           readable: rect.height >= 28 && toast.scrollHeight <= toast.clientHeight + 1,
           inGap: rect.top >= frame.bottom && rect.bottom <= plate.top,
@@ -371,14 +376,16 @@ async function phoneToasts(page: Page) {
   });
 }
 
-/** On a phone: exactly one toast shows, of the given kind, in its short form on one line, in the gap under the board, over nothing. */
+/** On a phone: exactly one toast shows, of the given kind, in its short form on one or two lines, unclipped, in the gap under the board, over nothing. */
 async function expectOnePhoneToast(page: Page, kind: 'refusal' | 'take', short: string | RegExp) {
   const shown = await phoneToasts(page);
   expect(shown, JSON.stringify(shown)).toHaveLength(1);
   const [toast] = shown as [Awaited<ReturnType<typeof phoneToasts>>[number]];
   expect(toast.kind).toBe(kind);
   expect(toast.shown).toMatch(short);
-  expect(toast).toMatchObject({ oneLine: true, readable: true, inGap: true, inside: true, overlaps: [] });
+  expect(toast).toMatchObject({ fits: true, readable: true, inGap: true, inside: true, overlaps: [] });
+  expect(toast.lines).toBeGreaterThanOrEqual(1);
+  expect(toast.lines).toBeLessThanOrEqual(2);
   // The full text stays in the page for screen readers.
   expect(toast.full!.length).toBeGreaterThan(0);
 }
@@ -395,7 +402,7 @@ async function checkToastsBesideBoard(page: Page, viewport: 'wide' | 'phone', sh
   await waitForHumanTurn(page);
   await expect(takeToast(page)).toHaveCount(1);
   const botCell = (await readBoard(page)).find((cell) => cell.last)!;
-  if (viewport === 'phone') await expectOnePhoneToast(page, 'take', `Bot took ${botCell.cell}`);
+  if (viewport === 'phone') await expectOnePhoneToast(page, 'take', `Bot took ${botCell.terrain}–${botCell.symbol}`);
   const { illegal } = await legalFromPage(page);
   await cellAt(page, illegal[0]!.cell).click();
   await expect(refusalToast(page)).toBeVisible();
@@ -418,8 +425,8 @@ async function checkToastsBesideBoard(page: Page, viewport: 'wide' | 'phone', sh
     await expectOnePhoneToast(page, 'refusal', new RegExp(`^${illegal[0]!.terrain}–${illegal[0]!.symbol} doesn't match ${botCell.terrain}–${botCell.symbol}$`));
     // A tap on a taken cell: its own short form replaces the refusal before it.
     await cellAt(page, botCell.cell).click();
-    await expect(refusalToast(page)).toHaveText(new RegExp(`at ${botCell.cell} was already taken`));
-    await expectOnePhoneToast(page, 'refusal', `${botCell.cell} is already taken`);
+    await expect(refusalToast(page)).toHaveText(/was already taken/);
+    await expectOnePhoneToast(page, 'refusal', 'That tile is already taken');
     expect(await frameBox(page), viewport).toEqual(before);
   }
 
@@ -433,7 +440,7 @@ async function checkToastsBesideBoard(page: Page, viewport: 'wide' | 'phone', sh
   expect(await frameBox(page), viewport).toEqual(before);
 }
 
-test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never overlap a board cell, wide and at 390 × 844, where one toast shows at a time in a one-line short form in the gap under the board over no cell or nameplate; the board never moves, and the refusal still clears when the turn changes', async ({ page }, testInfo) => {
+test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never overlap a board cell, wide and at 390 × 844, where one toast shows at a time in its short form, on one line or two and never clipped, in the gap under the board over no cell or nameplate; the board never moves, and the refusal still clears when the turn changes', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await startGame(page, { seed: HUMAN_STARTS, difficulty: 'Easy' });
   await checkToastsBesideBoard(page, 'wide', () => attachScreenshot(page, testInfo, 'toasts-clear-board'));
@@ -442,7 +449,7 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(match(page)).toHaveAttribute('data-takes', /^[01]$/);
   await checkToastsBesideBoard(page, 'phone');
   // Nothing on the phone layout scrolls to fit them.
@@ -458,7 +465,7 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   expect(await frameBox(page)).toEqual(before);
 
   // On a short phone (375 × 667, an iPhone SE, or Safari with its toolbars showing) the gap under the
-  // board still holds a readable one-line toast, over no cell or nameplate, with nothing scrolling.
+  // board still holds a readable toast of one or two lines, over no cell or nameplate, with nothing scrolling.
   await page.setViewportSize({ width: 375, height: 667 });
   await continueSaved(page, newGame({ seed: 5, starter: 'A' }), 'two-player');
   const short = await frameBox(page);
@@ -466,6 +473,17 @@ test('[scenario:toasts-clear-board] the bot’s take toast and a refusal never o
   await expect(refusalToast(page)).toContainText('is not an edge tile');
   await expectOnePhoneToast(page, 'refusal', 'Edge tiles only at the start');
   expect(await frameBox(page)).toEqual(short);
+  // The longest short refusal there is shows whole there; a longer line still (as under a larger text
+  // size) wraps to a second line rather than being cut off, and the board stays put.
+  for (const [text, lines] of [
+    ["Mountain–Moon doesn't match Forest–Wave", null],
+    ["Mountain–Moon doesn't match Forest–Wave or Desert–Star", 2],
+  ] as const) {
+    await refusalToast(page).evaluate((element, value) => element.setAttribute('data-short', value), text);
+    await expectOnePhoneToast(page, 'refusal', text);
+    if (lines !== null) expect((await phoneToasts(page))[0]!.lines).toBe(lines);
+    expect(await frameBox(page)).toEqual(short);
+  }
   expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0);
   // Every tile stays at least 44 px there.
   for (const cell of await page.locator('[data-testid="board"] [data-cell]').all()) {

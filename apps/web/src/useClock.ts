@@ -7,7 +7,7 @@ export const CLOCK_TICK_MS = 200;
 
 /**
  * Runs a timed game's clocks (null: an untimed game). Only the player to move has a running clock, and
- * none runs while `paused` (the menu is open) or once the game has ended; a take hands the time over.
+ * none runs while `paused` (the countdown, the menu or a hidden page) or once the game has ended; a take hands the time over.
  * When the running clock reaches zero, `onOutOfTime` hears that player once. `read` gives the times left
  * right now, for saving the game.
  */

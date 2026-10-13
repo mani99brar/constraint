@@ -11,8 +11,10 @@ import {
   difficultySwitch,
   opponentSwitch,
   playButton,
+  pressPlay,
   glowing,
   lowContrastText,
+  match,
   nearEnding,
   nearWin,
   continueSaved,
@@ -34,19 +36,32 @@ import {
 } from './helpers';
 
 /** The tiles, tokens, avatars and seats of the game on screen, read from the page, for the theme checks. */
-async function expectDistinguishable(page: Page) {
-  // Four terrains, each with its own colour and scene; four symbols, each with its own emblem.
+async function expectDistinguishable(page: Page, neon = false) {
+  // Four terrains, each with its own colour and scene; four symbols, each with its own shape, printed into
+  // the art with no badge: at the same place in every tile (its upper-left corner, inset 7%), 45% of the
+  // tile wide up to 64 px, and in one ink for all four, the theme's text colour.
   const tiles = await board(page)
     .locator('[data-cell]:not([data-owner])')
     .evaluateAll((elements) =>
-      elements.map((cell) => ({
-        terrain: cell.getAttribute('data-terrain')!,
-        symbol: cell.getAttribute('data-symbol')!,
-        colour: getComputedStyle(cell).backgroundColor,
-        scene: cell.querySelector('svg.scene')!.getAttribute('data-shape'),
-        emblem: cell.querySelector('.tile-symbol svg')!.getAttribute('data-shape'),
-        emblemSize: cell.querySelector('.tile-symbol')!.getBoundingClientRect().width,
-      })),
+      elements.map((cell) => {
+        const box = cell.querySelector('.tile-face')!.getBoundingClientRect();
+        const mark = cell.querySelector('.tile-symbol svg.symbol-mark')!;
+        const symbol = mark.getBoundingClientRect();
+        return {
+          terrain: cell.getAttribute('data-terrain')!,
+          symbol: cell.getAttribute('data-symbol')!,
+          colour: getComputedStyle(cell).backgroundColor,
+          scene: cell.querySelector('svg.scene')!.getAttribute('data-shape'),
+          shape: mark.getAttribute('data-shape'),
+          ink: getComputedStyle(mark).color,
+          text: getComputedStyle(document.body).color,
+          lit: ['symbol', 'both'].includes(cell.getAttribute('data-match') ?? ''),
+          size: symbol.width,
+          share: symbol.width / box.width,
+          inset: [(symbol.left - box.left) / box.width, (symbol.top - box.top) / box.height],
+          badge: [...mark.parentElement!.children].length !== 1 || getComputedStyle(mark.parentElement!).backgroundColor !== 'rgba(0, 0, 0, 0)' || getComputedStyle(mark.parentElement!).boxShadow !== 'none',
+        };
+      }),
     );
   expect(tiles).toHaveLength(14);
   const byTerrain = new Map(tiles.map((cell) => [cell.terrain, cell]));
@@ -55,10 +70,19 @@ async function expectDistinguishable(page: Page) {
   expect(new Set([...byTerrain.values()].map((cell) => cell.scene)).size).toBe(4);
   for (const cell of tiles) {
     expect(new Set(tiles.filter((other) => other.terrain === cell.terrain).map((other) => other.scene)).size).toBe(1);
-    expect(new Set(tiles.filter((other) => other.symbol === cell.symbol).map((other) => other.emblem)).size).toBe(1);
-    expect(cell.emblemSize).toBeGreaterThanOrEqual(20);
+    expect(new Set(tiles.filter((other) => other.symbol === cell.symbol).map((other) => other.shape)).size).toBe(1);
+    expect(cell.size).toBeGreaterThanOrEqual(20);
+    expect(cell.size).toBeLessThanOrEqual(64.5);
+    if (cell.size < 64) expect(cell.share).toBeCloseTo(0.45, 2);
+    expect(cell.inset[0]).toBeCloseTo(0.07, 2);
+    expect(cell.inset[1]).toBeCloseTo(0.07, 2);
+    expect(cell.badge, `${cell.terrain}–${cell.symbol} has no badge behind its symbol`).toBe(false);
   }
-  expect(new Set(tiles.map((cell) => cell.emblem)).size).toBe(4);
+  expect(new Set(tiles.map((cell) => cell.shape)).size).toBe(4);
+  // One ink, the theme's text colour, for every symbol not lit by the same-symbol cue.
+  const unlit = tiles.filter((cell) => !cell.lit);
+  expect(new Set(unlit.map((cell) => cell.ink)).size).toBe(1);
+  expect(unlit[0]!.ink).toBe(unlit[0]!.text);
 
   // Player 1's token and Player 2's (the bot's) differ in colour, rim and mark, and stand out from the tiles and the bare slot.
   const tokens = await board(page)
@@ -116,11 +140,14 @@ async function expectDistinguishable(page: Page) {
       token: style('[data-testid="board"] [data-testid="token"]').backgroundImage,
     };
   });
-  expect(materials.ground).toMatch(/radial-gradient/);
-  expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
-  expect(materials.wood).toMatch(/repeating-linear-gradient/);
+  // The neon themes paint a generated backdrop (aurora, stars, a sunset; no grain), so only the classic ground is plain radial gradients.
+  expect(materials.ground).toMatch(neon ? /gradient|url\(/ : /radial-gradient/);
+  if (!neon) expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
+  // The neon themes draw no frame round the board; the classic ones keep their wood grain.
+  if (neon) expect(materials.wood).toBe('none');
+  else expect(materials.wood).toMatch(/repeating-linear-gradient/);
   expect(materials.token).toMatch(/radial-gradient/);
-  expect(materials.woodColour).not.toBe(materials.groundColour);
+  if (!neon) expect(materials.woodColour).not.toBe(materials.groundColour);
   // The tiles stand apart from the board's well, and the plates and the scoreboard stand apart from the ground.
   const plates = await page.evaluate(() => ['[data-testid="seat-A"]', '[data-testid="seat-B"]', '[data-testid="score-A"]', '[data-testid="score-B"]', '[data-testid="match-card"]'].map((selector) => getComputedStyle(document.querySelector(selector)!).backgroundColor));
   for (const plate of plates) expect(plate).not.toBe(materials.groundColour);
@@ -191,15 +218,19 @@ async function groundChannels(page: Page) {
  * Settings, a bot game after two takes with tile names on (a refusal toast and the menu shown), and a
  * two-player game's end with its result card, each read for 4.5:1 and the pieces kept distinguishable.
  */
+/** The neon themes are dark under both system schemes, on a slab frame rather than wood. */
+const isNeon = (palette: string) => ['night-circuit', 'neon-frost', 'synth-horizon', 'midnight-aurora'].includes(palette);
+
 async function readableInPalette(page: Page, palette: PaletteId, scheme: 'light' | 'dark') {
   const where = `${palette} ${scheme}`;
+  const looks = isNeon(palette) ? 'dark' : scheme;
   await continueSaved(page, seededPosition(2), 'bot');
   await setPalette(page, palette);
   const [r, g, b] = await groundChannels(page);
-  if (scheme === 'dark') expect(r + g + b, where).toBeLessThan(120);
+  if (looks === 'dark') expect(r + g + b, where).toBeLessThan(120);
   else expect(r + g + b, where).toBeGreaterThan(600);
   expect(await lowContrastText(page), where).toEqual([]);
-  await expectDistinguishable(page);
+  await expectDistinguishable(page, isNeon(palette));
   await cellAt(page, (await readBoard(page)).find((cell) => cell.owner === 'B')!.cell).click();
   await expect(refusalToast(page)).toBeVisible();
   expect(await lowContrastText(page), where).toEqual([]);
@@ -226,7 +257,7 @@ async function readableInPalette(page: Page, palette: PaletteId, scheme: 'light'
 test.describe('dark colour scheme', () => {
   test.use({ colorScheme: 'dark' });
 
-  test('[scenario:dark-theme] for each colour theme in dark, on the home screen and in a game, the ground, board, tiles, emblems, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the scoreboard and the result card included, reads at 4.5:1', async ({ page }, testInfo) => {
+  test('[scenario:dark-theme] for each colour theme in dark, on the home screen and in a game, the ground, board, tiles, their symbols, both players’ tokens, both avatars and the lit and dimmed nameplates stay distinguishable, and all text, the name plates, the scoreboard and the result card included, reads at 4.5:1', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await openHome(page);
     // The default theme's dark set is in use, on its warm charcoal ground.
@@ -322,24 +353,29 @@ async function emptyStrips(page: Page): Promise<{ strips: number[]; bottom: numb
   });
 }
 
-/** Mid-game with no toast: no empty strip over 56 px anywhere in the column, and at most 48 px at the bottom. */
+/**
+ * Mid-game with no toast: no empty strip over 96 px anywhere in the column, the bottom included. The gaps
+ * above the board leave room under it for the result card, so the gap under the board (the toasts' place)
+ * and the bottom are the largest, and about equal.
+ */
 async function expectNoEmptyBand(page: Page) {
   const { strips, bottom } = await emptyStrips(page);
-  expect(Math.max(...strips), JSON.stringify(strips)).toBeLessThanOrEqual(56);
-  expect(bottom).toBeLessThanOrEqual(48);
+  expect(Math.max(...strips), JSON.stringify(strips)).toBeLessThanOrEqual(96);
+  expect(bottom).toBeLessThanOrEqual(96);
 }
 
 test.describe('phone viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling; in the game the scoreboard row is the top row with the menu at its end, Player 2 above the board and Player 1 below, no empty strip over 56 px and at most 48 px at the bottom mid-game, no scrolling mid-game or with the end card shown, every tile and button at least 44 px', async ({ page }, testInfo) => {
+  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling and How to Play’s first page shows its example without scrolling; in the game the scoreboard row is the top row with the menu at its end, compact nameplates, Player 2 above the board and Player 1 below, no empty strip over 96 px mid-game, no scrolling mid-game or with the end card shown, the board the same size and place before and after the end, every tile and button at least 44 px', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const ending = nearWin('B');
     await seedSavedGame(page, ending.state, 'bot');
     await openHome(page);
 
-    // The home screen: the hero, Continue, the play panel, the results line, How to play and Settings fit with no scrolling.
-    const home = ['hero', 'title', 'hero-board', 'hero-avatar-A', 'hero-avatar-B', 'continue', 'play-panel', 'opponent-switch', 'difficulty-switch', 'play', 'results', 'open-how-to-play', 'open-settings'];
+    // The home screen: the hero, Continue, the play panel, How to play and Settings fit with no scrolling (no
+    // bot game is counted yet, so no results line).
+    const home = ['hero', 'title', 'hero-board', 'hero-avatar-A', 'hero-avatar-B', 'continue', 'play-panel', 'opponent-switch', 'difficulty-switch', 'play', 'open-how-to-play', 'open-settings'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
     await expectInside(page, home);
     expect(await smallTargets(page)).toEqual([]);
@@ -347,11 +383,19 @@ test.describe('phone viewport', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
+    // Its first page shows its one example, the tiles and the board after the same last take, without scrolling.
+    const body = page.locator('.howto-page');
+    expect(await body.evaluate((element) => element.scrollTop)).toBe(0);
+    const bodyBox = (await body.boundingBox())!;
+    for (const id of ['matching-example', 'diagram-matching']) {
+      const box = (await page.getByTestId(id).boundingBox())!;
+      expect(box.y + box.height, id).toBeLessThanOrEqual(bodyBox.y + bodyBox.height);
+    }
     await page.getByRole('button', { name: 'Close How to play' }).tap();
 
     // A game: the whole table fits with no scrolling in either direction and no empty band at the bottom.
     await difficultySwitch(page).getByRole('radio', { name: 'Easy' }).tap();
-    await playButton(page).tap();
+    await pressPlay(page, 'tap');
     await expect(board(page)).toBeVisible();
     const fits = ['top-bar', 'scoreboard', 'score-A', 'score-B', 'match-card', 'menu-button', 'seat-A', 'seat-B', 'avatar-A', 'avatar-B', 'seat-A-status', 'seat-B-tokens', 'board-frame'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
@@ -359,11 +403,14 @@ test.describe('phone viewport', () => {
     expect(await smallTargets(page)).toEqual([]);
     await expectNameplates(page);
     await expectNoEmptyBand(page);
-    // The height went to the elements: about 80 px avatars and a 64 px Match card.
-    expect((await page.getByTestId('avatar-A').boundingBox())!.width).toBeGreaterThanOrEqual(76);
+    // Compact nameplates with 44 px avatars and a 64 px Match card; the board takes the screen's width.
+    const avatar = (await page.getByTestId('avatar-A').boundingBox())!.width;
+    expect(avatar).toBeGreaterThanOrEqual(40);
+    expect(avatar).toBeLessThanOrEqual(46);
     expect((await page.getByTestId('match-card').boundingBox())!.height).toBeCloseTo(64, 0);
+    expect((await page.getByTestId('board-frame').boundingBox())!.width).toBeCloseTo(370, 0);
 
-    // Take a tile by touch so the last tile shows its emblems, and the bot replies. Mid-game with no toast,
+    // Take a tile by touch so the Match card shows the last tile and its sentence, and the bot replies. Mid-game with no toast,
     // still no scrolling and no empty band.
     const before = await takeCount(page);
     await glowing(page).first().tap();
@@ -384,13 +431,17 @@ test.describe('phone viewport', () => {
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
 
-    // The end state: Continue a saved game where the bot wins with its next take. The board shrinks and the
-    // result card sits under Player 1's nameplate, and everything fits with no scrolling and no toast.
+    // The end state: Continue a saved game where the bot wins with its next take. The board keeps its size
+    // and place, the result card sits under Player 1's nameplate, and everything fits with no scrolling and no toast.
     await page.getByRole('button', { name: /^Quit to title/ }).tap();
     await page.evaluate((log) => window.localStorage.setItem('okiya.saved-match', log), JSON.stringify({ version: 3, mode: 'bot', difficulty: 'easy', score: { A: 0, B: 0, draws: 0 }, log: gameLogOfState(ending.state) }));
     await page.reload();
     await page.getByTestId('continue').tap();
+    await expect(board(page)).toBeVisible();
+    const boardBefore = (await page.getByTestId('board-frame').boundingBox())!;
     await expect(page.getByTestId('end-screen')).toBeVisible({ timeout: 11_000 });
+    await expect(page.getByTestId('match-screen')).not.toHaveAttribute('data-end-easing', /.*/);
+    expect((await page.getByTestId('board-frame').boundingBox())!).toEqual(boardBefore);
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
     await expectInside(page, ['top-bar', 'seat-A', 'seat-B', 'scoreboard', 'board-frame', 'end-screen', 'play-again', 'end-home', 'result', 'result-detail']);
     expect(await smallTargets(page)).toEqual([]);
@@ -402,9 +453,7 @@ test.describe('phone viewport', () => {
     await expectNameplates(page);
     expect((await emptyStrips(page)).bottom).toBeLessThanOrEqual(48);
 
-    // On a shorter phone the ended board stops at 44 px tiles; once the shrink is over the column may
-    // scroll, so Play again and Home stay reachable.
-    await expect(page.getByTestId('match-screen')).not.toHaveAttribute('data-end-shrinking', /.*/);
+    // On a shorter phone the board keeps its size and the column scrolls, so Play again and Home stay reachable.
     await page.setViewportSize({ width: 375, height: 667 });
     expect(await smallTargets(page)).toEqual([]);
     for (const id of ['play-again', 'end-home']) {
@@ -414,11 +463,104 @@ test.describe('phone viewport', () => {
   });
 });
 
-/** The phone's rows: the scoreboard row on top with the menu at its end, Player 2's nameplate, the board, Player 1's nameplate, the plates at most 96 px. */
+/** The result card as laid out now: its parts' boxes in page coordinates, and whether anything inside it is clipped. */
+async function endCardLayout(page: Page) {
+  return page.evaluate(() => {
+    const box = (id: string) => {
+      const rect = document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+      return { top: rect.top + window.scrollY, bottom: rect.bottom + window.scrollY, left: rect.left, right: rect.right };
+    };
+    const card = document.querySelector('[data-testid="end-screen"]') as HTMLElement;
+    return {
+      card: box('end-screen'),
+      result: box('result'),
+      detail: box('result-detail'),
+      again: box('play-again'),
+      home: box('end-home'),
+      clipped: card.scrollHeight > card.clientHeight + 1 || [...card.querySelectorAll('h2, p, button')].some((element) => element.scrollWidth > element.clientWidth + 1),
+      overflowX: document.documentElement.scrollWidth - window.innerWidth,
+    };
+  });
+}
+
+/**
+ * One ending at one viewport: the board's box is the same before and after the last take; the result card
+ * reads the result, then its explanation, then Play again and Home side by side or stacked in one footer,
+ * with nothing clipped; and both buttons can be scrolled to.
+ */
+async function expectEndAt(page: Page, size: { width: number; height: number }, ending: 'shape' | 'blockade' | 'draw') {
+  await page.setViewportSize(size);
+  const { state, ends } = nearEnding(ending, 'B');
+  await continueSaved(page, state, 'two-player');
+  const before = (await page.getByTestId('board-frame').boundingBox())!;
+  await cellAt(page, ends[0]!).click();
+  await expect(page.getByTestId('end-screen')).toBeVisible();
+  await expect(match(page)).not.toHaveAttribute('data-end-easing', /.*/);
+  expect((await page.getByTestId('board-frame').boundingBox())!, `${ending} at ${size.width} × ${size.height}`).toEqual(before);
+  const layout = await endCardLayout(page);
+  const where = `${ending} at ${size.width} × ${size.height}`;
+  expect(layout.clipped, where).toBe(false);
+  expect(layout.overflowX, where).toBeLessThanOrEqual(0);
+  expect(layout.result.bottom, where).toBeLessThanOrEqual(layout.detail.top + 1);
+  for (const button of [layout.again, layout.home]) {
+    expect(button.top, where).toBeGreaterThanOrEqual(layout.detail.bottom);
+    expect(button.bottom, where).toBeLessThanOrEqual(layout.card.bottom);
+  }
+  // One footer: side by side on one row, or Play again stacked over Home.
+  expect(Math.abs(layout.again.top - layout.home.top) < 1 || layout.again.bottom <= layout.home.top, where).toBe(true);
+  for (const id of ['play-again', 'end-home']) {
+    await page.getByTestId(id).scrollIntoViewIfNeeded();
+    await expect(page.getByTestId(id), where).toBeInViewport({ ratio: 1 });
+  }
+  expect(await smallTargets(page)).toEqual([]);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  return layout;
+}
+
+test.describe('per-size layout', () => {
+  test('[scenario:end-card-sizes] at 390 × 844, 390 × 667, 761 × 900 and 1440 × 900, in a line, a blockade and a draw, the board keeps its size and place at the end and the result card reads heading, explanation, then Play again and Home, never clipped and always reachable; at 390 × 844 and 1440 × 900 it needs no scrolling and its buttons sit in the same places in every ending; at 200% text the card grows and scrolls instead of clipping', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await openHome(page);
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 390, height: 667 },
+      { width: 761, height: 900 },
+      { width: 1440, height: 900 },
+    ]) {
+      const layouts = [];
+      for (const ending of ['shape', 'blockade', 'draw'] as const) layouts.push(await expectEndAt(page, size, ending));
+      if (size.height === 844 || size.width === 1440) {
+        expect(await overflow(page), `${size.width} × ${size.height}`).toEqual({ x: 0, y: 0 });
+        for (const other of layouts.slice(1)) {
+          expect(other.again, `${size.width} × ${size.height}`).toEqual(layouts[0]!.again);
+          expect(other.home, `${size.width} × ${size.height}`).toEqual(layouts[0]!.home);
+        }
+      }
+      await attachScreenshot(page, testInfo, `end-card-${size.width}x${size.height}`);
+    }
+
+    // Twice the text size on a phone: the card grows with its content, nothing in it is clipped, and the
+    // buttons are still reachable by scrolling.
+    await page.addInitScript(() =>
+      document.addEventListener('DOMContentLoaded', () => {
+        const style = document.createElement('style');
+        style.textContent = 'html { font-size: 200% !important; }';
+        document.head.append(style);
+      }),
+    );
+    await expectEndAt(page, { width: 390, height: 844 }, 'blockade');
+    await attachScreenshot(page, testInfo, 'end-card-390x844-large-text');
+  });
+});
+
+/** The phone's rows: the scoreboard row on top with the menu at its end, Player 2's nameplate, the board, Player 1's nameplate, the plates 56 to 64 px. */
 async function expectNameplates(page: Page) {
   const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
   const [row, card, menu, frame, top, bottom] = await Promise.all(['scoreboard', 'match-card', 'menu-button', 'board-frame', 'seat-B', 'seat-A'].map(box));
-  for (const plate of [top!, bottom!]) expect(plate.height).toBeLessThanOrEqual(96);
+  for (const plate of [top!, bottom!]) {
+    expect(plate.height).toBeGreaterThanOrEqual(56);
+    expect(plate.height).toBeLessThanOrEqual(64);
+  }
   expect(menu!.x).toBeGreaterThanOrEqual(row!.x + row!.width);
   expect(Math.abs(card!.y + card!.height / 2 - (menu!.y + menu!.height / 2))).toBeLessThan(8);
   expect(row!.y + row!.height).toBeLessThanOrEqual(top!.y);
@@ -588,6 +730,16 @@ test('[scenario:keyboard-play] with the keyboard only, the player switches the o
   await expect(opponentSwitch(page).getByRole('radio', { name: 'Friend' })).toHaveAttribute('aria-checked', 'true');
   await tabTo(page, '[data-testid="play"]');
   await expect(playButton(page)).toHaveText('Play · with a friend');
+  await page.keyboard.press('Enter');
+  // The saved bot game is replaced only on confirmation: Cancel has focus, Tab wraps to the action and
+  // stays inside the dialog, Enter confirms.
+  const confirm = page.getByRole('dialog', { name: 'Start a new game?' });
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(confirm.getByRole('button', { name: 'Start new game' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Enter');
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');

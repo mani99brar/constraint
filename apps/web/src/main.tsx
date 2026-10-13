@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { themeStyleSheet } from './theme';
+import './neon-art.css';
 import './styles.css';
 
 // The theme tokens come from `theme.ts`, the one place their contrast is tested.

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { difficultyAfterKey, homeModel, opponentAfterKey, playLabel, REPLACES_NOTE, resultsLine } from './home';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { ConfirmDialog } from './ConfirmDialog';
+import { difficultyAfterKey, FRIEND_NOTE, homeModel, opponentAfterKey, playLabel, replaceConfirmation, REPLACES_NOTE, RESET_CONFIRMATION, resultsLine } from './home';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { emptyResults, recordResult } from './results';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings';
@@ -20,6 +23,25 @@ describe('home model (PRD S1, E1, E5)', () => {
     expect(bot.replacesSaved).toBe(true);
     expect(homeModel({ mode: TWO_PLAYERS, takes: 1 }, DEFAULT_SETTINGS, emptyResults()).continueGame?.note).toBe('Two players, 1 tile taken');
     expect(REPLACES_NOTE).toBe('Play replaces your saved game.');
+  });
+
+  it('marks a game the browser could not save as kept only in this tab', () => {
+    expect(homeModel({ mode: versusBot('easy'), takes: 4, unsaved: true }, DEFAULT_SETTINGS, emptyResults()).continueGame?.note).toBe('Easy bot, 4 tiles taken, kept only in this tab');
+    expect(homeModel({ mode: versusBot('easy'), takes: 4, unsaved: false }, DEFAULT_SETTINGS, emptyResults()).continueGame?.note).toBe('Easy bot, 4 tiles taken');
+  });
+
+  it('asks before Play replaces a saved game, naming it, and before the results are reset', () => {
+    expect(replaceConfirmation('Hard bot, 7 tiles taken')).toEqual({ title: 'Start a new game?', text: 'This replaces your saved game (Hard bot, 7 tiles taken).', confirmLabel: 'Start new game' });
+    expect(RESET_CONFIRMATION.title).toBe('Reset results?');
+    expect(RESET_CONFIRMATION.confirmLabel).toBe('Reset results');
+    // One dialog: its title names it, Cancel comes first and is focused on open, the action says what it does.
+    const html = renderToStaticMarkup(
+      createElement(ConfirmDialog, { ...RESET_CONFIRMATION, testId: 'confirm-reset', onConfirm: () => {}, onCancel: () => {}, returnFocusTo: null }),
+    );
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-labelledby="confirm-reset-title"');
+    expect(html.indexOf('confirm-reset-cancel')).toBeLessThan(html.indexOf('confirm-reset-confirm'));
+    expect(html).toContain('>Reset results</button>');
   });
 
   it('labels the one Play button with the choice, for each opponent and difficulty', () => {
@@ -53,7 +75,11 @@ describe('home model (PRD S1, E1, E5)', () => {
     expect(model()).toMatchObject({ opponent: 'bot', difficulty: 'normal' });
   });
 
-  it('gives the results in one quiet line, and enables the reset once a bot game was counted', () => {
+  it('says a friend plays on this device', () => {
+    expect(FRIEND_NOTE).toContain('this device');
+  });
+
+  it('gives the results in one quiet line, shown, and the reset enabled, only once a bot game was counted', () => {
     const empty = homeModel(null, DEFAULT_SETTINGS, emptyResults());
     expect(empty.results.map((row) => [row.difficulty, row.label, row.wins, row.losses, row.draws])).toEqual([
       ['easy', 'Easy', 0, 0, 0],
@@ -62,6 +88,7 @@ describe('home model (PRD S1, E1, E5)', () => {
     ]);
     expect(empty.resultsLine).toBe('Easy 0–0–0 · Normal 0–0–0 · Hard 0–0–0 (W–L–D)');
     expect(empty.canReset).toBe(false);
+    expect(empty.showResults).toBe(false);
     const storage = memoryStorage();
     recordResult(storage, 'normal', 'win');
     recordResult(storage, 'normal', 'loss');
@@ -72,6 +99,7 @@ describe('home model (PRD S1, E1, E5)', () => {
     expect(counted.resultsLine).not.toContain('\n');
     expect(resultsLine(counted.results).line).toBe(counted.resultsLine);
     expect(counted.canReset).toBe(true);
+    expect(counted.showResults).toBe(true);
   });
 
   it('moves both switches with the arrow keys as a radio group does, wrapping round', () => {

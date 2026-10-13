@@ -49,17 +49,17 @@ describe('the no-flash theme script (PRD U5)', () => {
   });
 
   it('sets the default theme for missing, older, unknown and malformed settings, and when storage throws', () => {
-    expect(runScript(null)).toBe('walnut');
-    expect(runScript(JSON.stringify({ highlights: true, sound: false }))).toBe('walnut');
-    expect(runScript(JSON.stringify({ palette: 'teal' }))).toBe('walnut');
-    expect(runScript(JSON.stringify({ palette: 7 }))).toBe('walnut');
-    expect(runScript('{"palette":"clear"')).toBe('walnut');
-    expect(runScript('null')).toBe('walnut');
-    expect(runScript('"clear"')).toBe('walnut');
+    expect(runScript(null)).toBe(DEFAULT_PALETTE);
+    expect(runScript(JSON.stringify({ highlights: true, sound: false }))).toBe(DEFAULT_PALETTE);
+    expect(runScript(JSON.stringify({ palette: 'teal' }))).toBe(DEFAULT_PALETTE);
+    expect(runScript(JSON.stringify({ palette: 7 }))).toBe(DEFAULT_PALETTE);
+    expect(runScript('{"palette":"clear"')).toBe(DEFAULT_PALETTE);
+    expect(runScript('null')).toBe(DEFAULT_PALETTE);
+    expect(runScript('"clear"')).toBe(DEFAULT_PALETTE);
     expect(
       runScript(() => {
         throw new Error('SecurityError');
       }),
-    ).toBe('walnut');
+    ).toBe(DEFAULT_PALETTE);
   });
 });

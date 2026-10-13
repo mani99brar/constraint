@@ -3,7 +3,7 @@ import type { GameState } from '@okiya/game';
 import { homeModel } from './home';
 import { HomeScreen } from './HomeScreen';
 import { HowToPlay } from './HowToPlay';
-import { howToOpensFirst, rememberHowToSeen } from './howto';
+import { introShows, rememberIntroSeen } from './howto';
 import { HUMAN, nextStarter, startGame } from './match';
 import { MatchScreen } from './MatchScreen';
 import { twoPlayers, versusBot, type GameMode } from './mode';
@@ -12,6 +12,8 @@ import { loadResults, recordFinishedGame, resetResults, type Results } from './r
 import { clearSavedGame, loadSavedGame, saveGame, type SavedGame } from './save';
 import { addResult, NO_SCORE, scoreAfter, type Score } from './score';
 import { loadSettings, saveSettings, type Settings } from './settings';
+import { browserHaptics, prefersReducedMotion } from './haptics';
+import { useUpdateReady } from './update';
 import { browserAudioContext, createSoundPlayer } from './sound';
 import { rememberStarter, starterForNewGame } from './starter';
 import { browserStorage, type KeyValueStorage } from './storage';
@@ -27,18 +29,24 @@ export interface AppProps {
 
 /**
  * The published game (PRD §5.7, §5.8): the home screen, where one tap on Play starts the game its play
- * panel shows, a bot game at the remembered difficulty or a two-player game, the game with the score of its sitting, How to Play, the
+ * panel shows, a bot game at the remembered difficulty or a two-player game, a newcomer's first-game intro, the game with the score of its sitting, How to Play, the
  * remembered settings, the saved game and the results by difficulty.
  */
 export function App({ storage: given }: AppProps) {
   const storage = useMemo(() => (given === undefined ? browserStorage() : given), [given]);
-  const [settings, setSettings] = useState<Settings>(() => loadSettings(storage));
+  const [settings, setSettings] = useState<Settings>(() => loadSettings(storage, prefersReducedMotion()));
   const [results, setResults] = useState<Results>(() => loadResults(storage));
   const [saved, setSaved] = useState<SavedGame | null>(() => loadSavedGame(storage));
   const [screen, setScreen] = useState<Screen>({ kind: 'home' });
   const [score, setScoreState] = useState<Score>(NO_SCORE);
-  const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(() => (howToOpensFirst(storage) ? { opener: null } : null));
+  const [howTo, setHowTo] = useState<{ opener: HTMLElement | null } | null>(null);
+  // A first visit opens on the home screen with a one-line intro, never on How to Play.
+  const [intro, setIntro] = useState(() => introShows(storage));
   const matchKey = useRef(0);
+  // Whether the browser saved the running game at its last save. When it refused, the game is kept here
+  // instead, so Continue picks it up while the tab stays open, and an older save never comes back in its place.
+  const [lastSaveOk, setLastSaveOk] = useState(true);
+  const unsaved = useRef<SavedGame | null>(null);
   // A timed game's clocks are read when the game is saved: after every take, on leaving and when the page hides.
   const readClock = useRef<(() => ClockTimes | null) | null>(null);
   const running = useRef<{ state: GameState; mode: GameMode } | null>(null);
@@ -56,6 +64,9 @@ export function App({ storage: given }: AppProps) {
   settingsRef.current = settings;
   const sound = useMemo(() => createSoundPlayer({ createContext: browserAudioContext, muted: () => !settingsRef.current.sound }), []);
 
+  const updateReady = useUpdateReady();
+  const haptics = useMemo(() => browserHaptics(() => settingsRef.current.haptics), []);
+
   useEffect(() => {
     // Sound may start only inside a user gesture's own handler (PRD E4). A touch activates the
     // page on pointerup and touchend, not on pointerdown, so all of them unlock.
@@ -68,6 +79,14 @@ export function App({ storage: given }: AppProps) {
   }, [sound]);
 
   useEffect(() => {
+    // The scenes on the tiles rest while the tab is hidden.
+    const mark = () => document.documentElement.toggleAttribute('data-hidden', document.hidden);
+    mark();
+    document.addEventListener('visibilitychange', mark);
+    return () => document.removeEventListener('visibilitychange', mark);
+  }, []);
+
+  useEffect(() => {
     // The colour theme (PRD U5): index.html sets it before the first paint; a new choice applies at once.
     document.documentElement.setAttribute('data-palette', settings.palette);
   }, [settings.palette]);
@@ -78,15 +97,29 @@ export function App({ storage: given }: AppProps) {
     saveSettings(storage, next);
   }
 
+  /** The newcomer was taught: the intro was dismissed, How to Play was read or a first game started. */
+  function introSeen() {
+    rememberIntroSeen(storage);
+    setIntro(false);
+  }
+
   function closeHowTo() {
-    rememberHowToSeen(storage);
+    introSeen();
     setHowTo(null);
+  }
+
+  /** Saves a running game and remembers whether the browser took it; a refused one stays in memory. */
+  function store(state: GameState, mode: GameMode, clockLeft: ClockTimes | null) {
+    const ok = saveGame(storage, state, mode, scoreRef.current, clockLeft);
+    unsaved.current = ok ? null : { state, mode, score: scoreRef.current, clockLeft };
+    if (!ok) clearSavedGame(storage);
+    setLastSaveOk(ok);
   }
 
   /** Saves the running game again with its clocks as they stand now. */
   function saveClocks() {
     const current = running.current;
-    if (current && !current.state.result && readClock.current?.()) saveGame(storage, current.state, current.mode, scoreRef.current, readClock.current());
+    if (current && !current.state.result && readClock.current?.()) store(current.state, current.mode, readClock.current());
   }
 
   useEffect(() => {
@@ -107,22 +140,29 @@ export function App({ storage: given }: AppProps) {
     running.current = null;
     readClock.current = null;
     setScore(scoreAfter('leave', scoreRef.current));
-    setSaved(loadSavedGame(storage));
+    setSaved(unsaved.current ?? loadSavedGame(storage));
     setResults(loadResults(storage));
     setScreen({ kind: 'home' });
   }
 
-  /** Shows a game: a new one (Play, Play again) opens with the countdown when it is on; Continue does not. */
-  function play(state: GameState, mode: GameMode, clockLeft: ClockTimes | null = null, fresh = true) {
+  /**
+   * Shows a game: a new one (Play, Play again) opens with the countdown when it is on; Continue does not.
+   * `savedOk` is false when the game is the one kept only in this tab, which the browser could not save.
+   */
+  function play(state: GameState, mode: GameMode, clockLeft: ClockTimes | null = null, fresh = true, savedOk = true) {
     rememberStarter(storage, state.starter);
     matchKey.current += 1;
     running.current = { state, mode };
+    setLastSaveOk(savedOk);
     setScreen({ kind: 'match', state, mode, key: matchKey.current, clockLeft, countdown: fresh && settingsRef.current.countdown });
   }
 
   /** A game started from the home screen: a new sitting with its score at zero. */
   function newGame(mode: GameMode) {
     sound.play('select');
+    if (intro) introSeen();
+    // A new game replaces the saved one, or the one kept in memory when the browser could not save it.
+    unsaved.current = null;
     setScore(scoreAfter('new-game', scoreRef.current));
     play(startGame(undefined, starterForNewGame(storage)), mode);
   }
@@ -134,11 +174,12 @@ export function App({ storage: given }: AppProps) {
   function gameChanged(state: GameState, mode: GameMode) {
     running.current = { state, mode };
     if (state.result) {
+      unsaved.current = null;
       clearSavedGame(storage);
       setScore(addResult(scoreRef.current, state.result));
       setResults(recordFinishedGame(storage, mode, state.result, HUMAN));
     } else {
-      saveGame(storage, state, mode, scoreRef.current, readClock.current?.() ?? null);
+      store(state, mode, readClock.current?.() ?? null);
     }
   }
 
@@ -153,11 +194,14 @@ export function App({ storage: given }: AppProps) {
           mode={mode}
           clockLeft={screen.clockLeft}
           countdown={screen.countdown}
+          saved={lastSaveOk}
           onClockReader={onClockReader}
           score={score}
           settings={settings}
           onSettings={changeSettings}
           sound={sound}
+          haptics={haptics}
+          updateReady={updateReady}
           onChange={(state) => gameChanged(state, mode)}
           onHowTo={(opener) => setHowTo({ opener })}
           onPlayAgain={(finished) => {
@@ -173,13 +217,15 @@ export function App({ storage: given }: AppProps) {
     case 'home':
       content = (
         <HomeScreen
-          model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length } : null, settings, results)}
+          haptics={haptics}
+          updateReady={updateReady}
+          model={homeModel(saved ? { mode: saved.mode, takes: saved.state.takes.length, unsaved: saved === unsaved.current } : null, settings, results)}
           settings={settings}
           onContinue={() => {
-            const current = loadSavedGame(storage);
+            const current = unsaved.current ?? loadSavedGame(storage);
             if (!current) return setSaved(null);
             setScore(current.score);
-            play(current.state, current.mode, current.clockLeft, false);
+            play(current.state, current.mode, current.clockLeft, false, current !== unsaved.current);
           }}
           onPlay={() => {
             const { opponent, difficulty, clockA, clockB } = settingsRef.current;
@@ -191,6 +237,8 @@ export function App({ storage: given }: AppProps) {
           onHowTo={(opener) => setHowTo({ opener })}
           onResetResults={() => setResults(resetResults(storage))}
           onSettings={changeSettings}
+          intro={intro}
+          onDismissIntro={introSeen}
         />
       );
       break;

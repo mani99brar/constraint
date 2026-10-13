@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CELLS, LINES, SQUARES, type CellId, type GameResult, type Player } from '@okiya/game';
 import { boardModel } from './boardModel';
-import { endModel, endShrinking, END_SHRINK_LIMIT_MS, liftOrder } from './end';
+import { endModel, endEasing, END_EASE_LIMIT_MS, liftOrder } from './end';
 import { matchCardModel } from './matchCard';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { afterTakes, endings, handBuilt } from './playouts.test-helper';
@@ -106,13 +106,13 @@ describe('end sequence model (PRD U10)', () => {
   });
 });
 
-describe('the phone’s end shrink (PRD U6, U10)', () => {
+describe('the phone’s end easing (PRD U6, U10)', () => {
   it('runs only for a game that ends on screen, until it is done, never for a game shown ended', () => {
-    expect(endShrinking(false, false, false)).toBe(false);
-    expect(endShrinking(true, false, false)).toBe(true);
-    expect(endShrinking(true, false, true)).toBe(false);
-    expect(endShrinking(true, true, false)).toBe(false);
+    expect(endEasing(false, false, false)).toBe(false);
+    expect(endEasing(true, false, false)).toBe(true);
+    expect(endEasing(true, false, true)).toBe(false);
+    expect(endEasing(true, true, false)).toBe(false);
     // Its mark lasts no longer than the end sequence (PRD U10).
-    expect(END_SHRINK_LIMIT_MS).toBeLessThanOrEqual(700);
+    expect(END_EASE_LIMIT_MS).toBeLessThanOrEqual(700);
   });
 });

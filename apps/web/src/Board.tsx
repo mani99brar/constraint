@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { cellColumn, cellRow, COLUMNS, ROWS, type CellId } from '@okiya/game';
-import { SymbolEmblem, TerrainScene, TokenMark } from './art';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { ALL_CELLS as ALL, cellColumn, cellRow, ROWS, type CellId } from '@okiya/game';
+import { SymbolMark, TerrainScene } from './art';
 import type { BoardModel, WinningShape } from './boardModel';
 import { liftOrder } from './end';
 import { boardKey, tabStop } from './keyboard';
@@ -50,10 +50,11 @@ function WinStroke({ shape, centres }: { shape: WinningShape; centres: ReadonlyM
 /**
  * The board as a wooden frame of separate raised tiles on a well (PRD U1): every cell a button named by
  * its cell, tile or token (PRD U7), one Tab stop with arrow keys moving between cells, and Enter or Space
- * to take the focused tile. With highlights on, the legal tiles pop up one after another when a person's
- * turn starts and stay raised with a halo, a ring and a tint of the mover's colour and the mover's token
- * mark on a corner badge, while the other free tiles fade back (PRD R2). The pop is pure CSS, keyed by
- * the board's data-pop-turn, so a re-render never replays it. A tile's name shows on hover, focus or a long press, or on every
+ * to take the focused tile. With highlights on, the legal tiles stay slightly raised with a crisp ring in
+ * the mover's colour and their art untouched, while the other free tiles fade back a little (PRD R2); they
+ * all rise together once when a person's turn starts. The rise is pure CSS, keyed by the board's
+ * data-pop-turn, so a re-render never replays it. Keyboard focus is an outline set off from the tile, so
+ * it never reads as a ring. A tile's name shows on hover, focus or a long press, or on every
  * tile with the Tile names setting (PRD I1, E3). At the end the cells play the end sequence (PRD U10),
  * which any tap or key skips. During the bot's turn taps are ignored; focus still moves.
  */
@@ -116,16 +117,6 @@ export function Board({ model, onCellClick }: BoardProps) {
 
   return (
     <div className="board-frame" data-testid="board-frame">
-      <div className="frame-labels frame-columns" aria-hidden="true">
-        {COLUMNS.map((column) => (
-          <span key={column}>{column}</span>
-        ))}
-      </div>
-      <div className="frame-labels frame-rows" aria-hidden="true">
-        {ROWS.map((row) => (
-          <span key={row}>{row}</span>
-        ))}
-      </div>
       <div
         ref={boardRef}
         role="grid"
@@ -166,7 +157,8 @@ export function Board({ model, onCellClick }: BoardProps) {
                       data-symbol={tile.symbol}
                       data-edge={view.edge}
                       data-glow={view.glow}
-                      data-pop-order={view.popOrder ?? undefined}
+                      data-match={view.match ?? undefined}
+                      style={{ '--i': ALL.indexOf(cell) } as CSSProperties}
                       data-faded={view.faded}
                       data-taken={token !== null}
                       data-owner={token ?? undefined}
@@ -197,13 +189,9 @@ export function Board({ model, onCellClick }: BoardProps) {
                           <>
                             <TerrainScene terrain={tile.terrain} />
                             <span className="tile-symbol">
-                              <SymbolEmblem symbol={tile.symbol} />
+                              <SymbolMark symbol={tile.symbol} />
                             </span>
-                            {view.glow && model.mover && (
-                              <span className={`move-badge p${model.mover === 'A' ? 1 : 2}`} data-testid="move-badge" data-mark={model.badge ?? undefined} aria-hidden="true">
-                                <TokenMark player={model.mover} />
-                              </span>
-                            )}
+                            {(view.match === 'terrain' || view.match === 'both') && <span className="reason-bar" aria-hidden="true" data-testid="reason-bar" />}
                           </>
                         ) : (
                           <Token key={cell} player={token} />

@@ -6,7 +6,8 @@ import { App } from './App';
 import { afterTakes, endings } from './playouts.test-helper';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { emptyResults, loadResults, outcomeOf, recordFinishedGame, recordResult, resetResults, RESULTS_KEY } from './results';
-import { clearSavedGame, loadSavedGame, restoreSavedGame, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
+import { clearSavedGame, ENDED_NOTE, loadSavedGame, quitNote, restoreSavedGame, SAVE_FAILED_NOTICE, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
+import { MenuDialog } from './MenuDialog';
 import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from './settings';
 import { HOWTO_SEEN_KEY } from './howto';
@@ -142,6 +143,49 @@ describe('saved game (PRD L2)', () => {
     expect(renderToStaticMarkup(createElement(App, { storage: null }))).toContain('data-testid="play"');
   });
 
+  it('reports each way a save can fail as false, so the game knows it is not saved', () => {
+    // No storage at all (blocked, or no window).
+    expect(saveGame(null, state, hard, score)).toBe(false);
+    // Storage that throws on every call (a private mode that blocks it).
+    expect(saveGame(throwing, state, hard, score)).toBe(false);
+    // A full quota: reading and removing work, writing throws. The older save is still there until removed.
+    const full = memoryStorage();
+    const older = afterTakes(12, 3);
+    expect(saveGame(full, older, hard, score)).toBe(true);
+    const quota: KeyValueStorage = {
+      getItem: (key) => full.getItem(key),
+      setItem: () => {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      },
+      removeItem: (key) => full.removeItem(key),
+    };
+    expect(saveGame(quota, state, hard, score)).toBe(false);
+    expect(loadSavedGame(quota)?.state.takes).toHaveLength(3);
+    // The game removes that stale save, so Continue never brings back an older position.
+    expect(clearSavedGame(quota)).toBe(true);
+    expect(loadSavedGame(quota)).toBeNull();
+  });
+
+  it('says honestly in the menu whether the game is saved, and what to do when it is not', () => {
+    expect(SAVE_FAILED_NOTICE).toBe('This browser couldn’t save your game. Keep this tab open to continue.');
+    expect(quitNote(true)).toBe('Your game is saved; Continue picks it up.');
+    expect(quitNote(false)).toMatch(/^Not saved in this browser; Continue picks it up while this tab stays open\.$/);
+    const menu = (saved: boolean) =>
+      renderToStaticMarkup(createElement(MenuDialog, { title: 'Menu', settings: DEFAULT_SETTINGS, onSettings: () => {}, onClose: () => {}, returnFocusTo: null, onQuit: () => {}, saved }));
+    expect(menu(true)).toContain(quitNote(true));
+    expect(menu(true)).toContain('data-saved="true"');
+    expect(menu(false)).toContain(quitNote(false));
+    expect(menu(false)).not.toContain(quitNote(true));
+    // A finished game has no save, so its menu promises nothing either way.
+    const over = (saved: boolean) =>
+      renderToStaticMarkup(createElement(MenuDialog, { title: 'Menu', settings: DEFAULT_SETTINGS, onSettings: () => {}, onClose: () => {}, returnFocusTo: null, onQuit: () => {}, saved, ended: true }));
+    for (const saved of [true, false]) {
+      expect(over(saved)).toContain(ENDED_NOTE);
+      expect(over(saved)).not.toContain('Continue picks it up');
+      expect(over(saved)).not.toContain('data-saved=');
+    }
+  });
+
   it('offers Continue on the home screen when a save restores', () => {
     const storage = memoryStorage();
     saveGame(storage, state, versusBot('hard'), NO_SCORE);
@@ -212,17 +256,17 @@ describe('results by difficulty (PRD E5)', () => {
 });
 
 describe('settings (PRD E3, E4, S1)', () => {
-  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard', palette: 'seaglass', clockA: '5', clockB: '1', countdown: false } as const;
+  const all = { highlights: false, sound: false, tileNames: true, opponent: 'friend', difficulty: 'hard', palette: 'seaglass', clockA: '5', clockB: '1', countdown: false, haptics: false, backdrop: false, sceneMotion: false } as const;
 
   it('defaults to highlights and sound on, tile names off, the Normal bot and the Walnut theme, and remembers changes', () => {
     const storage = memoryStorage();
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut', clockA: 'off', clockB: 'off', countdown: true });
-    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut', clockA: 'off', clockB: 'off', countdown: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
+    expect(DEFAULT_SETTINGS).toEqual({ highlights: true, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     saveSettings(storage, all);
     expect(JSON.parse(storage.data.get('okiya.settings')!)).toEqual(all);
     expect(loadSettings(storage)).toEqual(all);
-    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true });
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true });
+    saveSettings(storage, { highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'easy', palette: 'clear', clockA: 'off', clockB: '3', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
   });
 
   it('round-trips the opponent, the difficulty, the Tile names setting and the colour theme one by one', () => {
@@ -250,14 +294,14 @@ describe('settings (PRD E3, E4, S1)', () => {
     const storage = memoryStorage();
     // Written under the literal key the previous builds used: before the difficulty switch, and with it.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: false, sound: true }));
-    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'walnut', clockA: 'off', clockB: 'off', countdown: true });
+    expect(loadSettings(storage)).toEqual({ highlights: false, sound: true, tileNames: false, opponent: 'bot', difficulty: 'normal', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: false, difficulty: 'hard' }));
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard', palette: 'walnut', clockA: 'off', clockB: 'off', countdown: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: false, tileNames: false, opponent: 'bot', difficulty: 'hard', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     // The calm-table build's settings, with the opponent and tile names but no theme.
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy' }));
-    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy', palette: 'walnut', clockA: 'off', clockB: 'off', countdown: true });
+    expect(loadSettings(storage)).toEqual({ highlights: true, sound: true, tileNames: true, opponent: 'friend', difficulty: 'easy', palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
     storage.data.set('okiya.settings', JSON.stringify({ highlights: true, sound: true, difficulty: 'extreme', opponent: 'cat', tileNames: 'yes', palette: 'teal', clockA: '6', clockB: 3 }));
-    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false, palette: 'walnut', clockA: 'off', clockB: 'off', countdown: true });
+    expect(loadSettings(storage)).toMatchObject({ difficulty: 'normal', opponent: 'bot', tileNames: false, palette: 'night-circuit', clockA: 'off', clockB: 'off', countdown: true, haptics: true, backdrop: true, sceneMotion: true });
   });
 
   it('falls back to the defaults for corrupt values and storage that throws', () => {

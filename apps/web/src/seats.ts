@@ -60,7 +60,7 @@ export function turnLabel(state: Pick<GameState, 'result' | 'toMove'>, mode: Gam
 
 function statusOf(state: GameState, player: Player, mode: GameMode): string | null {
   const { result } = state;
-  if (!result) return state.toMove === player ? turnLabel(state, mode) : null;
+  if (!result) return state.toMove === player ? turnLabel(state, mode) : 'Waiting';
   if (result.kind === 'draw') return 'Draw';
   return result.winner === player ? 'Winner' : null;
 }
@@ -73,6 +73,8 @@ export function seatModels(
   event: ReactionEvent = NO_EVENT,
   reactionKey = 0,
   clock: { readonly times: ClockTimes; readonly running: Player | null } | null = null,
+  /** The countdown before a new game is running: nobody is to move yet, so both seats say "Get ready". */
+  waiting = false,
 ): readonly [SeatView, SeatView] {
   const looks = avatarLooks(state, event, mode, reactionKey);
   const seat = (player: Player): SeatView => {
@@ -87,8 +89,8 @@ export function seatModels(
       tokensTotal: TOKENS_PER_PLAYER,
       tokensLabel: `${left} of ${TOKENS_PER_PLAYER} tokens left`,
       score: score[player],
-      lit: !state.result && state.toMove === player,
-      status: statusOf(state, player, mode),
+      lit: !waiting && !state.result && state.toMove === player,
+      status: waiting ? 'Get ready' : statusOf(state, player, mode),
       expression: look.expression,
       reaction: look.reaction,
       reactionKey: look.key,

@@ -73,19 +73,20 @@ export async function skipStartCountdown(page: Page) {
   await page.addInitScript(() => {
     try {
       const stored = JSON.parse(window.localStorage.getItem('okiya.settings') ?? '{}') as Record<string, unknown>;
-      if (!('countdown' in stored)) window.localStorage.setItem('okiya.settings', JSON.stringify({ ...stored, countdown: false }));
+      // The scenarios were written against the classic Walnut look, so they keep it unless a test chooses a theme.
+      if (!('countdown' in stored)) window.localStorage.setItem('okiya.settings', JSON.stringify({ palette: 'walnut', ...stored, countdown: false }));
     } catch {
-      window.localStorage.setItem('okiya.settings', JSON.stringify({ countdown: false }));
+      window.localStorage.setItem('okiya.settings', JSON.stringify({ palette: 'walnut', countdown: false }));
     }
   });
 }
 
-/** Marks How to Play as already seen, so it does not open by itself on the first visit. */
+/** Marks a newcomer as already taught, so the home screen shows no first-game intro. */
 export async function skipFirstVisitHowTo(page: Page) {
   await page.addInitScript(() => window.localStorage.setItem('okiya.howto.seen', 'true'));
 }
 
-/** Opens the home screen with fixed randomness and How to Play already seen. */
+/** Opens the home screen with fixed randomness and no first-game intro. */
 export async function openHome(page: Page, seed: number = HUMAN_STARTS) {
   await fixRandomness(page, seed);
   await skipFirstVisitHowTo(page);
@@ -99,6 +100,17 @@ export const difficultySwitch = (page: Page) => page.getByTestId('difficulty-swi
 export const opponentSwitch = (page: Page) => page.getByTestId('opponent-switch');
 /** The play panel's one Play button. */
 export const playButton = (page: Page) => page.getByTestId('play');
+
+/**
+ * One press on Play. With a saved game Play first asks whether to replace it; this press confirms, so a
+ * scenario that is not about the confirmation starts its new game as before.
+ */
+export async function pressPlay(page: Page, how: 'click' | 'tap' = 'click') {
+  const play = playButton(page);
+  const asks = (await play.getAttribute('aria-haspopup')) === 'dialog';
+  await play[how]();
+  if (asks) await page.getByRole('dialog', { name: 'Start a new game?' }).getByRole('button', { name: 'Start new game' })[how]();
+}
 
 /** From the home screen: chooses the bot as the opponent. */
 export async function chooseBot(page: Page) {
@@ -115,7 +127,7 @@ export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal'
   await difficultySwitch(page).getByRole('radio', { name: difficulty }).click();
   await expect(difficultySwitch(page).getByRole('radio', { name: difficulty })).toHaveAttribute('aria-checked', 'true');
   await expect(playButton(page)).toHaveText(`Play · ${difficulty} bot`);
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'bot');
 }
@@ -124,7 +136,7 @@ export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal'
 export async function chooseTwoPlayers(page: Page) {
   await opponentSwitch(page).getByRole('radio', { name: 'Friend' }).click();
   await expect(playButton(page)).toHaveText('Play · with a friend');
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');
 }
@@ -293,7 +305,7 @@ export async function expectSeatsBeside(page: Page) {
  */
 export async function matchTileNow(page: Page) {
   return page.evaluate(() => {
-    const tile = document.querySelector('[data-testid="match-card"] .match-tile');
+    const tile = document.querySelector('[data-testid="match-card"] .match-text');
     const glow = document.querySelector('[data-testid="board"] [data-cell][data-glow="true"]');
     if (!tile || !glow) return null;
     const box = tile.getBoundingClientRect();
@@ -615,7 +627,9 @@ export async function continueSaved(page: Page, state: GameState, mode: 'bot' | 
 /** What the rendered pixels of the board say about the move highlights (PRD R2). */
 export interface HighlightPixels {
   /** Each playable tile's ring against the bare well beside it: the contrast and how many well pixels were found. */
-  readonly rings: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number }[];
+  readonly rings: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number; readonly innerBottom: number; readonly innerDelta: number }[];
+  /** Each faded tile's edge, read at the same points as a ring, against the bare well beside it. */
+  readonly fadedEdges: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number }[];
   /** Each terrain's mean L* over its playable tiles and over its faded tiles, where both are present. */
   readonly lightness: { readonly terrain: string; readonly playable: number; readonly faded: number }[];
   readonly dpr: number;
@@ -623,8 +637,9 @@ export interface HighlightPixels {
 
 /**
  * Measures the move highlights from the board's rendered pixels: a `locator.screenshot()` decoded in the
- * page with `createImageBitmap` and a canvas. Ring pixels are read at the ring's mid-width (1.5 px in from
- * the tile's edge: its 1 px border and 2 px inset edge) along the middle of each side; well pixels along the
+ * page with `createImageBitmap` and a canvas. Ring pixels are read at the ring's mid-width (1 px in from
+ * the tile's edge: inside its 3 px ring) along the middle of each side, and the inset line's own middle
+ * (2.5 px in) along the top and the bottom; well pixels along the
  * outward normal into the gap or the padding, keeping only those within ΔE*ab 3 of the rendered --well
  * colour, so neither a halo nor a shadow counts. A playable tile with no bare well beside it fails loudly.
  */
@@ -641,11 +656,14 @@ export async function highlightPixels(page: Page): Promise<HighlightPixels> {
     const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
     const boardElement = document.querySelector('[data-testid="board"]')!;
     const box = boardElement.getBoundingClientRect();
-    const dpr = bitmap.width / box.width;
+    // The screenshot's clip is the board's box widened to whole CSS pixels, so the image starts at the
+    // floor of its left and top, not at the box's fractional edge.
+    const [left, top] = [Math.floor(box.left), Math.floor(box.top)];
+    const dpr = bitmap.width / (Math.ceil(box.right) - left);
     type Rgb = [number, number, number];
     const pixel = (x: number, y: number): Rgb | null => {
-      const px = Math.floor((x - box.left) * dpr);
-      const py = Math.floor((y - box.top) * dpr);
+      const px = Math.floor((x - left) * dpr);
+      const py = Math.floor((y - top) * dpr);
       if (px < 0 || py < 0 || px >= bitmap.width || py >= bitmap.height) return null;
       const at = (py * bitmap.width + px) * 4;
       return [data[at]!, data[at + 1]!, data[at + 2]!];
@@ -681,41 +699,57 @@ export async function highlightPixels(page: Page): Promise<HighlightPixels> {
     // The gap between tiles, the same as the board's padding.
     const gap = boardElement.querySelector('[role="gridcell"]')!.getBoundingClientRect().left - box.left;
     const step = 1 / dpr;
-    const rings = cells
-      .filter((cell) => cell.glow)
-      .map(({ cell, rect }) => {
-        const ring: Rgb[] = [];
-        const well: Rgb[] = [];
-        let sides = 0;
-        // Each side: [the ring point at mid-width, the outward normal]; sampled along the middle fifth of the side.
-        const along = (from: number, length: number) => Array.from({ length: Math.max(1, Math.floor((length / 5) * dpr)) }, (_v, index) => from + length * 0.4 + index * step);
-        const sidesOf = [
-          { points: along(rect.top, rect.height).map((y) => [rect.left + 1.5, y] as const), out: [-1, 0] as const },
-          { points: along(rect.top, rect.height).map((y) => [rect.right - 1.5, y] as const), out: [1, 0] as const },
-          { points: along(rect.left, rect.width).map((x) => [x, rect.top + 1.5] as const), out: [0, -1] as const },
-          { points: along(rect.left, rect.width).map((x) => [x, rect.bottom - 1.5] as const), out: [0, 1] as const },
-        ];
-        for (const { points, out } of sidesOf) {
-          let found = 0;
-          for (const [x, y] of points) {
-            const own = pixel(x, y);
-            if (own) ring.push(own);
-            // Out from the tile's edge across the gap (or the padding), never as far as the next tile.
-            const edgeX = out[0] < 0 ? rect.left : out[0] > 0 ? rect.right : x;
-            const edgeY = out[1] < 0 ? rect.top : out[1] > 0 ? rect.bottom : y;
-            for (let d = 0.5; d < gap - 0.5; d += step) {
-              const sample = pixel(edgeX + out[0] * d, edgeY + out[1] * d);
-              if (!sample) break;
-              if (deltaE(lab(sample), wellLab) < 3) {
-                well.push(sample);
-                found += 1;
-              }
+    // Inside the ring: 1 px in, within the cell's 2 px border and its 1 px inset line.
+    const RING_MID = 1;
+    // The 1 px inset line's middle, just inside the border: it must cover the art on every side.
+    const LINE_MID = 2.5;
+    /** A free tile's edge, at the ring's mid-width, against the bare well beside it. */
+    const edgeOf = ({ cell, rect }: (typeof cells)[number]) => {
+      const ring: Rgb[] = [];
+      const well: Rgb[] = [];
+      let sides = 0;
+      // Each side: [the ring point at mid-width, the outward normal]; sampled along the middle fifth of the side.
+      const along = (from: number, length: number) => Array.from({ length: Math.max(1, Math.floor((length / 5) * dpr)) }, (_v, index) => from + length * 0.4 + index * step);
+      const sidesOf = [
+        { points: along(rect.top, rect.height).map((y) => [rect.left + RING_MID, y] as const), out: [-1, 0] as const },
+        { points: along(rect.top, rect.height).map((y) => [rect.right - RING_MID, y] as const), out: [1, 0] as const },
+        { points: along(rect.left, rect.width).map((x) => [x, rect.top + RING_MID] as const), out: [0, -1] as const },
+        { points: along(rect.left, rect.width).map((x) => [x, rect.bottom - RING_MID] as const), out: [0, 1] as const },
+      ];
+      for (const { points, out } of sidesOf) {
+        let found = 0;
+        for (const [x, y] of points) {
+          const own = pixel(x, y);
+          if (own) ring.push(own);
+          // Out from the tile's edge across the gap (or the padding), never as far as the next tile.
+          const edgeX = out[0] < 0 ? rect.left : out[0] > 0 ? rect.right : x;
+          const edgeY = out[1] < 0 ? rect.top : out[1] > 0 ? rect.bottom : y;
+          for (let d = 0.5; d < gap - 0.5; d += step) {
+            const sample = pixel(edgeX + out[0] * d, edgeY + out[1] * d);
+            if (!sample) break;
+            if (deltaE(lab(sample), wellLab) < 3) {
+              well.push(sample);
+              found += 1;
             }
           }
-          if (found > 0) sides += 1;
         }
-        return { cell, ratio: well.length > 0 ? contrast(mean(ring), mean(well)) : 0, wellPixels: well.length, sides };
-      });
+        if (found > 0) sides += 1;
+      }
+      // The inset line at the top and at the bottom, where every scene has opaque bands: the same colour on
+      // both when the line sits above the art.
+      const lineAt = (y: number) => along(rect.left, rect.width).map((x) => pixel(x, y)).filter((sample): sample is Rgb => sample !== null);
+      const [lineTop, lineBottom] = [lineAt(rect.top + LINE_MID), lineAt(rect.bottom - LINE_MID)];
+      return {
+        cell,
+        ratio: well.length > 0 ? contrast(mean(ring), mean(well)) : 0,
+        wellPixels: well.length,
+        sides,
+        innerBottom: well.length > 0 && lineBottom.length > 0 ? contrast(mean(lineBottom), mean(well)) : 0,
+        innerDelta: lineTop.length > 0 && lineBottom.length > 0 ? deltaE(lab(mean(lineTop)), lab(mean(lineBottom))) : Infinity,
+      };
+    };
+    const rings = cells.filter((cell) => cell.glow).map(edgeOf);
+    const fadedEdges = cells.filter((cell) => cell.faded).map(edgeOf);
     // Mean L* of each tile's art, inside its ring.
     const tileLightness = (rect: DOMRect) => {
       let sum = 0;
@@ -739,6 +773,6 @@ export async function highlightPixels(page: Page): Promise<HighlightPixels> {
       const average = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
       return [{ terrain, playable: average(playable), faded: average(faded) }];
     });
-    return { rings, lightness, dpr };
+    return { rings, fadedEdges, lightness, dpr };
   }, shot.toString('base64'));
 }
