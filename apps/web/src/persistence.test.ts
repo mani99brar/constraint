@@ -6,7 +6,8 @@ import { App } from './App';
 import { afterTakes, endings } from './playouts.test-helper';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { emptyResults, loadResults, outcomeOf, recordFinishedGame, recordResult, resetResults, RESULTS_KEY } from './results';
-import { clearSavedGame, loadSavedGame, restoreSavedGame, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
+import { clearSavedGame, loadSavedGame, quitNote, restoreSavedGame, SAVE_FAILED_NOTICE, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
+import { MenuDialog } from './MenuDialog';
 import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from './settings';
 import { HOWTO_SEEN_KEY } from './howto';
@@ -140,6 +141,41 @@ describe('saved game (PRD L2)', () => {
     expect(html).toContain('How to play');
     expect(html).not.toContain('Continue');
     expect(renderToStaticMarkup(createElement(App, { storage: null }))).toContain('data-testid="play"');
+  });
+
+  it('reports each way a save can fail as false, so the game knows it is not saved', () => {
+    // No storage at all (blocked, or no window).
+    expect(saveGame(null, state, hard, score)).toBe(false);
+    // Storage that throws on every call (a private mode that blocks it).
+    expect(saveGame(throwing, state, hard, score)).toBe(false);
+    // A full quota: reading and removing work, writing throws. The older save is still there until removed.
+    const full = memoryStorage();
+    const older = afterTakes(12, 3);
+    expect(saveGame(full, older, hard, score)).toBe(true);
+    const quota: KeyValueStorage = {
+      getItem: (key) => full.getItem(key),
+      setItem: () => {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      },
+      removeItem: (key) => full.removeItem(key),
+    };
+    expect(saveGame(quota, state, hard, score)).toBe(false);
+    expect(loadSavedGame(quota)?.state.takes).toHaveLength(3);
+    // The game removes that stale save, so Continue never brings back an older position.
+    expect(clearSavedGame(quota)).toBe(true);
+    expect(loadSavedGame(quota)).toBeNull();
+  });
+
+  it('says honestly in the menu whether the game is saved, and what to do when it is not', () => {
+    expect(SAVE_FAILED_NOTICE).toBe('This browser couldn’t save your game. Keep this tab open to continue.');
+    expect(quitNote(true)).toBe('Your game is saved; Continue picks it up.');
+    expect(quitNote(false)).toMatch(/^Not saved in this browser; Continue picks it up while this tab stays open\.$/);
+    const menu = (saved: boolean) =>
+      renderToStaticMarkup(createElement(MenuDialog, { title: 'Menu', settings: DEFAULT_SETTINGS, onSettings: () => {}, onClose: () => {}, returnFocusTo: null, onQuit: () => {}, saved }));
+    expect(menu(true)).toContain(quitNote(true));
+    expect(menu(true)).toContain('data-saved="true"');
+    expect(menu(false)).toContain(quitNote(false));
+    expect(menu(false)).not.toContain(quitNote(true));
   });
 
   it('offers Continue on the home screen when a save restores', () => {

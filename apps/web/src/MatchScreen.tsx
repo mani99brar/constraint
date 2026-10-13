@@ -20,7 +20,8 @@ import { seatModels } from './seats';
 import type { Settings } from './settings';
 import type { SoundPlayer } from './sound';
 import { describeRefusal, shortRefusal } from './text';
-import { refusalToast } from './toasts';
+import { refusalToast, saveFailedToast } from './toasts';
+import { SAVE_FAILED_NOTICE } from './save';
 import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
 import { Countdown } from './Countdown';
@@ -28,6 +29,7 @@ import { NO_HAPTICS, type HapticsPlayer } from './haptics';
 import { useClock } from './useClock';
 import { useCountdown } from './useCountdown';
 import { useGame } from './useGame';
+import { usePageHidden } from './usePageHidden';
 import { useToasts } from './useToasts';
 
 const TERRAINS = ['Forest', 'Water', 'Mountain', 'Desert'] as const;
@@ -58,6 +60,8 @@ export interface MatchScreenProps {
   readonly onClockReader?: (read: () => ClockTimes | null) => void;
   /** A new game opens with a short 3, 2, 1 countdown: no takes, no bot and no clocks until it ends. */
   readonly countdown?: boolean;
+  /** Whether the browser saved the game at its last change; when not, one quiet notice says so. */
+  readonly saved?: boolean;
 }
 
 /**
@@ -68,17 +72,28 @@ export interface MatchScreenProps {
  * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
-  const { initialState, mode, score, settings, onSettings, sound = SILENT, haptics = NO_HAPTICS, updateReady = false, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false } = props;
+  const { initialState, mode, score, settings, onSettings, sound = SILENT, haptics = NO_HAPTICS, updateReady = false, onChange, onHowTo, onPlayAgain, onLeave, clockLeft, onClockReader, countdown = false, saved = true } = props;
   const start = useCountdown(countdown && initialState.takes.length === 0 && !initialState.result);
-  const { state, attempt, timeOut } = useGame(initialState, mode, onChange, start.counting);
   const [menu, setMenu] = useState<{ opener: HTMLElement | null } | null>(null);
-  // A timed game's clocks: the mover's runs, none while the menu is open; running out of time loses.
+  // The game pauses while the countdown runs, the menu is open or the page is hidden: no bot take and no
+  // clock. A bot take that was due is scheduled again, from its full pause, when the game resumes.
+  const hidden = usePageHidden();
+  const paused = start.counting || menu !== null || hidden;
+  const { state, attempt, timeOut } = useGame(initialState, mode, onChange, paused);
+  // A timed game's clocks: the mover's runs, none while the game is paused; running out of time loses.
   const [clockStart] = useState(() => clockLeft ?? clockOf(mode));
-  const clock = useClock(clockStart, state, menu !== null || start.counting, timeOut);
+  const clock = useClock(clockStart, state, paused, timeOut);
   const readClock = useRef(clock.read);
   readClock.current = clock.read;
   useEffect(() => onClockReader?.(() => readClock.current()), [onClockReader]);
   const { toasts, push, afterTake } = useToasts();
+  // The browser refused to save: said once, the first time; the menu keeps saying it under Quit to title.
+  const toldUnsaved = useRef(false);
+  useEffect(() => {
+    if (saved || toldUnsaved.current) return;
+    toldUnsaved.current = true;
+    push([saveFailedToast(SAVE_FAILED_NOTICE)]);
+  }, [saved, push]);
   const heard = useRef(state.takes.length);
   // The takes on screen when the game was shown: a new or resumed game starts with no event (PRD U9).
   const [shownAtTakes] = useState(initialState.takes.length);
@@ -199,6 +214,7 @@ export function MatchScreen(props: MatchScreenProps) {
           updateReady={updateReady}
           onHowTo={onHowTo}
           onQuit={onLeave}
+          saved={saved}
         />
       )}
     </main>

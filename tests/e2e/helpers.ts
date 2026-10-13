@@ -101,6 +101,17 @@ export const opponentSwitch = (page: Page) => page.getByTestId('opponent-switch'
 /** The play panel's one Play button. */
 export const playButton = (page: Page) => page.getByTestId('play');
 
+/**
+ * One press on Play. With a saved game Play first asks whether to replace it; this press confirms, so a
+ * scenario that is not about the confirmation starts its new game as before.
+ */
+export async function pressPlay(page: Page, how: 'click' | 'tap' = 'click') {
+  const play = playButton(page);
+  const asks = (await play.getAttribute('aria-haspopup')) === 'dialog';
+  await play[how]();
+  if (asks) await page.getByRole('dialog', { name: 'Start a new game?' }).getByRole('button', { name: 'Start new game' })[how]();
+}
+
 /** From the home screen: chooses the bot as the opponent. */
 export async function chooseBot(page: Page) {
   await opponentSwitch(page).getByRole('radio', { name: 'Bot' }).click();
@@ -116,7 +127,7 @@ export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal'
   await difficultySwitch(page).getByRole('radio', { name: difficulty }).click();
   await expect(difficultySwitch(page).getByRole('radio', { name: difficulty })).toHaveAttribute('aria-checked', 'true');
   await expect(playButton(page)).toHaveText(`Play · ${difficulty} bot`);
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'bot');
 }
@@ -125,7 +136,7 @@ export async function chooseDifficulty(page: Page, difficulty: 'Easy' | 'Normal'
 export async function chooseTwoPlayers(page: Page) {
   await opponentSwitch(page).getByRole('radio', { name: 'Friend' }).click();
   await expect(playButton(page)).toHaveText('Play · with a friend');
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(page.getByTestId('match-screen')).toHaveAttribute('data-mode', 'two-player');
 }

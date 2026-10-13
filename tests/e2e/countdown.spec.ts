@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 // The DOM library types the callbacks that run in the page (page.evaluate).
 import { expect, test, type Page } from '@playwright/test';
-import { attachScreenshot, BOT_STARTS, board, chooseDifficulty, glowing, match, opponentSwitch, openHome, playButton, takeCount, takeGlowing } from './helpers';
+import { attachScreenshot, BOT_STARTS, board, chooseDifficulty, glowing, match, opponentSwitch, openHome, playButton, pressPlay, takeCount, takeGlowing } from './helpers';
 
 // The short countdown before a new game: 3, 2, 1 over the board, about 1.8 s in all, during which nobody
 // takes, nothing glows, the bot waits and no clock runs. A tap or a key starts at once; Continue never
@@ -31,7 +31,7 @@ test('[scenario:game-countdown] a new game opens with a 3, 2, 1 countdown over t
   await opponentSwitch(page).getByRole('radio', { name: 'Friend' }).click();
   await page.getByTestId('clock-slider-A').fill('1');
   await page.getByTestId('clock-slider-B').fill('1');
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(countdown(page)).toBeVisible();
   await expect(countdown(page)).toHaveAttribute('data-count', '3');
@@ -77,7 +77,7 @@ test('[scenario:game-countdown] a new game opens with a 3, 2, 1 countdown over t
   // Play from the home screen counts down again; a tap on it starts at once, without taking a tile.
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(countdown(page)).toHaveAttribute('data-count', '3');
   const centre = (await countdown(page).boundingBox())!;
   await page.mouse.click(centre.x + centre.width / 2, centre.y + centre.height / 2);
@@ -88,7 +88,7 @@ test('[scenario:game-countdown] a new game opens with a 3, 2, 1 countdown over t
   // So does Enter.
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(countdown(page)).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(countdown(page)).toHaveCount(0);
@@ -102,7 +102,7 @@ test('[scenario:game-countdown] a new game opens with a 3, 2, 1 countdown over t
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
   await page.getByRole('button', { name: /^Quit to title/ }).click();
   await page.reload();
-  await playButton(page).click();
+  await pressPlay(page);
   await expect(board(page)).toBeVisible();
   await expect(countdown(page)).toHaveCount(0);
   await expect(glowing(page).first()).toBeVisible();

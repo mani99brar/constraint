@@ -12,6 +12,7 @@ import {
   match,
   nearEnding,
   openHome,
+  pressPlay,
   readBoard,
   seat,
   startGame,
@@ -183,7 +184,7 @@ test('[scenario:legal-tiles] with highlights on and a person to move, the legal 
   await page.getByTestId('menu-button').click();
   await page.getByRole('button', { name: /^Quit to title/ }).click();
   await page.getByTestId('opponent-switch').getByRole('radio', { name: 'Friend' }).click();
-  await page.getByTestId('play').click();
+  await pressPlay(page);
   await expect(match(page)).toHaveAttribute('data-mode', 'two-player');
   await takeGlowing(page);
   const movers: string[] = [];
