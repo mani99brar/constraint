@@ -1608,10 +1608,10 @@ button:disabled {
     /* The spare height: five even spacers, unless the gap under the board needs its toast-line floor, in
        which case the other four share what is left, or the result card needs the room under the board, in
        which case the three gaps above it take what the card leaves and the gap under the board and the
-       bottom share the rest. Whole pixels, so the board's art never lands between device pixels. */
+       bottom share the rest. */
     --free: calc(100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - var(--board-mid));
-    --spacer: max(6px, round(down, min(var(--free) / 5, (var(--free) - var(--toast-line)) / 4, (var(--free) - 2 * var(--end-gap) - var(--end-card)) / 3), 1px));
-    --toast-gap: max(var(--toast-line), round(down, (var(--free) - 3 * var(--spacer)) / 2, 1px));
+    --spacer: max(6px, min(var(--free) / 5, (var(--free) - var(--toast-line)) / 4, (var(--free) - 2 * var(--end-gap) - var(--end-card)) / 3));
+    --toast-gap: max(var(--toast-line), (var(--free) - 3 * var(--spacer)) / 2);
     --seat-gap: var(--toast-gap);
     --board-size: var(--board-mid);
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1692,7 +1692,7 @@ button:disabled {
 
   .seat-status {
     font-size: 0.76rem;
-    line-height: 1.2;
+    line-height: 1.1;
   }
 
   .board-area {
@@ -1774,6 +1774,18 @@ button:disabled {
   .end-screen p {
     font-size: 0.86rem;
     line-height: 1.3;
+  }
+}
+
+/* The phone's gaps in whole pixels, so the board's art never lands between device pixels, where the
+   browser has round(); an older one keeps the unrounded gaps (a custom property is not checked when it is
+   declared, so a plain second declaration would not fall back). */
+@supports (width: round(down, 1.5px, 1px)) {
+  @media (max-width: 760px) {
+    .match {
+      --spacer: max(6px, round(down, min(var(--free) / 5, (var(--free) - var(--toast-line)) / 4, (var(--free) - 2 * var(--end-gap) - var(--end-card)) / 3), 1px));
+      --toast-gap: max(var(--toast-line), round(down, (var(--free) - 3 * var(--spacer)) / 2, 1px));
+    }
   }
 }
 
