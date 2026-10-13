@@ -275,6 +275,21 @@ test('[scenario:home-screen] a first visit opens on the home screen with a dismi
   await expect(page.getByRole('button', { name: /^Play\b/ })).toHaveCount(1);
 });
 
+test('[scenario:home-screen] the first-game intro, never dismissed, is gone once a first game starts, back on the home screen and after a reload', async ({ page }) => {
+  await fixRandomness(page, HUMAN_STARTS);
+  await page.goto('/');
+  await expect(page.getByTestId('intro')).toBeVisible();
+  await playButton(page).click();
+  await expect(board(page)).toBeVisible();
+  await page.getByTestId('menu-button').click();
+  await page.getByTestId('menu-quit').click();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  await expect(page.getByTestId('intro')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('home-screen')).toBeVisible();
+  await expect(page.getByTestId('intro')).toHaveCount(0);
+});
+
 test('[scenario:start-from-home] Play starts the chosen setup at once, the bot at the chosen difficulty or two players; the opponent and the difficulty survive a reload, and with a saved game the panel says Play replaces it', async ({ page, browser }, testInfo) => {
   await openHome(page, HUMAN_STARTS);
 

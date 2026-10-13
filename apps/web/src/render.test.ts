@@ -308,6 +308,6 @@ describe('the first visit, the home copy and the menu groups', () => {
     const preferences = menu.slice(menu.lastIndexOf('<section', order[3]));
     expect(preferences).toMatch(/aria-labelledby="menu-preferences"/);
     expect(preferences).toMatch(/<h3 id="menu-preferences"[^>]*>Preferences<\/h3>/);
-    for (const id of ['setting-palette', 'setting-highlights', 'setting-tile-names', 'setting-countdown', 'setting-sound']) expect(preferences).toContain(`data-testid="${id}"`);
+    for (const id of ['setting-palette', 'setting-highlights', 'setting-tile-names', 'setting-countdown', 'setting-scene-motion', 'setting-backdrop', 'setting-sound']) expect(preferences).toContain(`data-testid="${id}"`);
   });
 });

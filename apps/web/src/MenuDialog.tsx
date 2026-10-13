@@ -47,8 +47,8 @@ export interface MenuDialogProps {
 
 /**
  * The menu (PRD U4, E3, E5, U5) in two groups: first what to do now, resume, How to Play and quit to title;
- * then, under a small Preferences heading, the colour theme and the highlight, tile-name, motion and sound
- * settings. On the home screen, as Settings, it also holds the reset of the results.
+ * then, under a small Preferences heading, the colour theme and the highlight, tile-name, countdown, scene
+ * motion, backdrop, haptics and sound settings. On the home screen, as Settings, it also holds the reset of the results.
  */
 export function MenuDialog({ title, settings, onSettings, onClose, returnFocusTo, onHowTo, onQuit, onResetResults, canReset = false, haptics, updateReady = false }: MenuDialogProps) {
   const first = useRef<HTMLButtonElement>(null);
