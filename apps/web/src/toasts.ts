@@ -8,7 +8,7 @@ export interface ToastSpec {
   readonly kind: ToastKind;
   readonly text: string;
   /**
-   * The one-line form a phone shows, chosen by the kind of notice, never by measuring text ("Bot took
+   * The short form a phone shows, on one line or two, chosen by the kind of notice, never by measuring text ("Bot took
    * D3", "Edge tiles only at the start"); the full text stays in the page for screen readers.
    */
   readonly short: string;
@@ -71,15 +71,18 @@ export function enqueueToasts(queue: ToastQueue, specs: readonly ToastSpec[], no
   return tickToasts({ items: [...items, ...added], nextId: queue.nextId + specs.length }, now);
 }
 
-/** Drops every refusal: once the turn changes, the reason no longer applies (PRD U3). */
-export function dropRefusals(queue: ToastQueue): ToastQueue {
-  const items = queue.items.filter((item) => item.kind !== 'refusal');
+/**
+ * Drops what a new take makes out of date: every refusal, since the turn changed and its reason no
+ * longer applies, and every earlier take notice, since this take supersedes it (PRD U3).
+ */
+export function dropSuperseded(queue: ToastQueue): ToastQueue {
+  const items = queue.items.filter((item) => item.kind !== 'refusal' && item.kind !== 'take');
   return items.length === queue.items.length ? queue : { ...queue, items };
 }
 
-/** What a new take does to the queue: refusals go when the turn changes, then its own toasts come. */
+/** What a new take does to the queue: the notices it supersedes go, then its own toasts come. */
 export function applyTakeToasts(queue: ToastQueue, change: { readonly turnChanged: boolean; readonly toasts: readonly ToastSpec[] }, now: number): ToastQueue {
-  return enqueueToasts(change.turnChanged ? tickToasts(dropRefusals(queue), now) : queue, change.toasts, now);
+  return enqueueToasts(change.turnChanged ? tickToasts(dropSuperseded(queue), now) : queue, change.toasts, now);
 }
 
 /** The toasts on screen, oldest first, each marked while it fades out. */

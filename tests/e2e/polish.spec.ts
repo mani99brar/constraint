@@ -37,10 +37,9 @@ const VIEWPORTS = [
   { name: '390 × 844', viewport: { width: 390, height: 844 } },
 ] as const;
 
-/** One pop as the page ran it: the cell, its order, the animation, its delay and duration, and whose turn it was. */
+/** One rise as the page ran it: the cell, the animation, its delay and duration, and whose turn it was. */
 interface PopRecord {
   readonly cell: string;
-  readonly order: number;
   readonly name: string;
   readonly delay: number;
   readonly duration: number;
@@ -49,7 +48,7 @@ interface PopRecord {
   readonly transitions: number;
 }
 
-/** Starts recording every pop the page starts, with its timing and whose turn it is, from now on. */
+/** Starts recording every rise the page starts, with its timing and whose turn it is, from now on. */
 async function recordPops(page: Page) {
   await page.evaluate(() => {
     const w = window as unknown as { __pops: PopRecord[]; __popListener?: (event: AnimationEvent) => void };
@@ -63,13 +62,12 @@ async function recordPops(page: Page) {
       const screen = document.querySelector('[data-testid="match-screen"]');
       w.__pops.push({
         cell: cell.getAttribute('data-cell')!,
-        order: Number(cell.getAttribute('data-pop-order')),
         name: event.animationName,
         delay: Number(timing?.delay ?? -1),
         duration: Number(timing?.duration ?? -1),
         toMove: screen?.getAttribute('data-to-move') ?? null,
         takes: screen?.getAttribute('data-takes') ?? null,
-        // No CSS transition competes with the pop on any glowing cell when the turn starts.
+        // No CSS transition competes with the rise on any glowing cell when the turn starts.
         transitions: [...document.querySelectorAll('[data-testid="board"] [data-glow="true"]')].flatMap((glow) => glow.getAnimations().filter((candidate) => candidate instanceof CSSTransition)).length,
       });
     };
@@ -81,26 +79,24 @@ async function recordedPops(page: Page): Promise<PopRecord[]> {
   return page.evaluate(() => (window as unknown as { __pops: PopRecord[] }).__pops);
 }
 
-/** Every glowing cell with its data-pop-order. */
-async function popOrders(page: Page): Promise<{ cell: string; order: number }[]> {
-  return glowing(page).evaluateAll((cells) => cells.map((cell) => ({ cell: cell.getAttribute('data-cell')!, order: Number(cell.getAttribute('data-pop-order')) })));
+/** Every glowing cell. */
+async function glowingCells(page: Page): Promise<string[]> {
+  return glowing(page).evaluateAll((cells) => cells.map((cell) => cell.getAttribute('data-cell')!));
 }
 
-/** The pops of one turn: one per glowing cell, in data-pop-order, delays rising, the whole within 400 ms. */
-function expectOnePopPerTile(pops: PopRecord[], orders: { cell: string; order: number }[]) {
-  expect(pops.map((pop) => pop.cell).sort()).toEqual(orders.map((entry) => entry.cell).sort());
-  const byOrder = [...pops].sort((a, b) => a.order - b.order);
-  expect(byOrder.map((pop) => pop.order)).toEqual(orders.map((entry) => entry.order).sort((a, b) => a - b));
-  expect(byOrder.map((pop) => pop.order)).toEqual(byOrder.map((_pop, index) => index));
-  // The delays differ by order, rising with it, and the last pop ends within 400 ms of the turn's start.
-  const delays = byOrder.map((pop) => pop.delay);
-  expect(delays.every((delay, index) => index === 0 || delay > delays[index - 1]!), JSON.stringify(delays)).toBe(true);
-  expect(Math.max(...byOrder.map((pop) => pop.delay + pop.duration))).toBeLessThan(400);
-  expect(new Set(byOrder.map((pop) => pop.name)).size).toBe(1);
-  for (const pop of byOrder) expect(pop.transitions, pop.cell).toBe(0);
+/** The rise of one turn: one per glowing cell, all at the same moment with no delay, each 120–160 ms long. */
+function expectOneRise(pops: PopRecord[], cells: string[]) {
+  expect(pops.map((pop) => pop.cell).sort()).toEqual([...cells].sort());
+  for (const pop of pops) {
+    expect(pop.delay, pop.cell).toBe(0);
+    expect(pop.duration, pop.cell).toBeGreaterThanOrEqual(120);
+    expect(pop.duration, pop.cell).toBeLessThanOrEqual(160);
+    expect(pop.transitions, pop.cell).toBe(0);
+  }
+  expect(new Set(pops.map((pop) => pop.name)).size).toBe(1);
 }
 
-test('[scenario:move-highlight] in every colour theme, light and dark, wide and at 390 × 844, the rendered ring reaches 3:1 against the bare well and playable tiles stand 12 L* apart from faded ones; with motion on the playable tiles pop once in order within 400 ms when a person’s turn starts, never on the bot’s turn, and again for every legal tile on the next turn of a two-player game', async ({ browser }, testInfo) => {
+test('[scenario:move-highlight] in every colour theme, light and dark, wide and at 390 × 844, the rendered 2 px ring reaches 3:1 against the bare well and twice the contrast of a faded tile’s edge, and the faded tiles sit under a light veil of 10 to 15%, 1.5 to 12 L* from playable ones; with motion on the playable tiles rise together once in 120–160 ms when a person’s turn starts, never on the bot’s turn, and again for every legal tile on the next turn of a two-player game', async ({ browser }, testInfo) => {
   test.setTimeout(240_000);
   // One seeded two-player position with Player 1 to move, where faded and taken tiles sit beside the rings.
   const position = seededPosition(4);
@@ -131,9 +127,37 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
           expect(ring.wellPixels, `${where} ${ring.cell}: bare well beside the ring`).toBeGreaterThan(0);
           expect(ring.ratio, `${where} ${ring.cell}: ring against the well`).toBeGreaterThanOrEqual(3);
         }
+        // Playable tiles stand apart by their ring: at the same points a faded tile's edge is a quiet one,
+        // under half the ring's contrast with the well (measured: rings 5.5–14.9:1, faded edges 1.4–2.8:1,
+        // so the ring is at least 2.6 times as strong in every theme).
+        expect(pixels.fadedEdges.length, where).toBeGreaterThan(0);
+        const weakestRing = Math.min(...pixels.rings.map((ring) => ring.ratio));
+        for (const edge of pixels.fadedEdges) {
+          expect(edge.wellPixels, `${where} ${edge.cell}: bare well beside the faded edge`).toBeGreaterThan(0);
+          expect(edge.ratio * 2, `${where} ${edge.cell}: faded edge against the weakest ring`).toBeLessThanOrEqual(weakestRing);
+        }
+        // The veil only quiets the other free tiles, so their terrain and symbol stay readable: 10 to 15% of
+        // the ground in every theme, and a step of L* that shows yet stays well short of a blackout (measured
+        // 5.7–11.7 L*, the playable tiles' lit symbols and reason bars included; the old 33–58% veil gave
+        // 12 or more by rule).
+        const veils = await board(page).locator('[data-faded="true"] .tile-face').evaluateAll((faces) =>
+          faces.map((face) => {
+            const value = getComputedStyle(face, '::after').backgroundColor;
+            const alpha = value.startsWith('color(') ? /\/\s*([\d.]+)/.exec(value)?.[1] : /rgba\([^)]*,\s*([\d.]+)\)/.exec(value)?.[1];
+            return Number(alpha ?? 1);
+          }),
+        );
+        for (const alpha of veils) {
+          expect(alpha, `${where}: the veil's strength`).toBeGreaterThanOrEqual(0.1);
+          expect(alpha, `${where}: the veil's strength`).toBeLessThanOrEqual(0.15);
+        }
         expect(pixels.lightness.length, `${where}: a terrain with playable and faded tiles`).toBeGreaterThan(0);
-        for (const { terrain, playable, faded } of pixels.lightness) expect(Math.abs(playable - faded), `${where} ${terrain}: ${playable.toFixed(1)} against ${faded.toFixed(1)} L*`).toBeGreaterThanOrEqual(12);
-        report.push(`${where}: rings ≥ ${Math.min(...pixels.rings.map((ring) => ring.ratio)).toFixed(2)}:1, L* apart ≥ ${Math.min(...pixels.lightness.map(({ playable, faded }) => Math.abs(playable - faded))).toFixed(1)}`);
+        for (const { terrain, playable, faded } of pixels.lightness) {
+          const apart = Math.abs(playable - faded);
+          expect(apart, `${where} ${terrain}: ${playable.toFixed(1)} against ${faded.toFixed(1)} L*`).toBeGreaterThanOrEqual(1.5);
+          expect(apart, `${where} ${terrain}: the veil stays light`).toBeLessThan(12);
+        }
+        report.push(`${where}: rings ≥ ${Math.min(...pixels.rings.map((ring) => ring.ratio)).toFixed(2)}:1, faded edges ≤ ${Math.max(...pixels.fadedEdges.map((edge) => edge.ratio)).toFixed(2)}:1, L* apart ≥ ${Math.min(...pixels.lightness.map(({ playable, faded }) => Math.abs(playable - faded))).toFixed(1)}`);
       }
     }
   }
@@ -144,11 +168,11 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   await attachScreenshot(page, testInfo, 'move-highlight');
   await context.close();
 
-  // With motion on, in a bot game: the pop plays when your turn starts, once, never on the bot's turn.
+  // With motion on, in a bot game: the rise plays when your turn starts, once, never on the bot's turn.
   const motion = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'no-preference' });
   const live = await motion.newPage();
   await startGame(live, { seed: HUMAN_STARTS, difficulty: 'Easy' });
-  // The opening's own pop finishes first, so every pop recorded below belongs to a later turn.
+  // The opening's own rise finishes first, so every rise recorded below belongs to a later turn.
   await live.waitForTimeout(450);
   await recordPops(live);
   await takeGlowing(live);
@@ -157,19 +181,19 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   await expect.poll(async () => (await recordedPops(live)).length, { timeout: 2_000 }).toBe(await glowing(live).count());
   await live.waitForTimeout(500);
   const turn = await recordedPops(live);
-  // Nothing popped while the bot chose: every pop came on your turn, after the bot's take.
-  expect(turn.map((pop) => [pop.toMove, pop.takes]), 'nothing pops on the bot’s turn').toEqual(turn.map(() => ['A', '2']));
-  expectOnePopPerTile(turn, await popOrders(live));
-  // A re-render (a refused tap, its toast and the wince) never replays the pop.
+  // Nothing rose while the bot chose: every rise came on your turn, after the bot's take.
+  expect(turn.map((pop) => [pop.toMove, pop.takes]), 'nothing rises on the bot’s turn').toEqual(turn.map(() => ['A', '2']));
+  expectOneRise(turn, await glowingCells(live));
+  // A re-render (a refused tap, its toast and the wince) never replays the rise.
   const { illegal } = await legalFromPage(live);
   await cellAt(live, illegal[0]!.cell).click();
   await expect(refusalToast(live)).toBeVisible();
   await live.waitForTimeout(450);
   expect(await recordedPops(live)).toHaveLength(turn.length);
-  // The glowing cells rest raised, the pop over.
-  expect(await glowing(live).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).translate))).toEqual(Array(turn.length).fill('0px -3px'));
+  // The glowing cells rest slightly raised, the rise over.
+  expect(await glowing(live).evaluateAll((elements) => elements.map((element) => getComputedStyle(element).translate))).toEqual(Array(turn.length).fill('0px -2px'));
 
-  // In a two-player game the pop replays on the next turn for every legal tile, one legal on both turns too.
+  // In a two-player game the rise replays on the next turn for every legal tile, one legal on both turns too.
   await startTwoPlayerGame(live, { seed: HUMAN_STARTS });
   const opening = await readBoard(live);
   const glows = opening.filter((cell) => cell.glow);
@@ -187,7 +211,7 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
   await expect.poll(async () => (await recordedPops(live)).length, { timeout: 2_000 }).toBe(await glowing(live).count());
   await live.waitForTimeout(450);
   const next = await recordedPops(live);
-  expectOnePopPerTile(next, await popOrders(live));
+  expectOneRise(next, await glowingCells(live));
   expect(next.map((pop) => pop.cell)).toContain(stays.cell);
   expect(next.every((pop) => pop.name === 'pop-odd')).toBe(true);
   await motion.close();

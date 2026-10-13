@@ -56,7 +56,7 @@ describe('the motion inside the tile art', () => {
     expect(idleRules.length).toBeGreaterThanOrEqual(12);
     const block = /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{([\s\S]*?)\n\}\n/.exec(css)?.[1] ?? '';
     for (const { selector } of idleRules) expect(block, selector).toContain(selector);
-    const names = ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-pulse', 'scene-flicker', 'scene-spin', 'scene-twinkle', 'scene-rock', 'scene-slide', 'scene-glint', 'scene-halo'];
+    const names = ['scene-roll', 'scene-bob', 'scene-drift', 'scene-sway', 'scene-pulse', 'scene-flicker', 'scene-spin', 'scene-twinkle', 'scene-rock', 'scene-slide'];
     for (const name of names) {
       const body = new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)\\s*\\}`).exec(css)?.[1] ?? '';
       expect(body, name).not.toBe('');
@@ -71,6 +71,8 @@ describe('the motion inside the tile art', () => {
     // The scenes rest while the tab is hidden; the card has no sweep over it, and the outline no loop.
     expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \*,/);
     expect(css).not.toMatch(/idle-shimmer|idle-drift|legal-breathe/);
+    // The legal tiles' reason marks keep still: only the art moves.
+    for (const { selector, body } of rules) if (/reason-bar|tile-symbol::after/.test(selector)) expect(body, selector).not.toMatch(/animation(-name)?:(?!\s*none)/);
     expect(rule(".cell[data-glow='true'] .tile-face::before")).not.toMatch(/animation/);
     // No second ring: the same-symbol cue lights the symbol itself, in a square box, so it is a circle at any size.
     expect(css).not.toMatch(/scene-ring/);
@@ -221,81 +223,66 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
   const glowRules = rules.filter(({ selector }) => /data-glow/.test(selector) && /\.cell/.test(selector));
   const fadedRules = rules.filter(({ selector }) => /data-faded/.test(selector));
 
-  it('raises a legal tile with a halo of the mover’s colour reaching a third of the gap at most, a 3 px ring and a 30% tint inside the art', () => {
+  it('raises a legal tile slightly with a crisp 2 px ring in the mover’s colour, and no halo, tint or badge over its art', () => {
     expect(rule(".board[data-glow-player='A']")).toMatch(/--wash:\s*var\(--p1\)/);
     expect(rule(".board[data-glow-player='B']")).toMatch(/--wash:\s*var\(--p2\)/);
     const glow = rule(".cell[data-glow='true']");
-    expect(glow).toMatch(/(^|;|\s)translate:\s*0 -\d+px/);
-    // The ring: the cell's 1 px border and the tint layer's 2 px inset edge, both in the mover's colour.
+    expect(glow).toMatch(/(^|;|\s)translate:\s*0 -[1-3]px/);
+    // The ring: the cell's own 2 px border, in the mover's colour; every tile has that border, so the
+    // ring changes no size.
     expect(glow).toMatch(/border-color:\s*var\(--wash\)/);
-    expect(rule('.cell')).toMatch(/border:\s*1px solid/);
-    const layer = rule(".cell[data-glow='true'] .tile-face::before");
-    expect(layer).toMatch(/box-shadow:\s*inset 0 0 0 2px var\(--wash\)/);
-    expect(layer).toMatch(/background-color:\s*color-mix\(in srgb, var\(--wash\) ([6-9]|1[0-2])%, transparent\)/);
-    // The halo: the first shadow, its blur and spread together a third of the gap at most.
+    expect(glow).not.toMatch(/border-width|border:/);
+    expect(rule('.cell')).toMatch(/border:\s*2px solid/);
+    // No wash of the mover's colour over the art, and no zero-offset halo round the tile: the only colour
+    // the glowing cell's own shadows carry is the shine and the shade of its lift.
+    expect(rules.filter(({ selector }) => /data-glow='true'\][^,]*\.tile-face/.test(selector))).toEqual([]);
     const shadows = /box-shadow:\s*([^;]+)/.exec(glow)![1]!;
-    let depth = 0;
-    const cut = [...shadows].findIndex((char) => (depth += char === '(' ? 1 : char === ')' ? -1 : 0) === 0 && char === ',');
-    const halo = shadows.slice(0, cut);
-    expect(halo).toContain('var(--wash)');
-    const shares = [...halo.matchAll(/calc\(var\(--gap\) \/ (\d+)\)/g)].map((match) => 1 / Number(match[1]));
-    expect(shares).toHaveLength(2);
-    expect(shares[0]! + shares[1]!).toBeLessThanOrEqual(1 / 3 + 1e-9);
-    // No outline anywhere on a glowing tile.
+    expect(shadows).not.toMatch(/--wash/);
+    expect(shadows).not.toMatch(/(^|,)\s*0 0 /);
+    // No badge.
+    expect(css).not.toMatch(/move-badge/);
+    // No outline anywhere on a glowing tile: keyboard focus has its own.
     for (const { selector, body } of glowRules) expect(body, selector).not.toMatch(/(^|[;\s])outline(-[a-z]+)?\s*:/);
   });
 
-  it('puts the mover’s token mark on a corner badge in the mover’s colour, above the tint and below the name plate', () => {
-    const badge = rule('.move-badge');
-    expect(badge).toMatch(/background-color:\s*var\(--wash\)/);
-    expect(badge).toMatch(/color:\s*var\(--on-wash\)/);
-    expect(badge).toMatch(/pointer-events:\s*none/);
-    const z = (body: string) => Number(/z-index:\s*(\d+)/.exec(body)![1]);
-    expect(z(badge)).toBeGreaterThan(z(rule('.tile-face::before,\n.tile-face::after')));
-    expect(rule(".board[data-glow-player='A']")).toMatch(/--on-wash:\s*var\(--on-p1\)/);
-    expect(rule(".board[data-glow-player='B']")).toMatch(/--on-wash:\s*var\(--on-p2\)/);
+  it('marks keyboard focus on a cell by an outline in the focus colour, set off from the tile, never the legal ring', () => {
+    const focus = rule('.cell:focus-visible');
+    expect(focus).toMatch(/outline:\s*\d+px solid var\(--focus\)/);
+    expect(Number(/outline-offset:\s*(\d+)px/.exec(focus)?.[1])).toBeGreaterThanOrEqual(2);
+    expect(focus).not.toMatch(/--wash|--p1|--p2/);
   });
 
-  it('pops the legal tiles once per turn by two identical keyframes picked by the turn’s parity, under 400 ms in all, with static delays by order that the parity rules never reset', () => {
+  it('raises the legal tiles together once per turn, in 120 to 160 ms, by two identical keyframes picked by the turn’s parity, with no stagger', () => {
     const odd = ".board[data-pop-turn='odd'] .cell[data-glow='true']";
     const even = ".board[data-pop-turn='even'] .cell[data-glow='true']";
-    // The parity rules set only the animation's name, never the shorthand that would reset the delay.
+    // The parity rules set only the animation's name.
     expect(rule(odd).trim()).toMatch(/^animation-name:\s*pop-odd;?$/);
     expect(rule(even).trim()).toMatch(/^animation-name:\s*pop-even;?$/);
     const keyframes = (name: string) => new RegExp(`@keyframes ${name}\\s*\\{((?:[^{}]*\\{[^{}]*\\})*)[^{}]*\\}`).exec(css)?.[1]?.replace(/\s+/g, ' ');
     expect(keyframes('pop-odd')).toBeDefined();
     expect(keyframes('pop-odd')).toBe(keyframes('pop-even'));
-    expect(keyframes('pop-odd')).toMatch(/from \{ translate: 0 0;/);
-    // The glowing cell: the pop's duration, filling backwards so a waiting tile stays down, and no transition
-    // that would move the delayed tiles together.
+    // A lift from the resting tile, with no overshoot or scale.
+    expect(keyframes('pop-odd')).toMatch(/^ ?from \{ translate: 0 0; \} ?$/);
     const glow = rule(".cell[data-glow='true']");
-    expect(glow).toMatch(/animation-fill-mode:\s*backwards/);
     expect(glow).toMatch(/(^|;|\s)transition:\s*none/);
     expect(glow).not.toMatch(/(^|;|\s)animation:/);
     const duration = times(/animation-duration:\s*([^;]+)/.exec(glow)![1]!)[0]!;
-    // One static delay per data-pop-order, up to the 12 edge tiles of the opening, later than the parity
-    // rules and at least as specific, never computed from a variable.
-    const orderRules = rules
-      .map((candidate, index) => ({ ...candidate, index, order: /\[data-pop-order='(\d+)'\]/.exec(candidate.selector)?.[1] }))
-      .filter((candidate) => candidate.order !== undefined);
-    expect(orderRules.map((candidate) => Number(candidate.order))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    const specificity = (selector: string) => (selector.match(/\.[a-z-]+|\[[^\]]+\]/g) ?? []).length;
-    const parityIndex = Math.max(...[odd, even].map((selector) => rules.findIndex((candidate) => candidate.selector === selector)));
-    const delays = orderRules.map(({ selector, body, index }) => {
-      expect(index, selector).toBeGreaterThan(parityIndex);
-      expect(specificity(selector), selector).toBeGreaterThanOrEqual(specificity(odd));
-      expect(body.trim(), selector).toMatch(/^animation-delay:\s*\d+ms;?$/);
-      return times(body)[0]!;
-    });
-    expect(delays.every((delay, index) => index === 0 || delay > delays[index - 1]!)).toBe(true);
-    expect(new Set(delays).size).toBe(11);
-    expect(Math.max(...delays) + duration).toBeLessThan(400);
-    // The pop has static delays only; the scenes' calc() delays (by tile index) belong to the art inside the tiles alone.
-    expect(css.replace(/animation-delay:\s*calc\(var\(--i, 0\) \* -[\d.]+s( - \d+s)?\)/g, "")).not.toMatch(/animation-delay:\s*calc\(/);
+    expect(duration).toBeGreaterThanOrEqual(120);
+    expect(duration).toBeLessThanOrEqual(160);
+    // An ease-out with no overshoot: every control point of the curve within 0 to 1.
+    const curve = /animation-timing-function:\s*cubic-bezier\(([^)]*)\)/.exec(glow)![1]!.split(',').map(Number);
+    for (const value of curve) expect(value).toBeGreaterThanOrEqual(0);
+    for (const value of curve) expect(value).toBeLessThanOrEqual(1);
+    // No delay at all: every legal tile rises at the same moment.
+    expect(css).not.toMatch(/data-pop-order/);
+    for (const { selector, body } of glowRules) expect(body, selector).not.toMatch(/animation-delay/);
   });
 
-  it('fades the other free tiles by a veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
-    expect(rule(".cell[data-faded='true'] .tile-face::after")).toMatch(/background-color:\s*color-mix\(in srgb, var\(--ground\) ([23]\d)%, transparent\)/);
+  it('fades the other free tiles by a light veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
+    // A light veil, 10 to 15%, so a faded tile's terrain and symbol stay readable.
+    const veil = /background-color:\s*color-mix\(in srgb, var\(--ground\) (\d+)%, transparent\)/.exec(rule(".cell[data-faded='true'] .tile-face::after"));
+    expect(Number(veil?.[1])).toBeGreaterThanOrEqual(10);
+    expect(Number(veil?.[1])).toBeLessThanOrEqual(15);
     for (const { selector, body } of fadedRules) {
       expect(selector).toMatch(/\.tile-face::(before|after)$/);
       expect(body, selector).not.toMatch(/(^|[;\s])opacity\s*:/);
@@ -304,7 +291,7 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     for (const { selector, body } of rules.filter(({ selector }) => /\.cell(\[[^\]]*\]|\.[a-z-]+)*$/.test(selector))) expect(body, selector).not.toMatch(/(^|[;\s])opacity\s*:/);
   });
 
-  it('keeps the name plate on top of the tint, the badge and the veil, on a solid plate, hidden by default and shown on hover, focus, a long press or the setting', () => {
+  it('keeps the name plate on top of the ring layer and the veil, on a solid plate, hidden by default and shown on hover, focus, a long press or the setting', () => {
     const plate = rule('.tile-name');
     const layers = rule('.tile-face::before,\n.tile-face::after');
     expect(Number(/z-index:\s*(\d+)/.exec(plate)![1])).toBeGreaterThan(Number(/z-index:\s*(\d+)/.exec(layers)![1]));
@@ -327,6 +314,25 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     for (const { selector, body } of rules.filter(({ selector }) => /\.last\b|data-last/.test(selector))) {
       expect(body, selector).not.toMatch(/dashed|outline|background-color/);
     }
+  });
+
+  it('rings the winning cells in the win colour over the last take’s ring, so the cell taken last in the shape matches the other three', () => {
+    const specificity = (selector: string) => (selector.match(/\.[a-z-]+|\[[^\]]+\]/g) ?? []).length;
+    const index = (selector: string) => rules.findIndex((candidate) => candidate.selector === selector);
+    const winning = ".cell.taken.winning[data-owner]";
+    expect(rule(winning)).toMatch(/box-shadow:\s*inset 0 0 0 3px var\(--win\)/);
+    for (const last of [".cell.taken.last[data-owner='A']", ".cell.taken.last[data-owner='B']"]) {
+      expect(specificity(winning), last).toBeGreaterThanOrEqual(specificity(last));
+      expect(index(winning), last).toBeGreaterThan(index(last));
+    }
+  });
+
+  it('draws the winning stroke thin, over a slightly wider underlay, so it reads as a line and not a rod', () => {
+    const width = (selector: string) => Number(/stroke-width:\s*([\d.]+)/.exec(rule(selector))![1]);
+    // In the board's 0–100 drawing space: a hundredth of the board at most, its underlay under twice that.
+    expect(width('.win-stroke-line')).toBeLessThanOrEqual(1);
+    expect(width('.win-stroke-under')).toBeGreaterThan(width('.win-stroke-line'));
+    expect(width('.win-stroke-under')).toBeLessThan(2 * width('.win-stroke-line'));
   });
 
   it('draws no whose-turn stripe on the board frame or the well', () => {

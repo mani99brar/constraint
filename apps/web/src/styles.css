@@ -1111,7 +1111,7 @@ button:disabled {
   aspect-ratio: 1;
   padding: 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--frame-edge) 50%, transparent);
+  border: 2px solid color-mix(in srgb, var(--frame-edge) 30%, transparent);
   border-radius: 9px;
   color: var(--text);
   touch-action: manipulation;
@@ -1142,8 +1142,7 @@ button:disabled {
 }
 
 /* The tile's art layer: the scene and the emblem, or the token, with two layers over them that never hold
-   text: the tint and ring (::before) and the veil (::after), and over those the mover's badge. The name
-   plate sits above the whole layer. */
+   text, used by the end sequence and the veil of a faded tile. The name plate sits above the whole layer. */
 .tile-face {
   position: absolute;
   inset: 0;
@@ -1216,15 +1215,15 @@ button:disabled {
   display: flex;
 }
 
-/* Legal tiles (PRD R2): with highlights on and a person to move, the legal tiles pop up one after another
-   when the turn starts and stay raised with a soft halo of the mover's colour (reaching a third of the
-   gap at most, so bare well shows between tiles), a 3 px ring in it (the cell's border and the tint
-   layer's inset edge), a tint of 30% of it inside the art and a corner badge with the mover's token mark;
-   the other free tiles fade back under a veil of the ground, never by opacity, and a taken cell never
-   fades. The pop: two identical keyframes, picked by the turn's parity on the board's data-pop-turn, so
-   every turn restarts it, even for a tile that stays legal, while a re-render never does; one static delay
-   per data-pop-order, 16 ms apart, the parity rules setting only the name; and no transition on a glowing
-   cell, so the pop alone owns the lift and fills backwards while a tile waits its turn. */
+/* Legal tiles (PRD R2): with highlights on and a person to move, each legal tile stays slightly raised
+   with a crisp 2 px ring in the mover's colour (the cell's own border, one primitive with no seam, at the
+   tile's edge so it meets the bare well at 3:1 or more) and its art untouched: no tint, no halo and no
+   badge. Whose move it is stays in the seats' words and token marks. The other free
+   tiles fade back under a light veil of the ground, never by opacity, so their terrain and symbol stay
+   readable; a taken cell never fades. When the turn starts the legal tiles rise together once, in 140 ms:
+   two identical keyframes, picked by the turn's parity on the board's data-pop-turn, so every turn
+   restarts the rise, even for a tile that stays legal, while a re-render never does; and no transition on
+   a glowing cell, so the rise alone owns the lift. */
 
 .board[data-glow-player='A'] {
   --wash: var(--p1);
@@ -1237,16 +1236,16 @@ button:disabled {
 }
 
 .cell[data-glow='true'] {
-  translate: 0 -3px;
+  translate: 0 -2px;
   border-color: var(--wash);
   box-shadow:
-    0 0 calc(var(--gap) / 6) calc(var(--gap) / 6) color-mix(in srgb, var(--wash) 45%, transparent),
-    0 5px 0 color-mix(in srgb, var(--shade) 40%, transparent),
-    0 9px 7px -5px color-mix(in srgb, var(--shade) 32%, transparent);
+    inset 0 2px 0 color-mix(in srgb, var(--shine) 45%, transparent),
+    inset 0 -4px 0 color-mix(in srgb, var(--shade) 18%, transparent),
+    0 4px 0 color-mix(in srgb, var(--shade) 42%, transparent),
+    0 8px 6px -4px color-mix(in srgb, var(--shade) 32%, transparent);
   transition: none;
-  animation-duration: 190ms;
-  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-  animation-fill-mode: backwards;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .board[data-pop-turn='odd'] .cell[data-glow='true'] {
@@ -1257,93 +1256,28 @@ button:disabled {
   animation-name: pop-even;
 }
 
-.board .cell[data-glow='true'][data-pop-order='1'] {
-  animation-delay: 16ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='2'] {
-  animation-delay: 32ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='3'] {
-  animation-delay: 48ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='4'] {
-  animation-delay: 64ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='5'] {
-  animation-delay: 80ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='6'] {
-  animation-delay: 96ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='7'] {
-  animation-delay: 112ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='8'] {
-  animation-delay: 128ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='9'] {
-  animation-delay: 144ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='10'] {
-  animation-delay: 160ms;
-}
-
-.board .cell[data-glow='true'][data-pop-order='11'] {
-  animation-delay: 176ms;
-}
-
 @keyframes pop-odd {
   from {
     translate: 0 0;
-    scale: 0.94;
   }
 }
 
 @keyframes pop-even {
   from {
     translate: 0 0;
-    scale: 0.94;
   }
 }
 
-.cell[data-glow='true'] .tile-face::before {
-  background-color: color-mix(in srgb, var(--wash) 8%, transparent);
-  box-shadow: inset 0 0 0 2px var(--wash);
-}
-
-.move-badge {
-  position: absolute;
-  top: 6%;
-  right: 6%;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  width: 30%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 2px solid var(--on-wash);
-  background-color: var(--wash);
-  color: var(--on-wash);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--shade) 35%, transparent);
-  pointer-events: none;
-}
-
-.move-badge .token-mark {
-  width: 74%;
-  height: 74%;
-}
-
 .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 33%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 12%, transparent);
+}
+
+/* Keyboard focus: an outline in the focus colour, set off from the tile by a strip of the well, so it
+   never reads as the legal ring drawn on the tile's own edge. */
+
+.cell:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }
 
 /* A taken cell shows the taker's token in a bare, sunken slot instead of its tile (PRD U1). */
@@ -1402,12 +1336,12 @@ button:disabled {
 
 .win-stroke-under {
   stroke: var(--surface);
-  stroke-width: 3.2;
+  stroke-width: 1.6;
 }
 
 .win-stroke-line {
   stroke: var(--win);
-  stroke-width: 1.9;
+  stroke-width: 1;
 }
 
 /* The end sequence (PRD U10, the one exception to U8's 400 ms): at most 700 ms in all, from the longest
@@ -1646,7 +1580,7 @@ button:disabled {
    and Player 1's nameplate, each a fixed height but the board, with the spare height given to the
    elements first (80 px avatars, a 64 px Match card) and the rest spread evenly as one spacer above,
    between and below them. Every length is derived from the mid-game board, never from the animated size,
-   so the top rows never move. Toasts show one at a time in their one-line short form, in the gap under
+   so the top rows never move. Toasts show one at a time in their short form, on up to two lines, in the gap under
    the board, over nothing. At the final take the board shrinks, centred with its top edge fixed, to the
    size that fits the result card under Player 1's nameplate with small fixed gaps, within 100dvh. */
 
@@ -1660,8 +1594,8 @@ button:disabled {
     --end-card: 128px;
     /* The smallest board whose tiles stay 44 px: four tiles, five gaps of 12%, the band and the border. */
     --min-board: calc(44px * 4.6 + 2 * 18px + 6px);
-    /* The gap under the board holds the one-line toast, so it never drops below the toast's height. */
-    --toast-line: 32px;
+    /* The gap under the board holds a toast of up to two lines, so it never drops below that height. */
+    --toast-line: 44px;
     --board-mid: min(100vw - 20px, 640px, 100dvh - 2 * var(--pad) - var(--score-row) - 2 * var(--plate) - 4 * 6px - var(--toast-line));
     /* The spare height: five even spacers, unless the gap under the board needs its toast-line floor,
        in which case the other four share what is left. */
@@ -1768,8 +1702,8 @@ button:disabled {
     --band: 10px;
   }
 
-  /* One toast at a time, its short form on one line, in the gap between the board and Player 1's
-     nameplate; the full text stays in the page for screen readers. */
+  /* One toast at a time, its short form on one line or, when long, two, never clipped, in the gap between
+     the board and Player 1's nameplate; the full text stays in the page for screen readers. */
   .toasts {
     position: absolute;
     left: 10px;
@@ -1785,11 +1719,15 @@ button:disabled {
   }
 
   .toast {
-    height: var(--toast-line);
-    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    max-height: var(--toast-line);
+    padding: 3px 12px;
     font-size: 0.85rem;
-    line-height: var(--toast-line);
-    white-space: nowrap;
+    line-height: 1.3;
+    text-align: center;
+    text-wrap: balance;
   }
 
   .toast-text {
@@ -2061,7 +1999,7 @@ button:disabled {
   width: 46%;
 }
 
-/* A diagram's playable tiles glow in the colour of its player to move, as on the board. */
+/* A diagram's playable tiles are ringed in the colour of its player to move, as on the board, with no tint. */
 .mini-board[data-glow-player='A'] {
   --wash: var(--p1);
 }
@@ -2073,7 +2011,6 @@ button:disabled {
 .mini-cell.glow .tile-art {
   box-shadow:
     inset 0 0 0 2px var(--wash),
-    inset 0 0 0 999px color-mix(in srgb, var(--wash) 30%, transparent),
     0 2px 3px color-mix(in srgb, var(--shade) 35%, transparent);
 }
 
@@ -2447,29 +2384,14 @@ button:disabled {
   box-shadow: inset 0 0 0 3px var(--win), 0 0 16px color-mix(in srgb, var(--win) 60%, transparent);
 }
 
-/* Legal tiles are the clearest thing on the board and look the same in every row and column: lifted, a
-   crisp 2 px ring in the mover's colour (a 1 px border and a 1 px inner edge) with a soft halo kept inside
-   the gap, a glow just inside the ring, a larger badge with the mover's mark, and the other free tiles
-   veiled with quieter rims. The outline itself never animates. */
+/* Legal tiles are the clearest thing on the board and look the same in every row and column: lifted, with
+   a crisp 2 px ring in the mover's colour (the cell's own border) and nothing over the art: no wash, no
+   glow and no halo. The other free tiles keep their art under a light veil and quieter rims. The outline
+   itself never animates. */
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] {
-  border-width: 1px;
-  border-color: var(--wash);
-  box-shadow:
-    0 0 calc(var(--gap) / 4) calc(var(--gap) / 6) color-mix(in srgb, var(--wash) 60%, transparent),
-    0 6px 7px -3px color-mix(in srgb, var(--shade) 75%, transparent);
-  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] .tile-face::before {
-  background-color: color-mix(in srgb, var(--wash) 10%, transparent);
-  box-shadow:
-    inset 0 0 0 1px var(--wash),
-    inset 0 0 12px 1px color-mix(in srgb, var(--wash) 42%, transparent);
-}
-
-:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .move-badge {
-  width: 34%;
   border-width: 2px;
+  border-color: var(--wash);
+  box-shadow: 0 6px 7px -3px color-mix(in srgb, var(--shade) 75%, transparent);
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board[data-glow-player] .cell:not([data-glow='true']):not(.taken) {
@@ -2477,7 +2399,7 @@ button:disabled {
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 58%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 14%, transparent);
 }
 
 /* The emblem sits in its own bubble, larger and brighter. */
@@ -2539,14 +2461,19 @@ button:disabled {
     0 0 36px color-mix(in srgb, var(--primary) 55%, transparent);
 }
 
+/* The win line glows on its own, with no dark underlay to read as a rod. */
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .win-stroke-under {
+  stroke: none;
+}
+
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .win-stroke-line {
-  filter: drop-shadow(0 0 3px var(--win));
+  filter: drop-shadow(0 0 2px var(--win));
 }
 
 /* ----- Scene motion: the art itself moves, inside its tile -----
    Swells roll under a bobbing boat, clouds drift across the peaks, pines sway, the desert sun pulses and
    heat lines flicker, on every tile that still shows its scene. The same small motions play in the Match
-   card's chips (the terrain's scene, the symbol's emblem), and the legal tiles' reason marks breathe. Only
+   card's chips (the terrain's scene, the symbol's emblem); the legal tiles' reason marks keep still. Only
    transform and opacity change, each tile on its own negative delay (by its index) so no two neighbours
    move together. A tile under a token has no scene to move. The scenes rest while the tab is hidden and
    under reduced motion. The legal tile's outline is never animated, so nothing washes it out. */
@@ -2628,21 +2555,9 @@ button:disabled {
     animation: scene-slide 2.8s ease-in-out infinite;
   }
 
-  /* The reasons on a legal tile breathe: the bar glints, the emblem's ring swells and fades. */
-  .board .cell .reason-bar {
-    transform-origin: 50% 50%;
-    animation: scene-glint 2s ease-in-out infinite;
-  }
-
-  .board .cell[data-match='symbol'] .tile-symbol::after,
-  .board .cell[data-match='both'] .tile-symbol::after {
-    animation: scene-halo 2s ease-in-out infinite;
-  }
-
   :root[data-hidden] .board .cell .scene *,
   :root[data-hidden] .terrain-thumb .scene *,
-  :root[data-hidden] .chip-emblem .emblem-mark,
-  :root[data-hidden] .board .cell .reason-bar {
+  :root[data-hidden] .chip-emblem .emblem-mark {
     animation-play-state: paused;
   }
 }
@@ -2682,30 +2597,6 @@ button:disabled {
   }
   50% {
     transform: translateX(1.2px);
-  }
-}
-
-@keyframes scene-glint {
-  0%,
-  100% {
-    transform: scaleX(0.82);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-}
-
-@keyframes scene-halo {
-  0%,
-  100% {
-    transform: scale(0.9);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 1;
   }
 }
 
@@ -2879,9 +2770,9 @@ button:disabled {
   }
 }
 
-/* Final round (critique): the turn's colour reaches the top of the screen, the legal ring gets an inner dark
-   keyline so it holds 3:1 against pale art, faded tiles rest their scenes (fewer loops while it is your move),
-   the win line sits a little back so the tokens' marks read through it, and the countdown has a scrim. */
+/* Final round (critique): the turn's colour reaches the top of the screen, faded tiles rest their scenes
+   (fewer loops while it is your move), the win line sits a little back so the tokens' marks read through
+   it, and the countdown has a scrim. */
 .match[data-to-move='A'] .match-card {
   border-color: color-mix(in srgb, var(--p1) 55%, var(--border));
 }
@@ -2890,14 +2781,7 @@ button:disabled {
   border-color: color-mix(in srgb, var(--p2) 55%, var(--border));
 }
 
-.cell[data-glow='true'] .tile-face::before {
-  box-shadow:
-    inset 0 0 0 1px var(--wash),
-    inset 0 0 10px 1px color-mix(in srgb, var(--wash) 38%, transparent);
-}
-
 .win-stroke-line {
-  stroke-width: 1.1;
   opacity: 0.7;
 }
 

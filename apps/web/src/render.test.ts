@@ -133,11 +133,10 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(two).toContain('data-glow-player="B"');
     expect(two).toContain('aria-label="Player 1 2, Player 2 1, 1 draw"');
     expect(two).toMatch(/class="score-draws" data-testid="score-draws" aria-hidden="true">1 draw</);
-    // The glowing tiles carry the mover's badge with its token mark, and the pop's order and turn.
+    // The glowing tiles carry the rise's turn and nothing drawn over their art: no badge, no stagger order.
     expect(two).toContain('data-pop-turn="odd"');
-    expect(two.match(/data-testid="move-badge"/g)).toHaveLength(legalTakes(afterTakes(4, 3)).length);
-    expect(two).toMatch(/data-testid="move-badge" data-mark="diamond"/);
-    expect(two).toContain('data-pop-order="0"');
+    expect(two.match(/data-glow="true"/g)).toHaveLength(legalTakes(afterTakes(4, 3)).length);
+    expect(two).not.toMatch(/move-badge|data-pop-order/);
     expect(two).toMatch(/data-testid="seat-A"[^>]*data-score="2"/);
     expect(two).toMatch(/aria-label="[A-D]\d, Player [12]'s token/);
     expect(two).not.toMatch(/your token|bot's token/);
@@ -147,7 +146,7 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
     expect(renderMatch(state, { highlights: false })).not.toContain('data-glow="true"');
     expect(renderMatch(state, { highlights: false })).not.toContain('data-faded="true"');
     expect(renderMatch(state, { highlights: false })).not.toContain('data-glow-player');
-    expect(renderMatch(state, { highlights: false })).not.toMatch(/move-badge|data-pop-order|data-pop-turn/);
+    expect(renderMatch(state, { highlights: false })).not.toMatch(/data-pop-turn/);
   });
 
   it.each(Object.entries(endings()))('shows the end screen once after a %s, with the stroke across a winning shape and the faces of the result', (by, finished) => {

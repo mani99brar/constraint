@@ -410,19 +410,17 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
   await startTwoPlayerGame(page, { seed: HUMAN_STARTS });
   const announcer = page.getByTestId('announcer');
 
-  /** The seat's colour, and the glowing tiles' ring, tint and badge, and the frame's shadow. */
+  /** The seat's colour, the glowing tiles' ring and what lies over their art, and the frame's shadow. */
   async function colours(player: 'A' | 'B') {
     return page.evaluate((who) => {
       const seatElement = document.querySelector(`[data-testid="seat-${who}"]`)!;
       const glow = document.querySelector('[data-testid="board"] [data-glow="true"]');
-      const badge = glow?.querySelector('[data-testid="move-badge"]');
       return {
         seat: getComputedStyle(seatElement).borderTopColor,
         seatBackground: getComputedStyle(seatElement).backgroundColor,
         ring: glow ? getComputedStyle(glow).borderTopColor : '',
         tint: glow ? getComputedStyle(glow.querySelector('.tile-face')!, '::before').backgroundColor : '',
-        badge: badge ? getComputedStyle(badge).backgroundColor : '',
-        mark: badge?.getAttribute('data-mark') ?? null,
+        badges: document.querySelectorAll('[data-testid="move-badge"]').length,
         frame: getComputedStyle(document.querySelector('[data-testid="board-frame"]')!).boxShadow,
       };
     }, player);
@@ -440,17 +438,17 @@ test('[scenario:seats-turn] in a two-player game the lit seat, its label, the fr
     await expect(board(page)).toHaveAttribute('data-glow-player', player);
     const lit = await colours(player);
     const dim = await colours(other);
-    // The glowing tiles take the lit seat's colour: their ring, their tint and their badge, with its token
-    // mark. No stripe on the board frame says whose turn it is; the dimmed seat looks different.
+    // The glowing tiles' ring takes the lit seat's colour; nothing tints their art or sits on it, since the
+    // seat's words and token mark say whose move it is. No stripe on the board frame says whose turn it
+    // is; the dimmed seat looks different.
     const channels = (value: string) => {
       const parts = value.match(/[\d.]+/g)!.map(Number);
       return value.startsWith('color(') ? parts.slice(0, 3).map((part) => Math.round(part * 255)) : parts.slice(0, 3);
     };
     const same = (a: string, b: string) => channels(a).every((part, index) => Math.abs(part - channels(b)[index]!) <= 1);
     expect(same(lit.ring, lit.seat), 'ring').toBe(true);
-    expect(same(lit.tint, lit.seat), 'tint').toBe(true);
-    expect(same(lit.badge, lit.seat), 'badge').toBe(true);
-    expect(lit.mark).toBe(player === 'A' ? 'ring' : 'diamond');
+    expect(lit.tint, 'tint').toMatch(/^rgba\(0, 0, 0, 0\)$/);
+    expect(lit.badges, 'badges').toBe(0);
     expect(lit.frame).not.toContain(lit.seat);
     await expect(page.getByTestId('board-frame')).not.toHaveAttribute('data-active', /.*/);
     expect(dim.seat).not.toBe(lit.seat);
@@ -515,13 +513,13 @@ test('[scenario:opening-take] at the opening only the 12 edge tiles stand out, a
   expect(lit).toHaveLength(12);
   expect(lit).toEqual(cells.filter((cell) => isEdge(cell.cell)).map((cell) => cell.cell));
   for (const cell of cells.filter((candidate) => candidate.glow)) expect(cell.label).toBe(`${cell.cell}, ${tile(cell)}, legal take`);
-  // The inner tiles fade back; the glow draws no mark over the tile art: the art layer, then the name plate.
+  // The inner tiles fade back; the glow draws nothing over the tile art: the art layer, then the name plate.
   expect(cells.filter((cell) => !cell.glow).every((cell) => !isEdge(cell.cell))).toBe(true);
   await expect(board(page).locator('[data-faded="true"]')).toHaveCount(4);
   await expect(board(page).locator('.glow-dot')).toHaveCount(0);
   expect(await glowing(page).first().evaluate((element) => [...element.children].map((child) => child.getAttribute('class')))).toEqual(['tile-face', 'tile-name']);
-  expect(await glowing(page).first().evaluate((element) => [...element.querySelector('.tile-face')!.children].map((child) => child.getAttribute('class')))).toEqual(['scene', 'tile-symbol', 'move-badge p1']);
-  await expect(board(page).locator('[data-testid="move-badge"][data-mark="ring"]')).toHaveCount(12);
+  expect(await glowing(page).first().evaluate((element) => [...element.querySelector('.tile-face')!.children].map((child) => child.getAttribute('class')))).toEqual(['scene', 'tile-symbol']);
+  await expect(board(page).locator('[data-testid="move-badge"]')).toHaveCount(0);
 
   // An inner tile is refused with its reason, and nothing is taken.
   const inner = cells.find((cell) => cell.cell === 'B2')!;
@@ -549,7 +547,7 @@ test('[scenario:opening-take] at the opening only the 12 edge tiles stand out, a
   await attachScreenshot(page, testInfo, 'opening-take');
 });
 
-test('[scenario:legal-turn] after the bot’s take its cell is marked and toasted, exactly the matching tiles glow, a refusal names both tiles and clears when the turn changes, and with motion on a tap right after the bot’s take lands', async ({ page }, testInfo) => {
+test('[scenario:legal-turn] after the bot’s take its cell is marked and toasted, exactly the matching tiles glow, a refusal names both tiles and clears when the turn changes, your next take clears the bot’s take toast, and with motion on a tap right after the bot’s take lands', async ({ page }, testInfo) => {
   await startGame(page);
   await takeGlowing(page);
   await waitForHumanTurn(page);
@@ -591,6 +589,14 @@ test('[scenario:legal-turn] after the bot’s take its cell is marked and toaste
   await expect(cellAt(page, legal[0]!)).toHaveAttribute('data-owner', 'A');
   await expect(refusalToast(page)).toHaveCount(0, { timeout: 1_000 });
   expect(Date.now() - refusedAt).toBeLessThan(TOAST_MS - FADE_MS);
+  // Your take supersedes the bot's take toast: it is gone while the bot is still thinking, never left up
+  // beside the next position.
+  const superseded = await page.waitForFunction(() => {
+    const screen = document.querySelector('[data-testid="match-screen"]')!;
+    const notices = document.querySelectorAll('[data-testid="toast"][data-kind="take"]').length;
+    return notices === 0 || screen.getAttribute('data-to-move') !== 'B' ? { toMove: screen.getAttribute('data-to-move'), takes: screen.getAttribute('data-takes'), notices } : null;
+  });
+  expect(await superseded.jsonValue()).toEqual({ toMove: 'B', takes: '3', notices: 0 });
   await expect(seatStatus(page, 'B')).toHaveText('Bot is thinking');
   await expect(match(page)).toHaveAttribute('data-to-move', 'B');
   await waitForHumanTurn(page);
@@ -621,7 +627,7 @@ test('[scenario:legal-turn] after the bot’s take its cell is marked and toaste
   await expect(cellAt(page, next.cell)).toHaveAttribute('data-owner', 'A');
 });
 
-test('[scenario:highlight-toggle] with highlights off nothing pops, fades, glows or carries a tint or badge, a legal take works, an illegal one is refused, and the setting survives a reload', async ({ page }, testInfo) => {
+test('[scenario:highlight-toggle] with highlights off nothing rises, fades or carries a ring, a legal take works, an illegal one is refused, and the setting survives a reload', async ({ page }, testInfo) => {
   await startGame(page);
   await openMenu(page);
   const highlights = page.getByRole('switch', { name: 'Highlight legal tiles' });
@@ -631,9 +637,9 @@ test('[scenario:highlight-toggle] with highlights off nothing pops, fades, glows
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
-  const lit = page.locator('[data-glow="true"], [data-faded="true"], .glow, [data-glow-player], [data-pop-order], [data-pop-turn], [data-testid="move-badge"]');
+  const lit = page.locator('[data-glow="true"], [data-faded="true"], .glow, [data-glow-player], [data-pop-turn]');
   await expect(lit).toHaveCount(0);
-  /** Every cell that lifts, pops, or carries a ring, a halo, a tint or a veil. */
+  /** Every cell that lifts, rises, or carries a ring, a tint or a veil. */
   const marked = () =>
     board(page)
       .locator('[data-cell]')
@@ -667,7 +673,7 @@ test('[scenario:highlight-toggle] with highlights off nothing pops, fades, glows
   await expect(cellAt(page, 'A1')).toHaveAttribute('data-owner', 'A');
   await waitForHumanTurn(page);
 
-  // After the bot's take: still nothing fades, lifts or washes, a non-matching tile is refused, a matching one is taken.
+  // After the bot's take: still nothing fades, lifts or rings, a non-matching tile is refused, a matching one is taken.
   await expect(lit).toHaveCount(0);
   expect(await marked()).toEqual([]);
   const last = (await readLastTile(page))!;
@@ -814,7 +820,7 @@ test('[scenario:resume-match] after a reload, Continue restores the same board, 
   expect(pair.mode).toBe('two-player');
 });
 
-test('[scenario:full-match] glowing takes play a bot game to its end screen, which names the result once, marks the winning shape, shows the faces and is counted', async ({ page }, testInfo) => {
+test('[scenario:full-match] glowing takes play a bot game to its end screen, which names the result once, marks the winning shape (its last take ringed like the rest), shows the faces and is counted', async ({ page }, testInfo) => {
   test.setTimeout(240_000);
   await openHome(page);
   const easy = page.getByTestId('results').locator('[data-difficulty="easy"]');
@@ -852,6 +858,15 @@ test('[scenario:full-match] glowing takes play a bot game to its end screen, whi
     expect(detail).toMatch(/four tokens (fill the \w+ (row|column)|run corner to corner|make a 2×2 square (at|in) the [\w ]+)\.$/);
     expect(detail).not.toMatch(/\b[A-D][1-4]\b/);
     await expect(page.getByTestId('win-stroke')).toHaveAttribute('data-by', by);
+    // All four ring alike in the win colour, the last take among them too: its own ring never shows there.
+    const rings = await page.evaluate((ids) => {
+      const hex = getComputedStyle(document.documentElement).getPropertyValue('--win').trim();
+      const win = `rgb(${[1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(', ')})`;
+      return { win, shadows: ids.map((id) => getComputedStyle(document.querySelector(`[data-cell="${id}"]`)!).boxShadow) };
+    }, winning.map((cell) => cell.cell));
+    expect(winning.some((cell) => cell.last)).toBe(true);
+    expect(new Set(rings.shadows).size, rings.shadows.join(' | ')).toBe(1);
+    expect(rings.shadows[0]).toContain(`${rings.win} 0px 0px 0px 3px inset`);
   } else {
     expect(winning).toHaveLength(0);
     await expect(page.getByTestId('win-stroke')).toHaveCount(0);
