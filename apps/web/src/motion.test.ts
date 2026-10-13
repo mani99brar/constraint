@@ -344,7 +344,7 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
   });
 });
 
-describe('the phone’s end shrink (PRD U6, U8, U10)', () => {
+describe('the phone’s end (PRD U6, U8, U10)', () => {
   it('sizes the board from one registered length, set in every layout, that the board’s drawing reads', () => {
     expect(css).toMatch(/@property --board-size\s*\{\s*syntax:\s*'<length>';\s*inherits:\s*true;\s*initial-value:\s*0px;\s*\}/);
     expect(rule('.match')).toMatch(/--board-size:\s*min\(/);
@@ -355,7 +355,7 @@ describe('the phone’s end shrink (PRD U6, U8, U10)', () => {
     expect(css).toMatch(/--toast-room:\s*\d+px/);
   });
 
-  it('derives the ended size from the mid-game rows, clamped between 44 px tiles and the mid-game board, and clips the column while it shrinks', () => {
+  it('keeps the mid-game board at the end and leaves room under it for the result card', () => {
     const phone = /@media \(max-width: 760px\) \{([\s\S]*?)\n\}/.exec(css)![1]!;
     const block = /\.match \{([^}]*)\}/.exec(phone)![1]!;
     expect(block).toMatch(/--board-size:\s*var\(--board-mid\)/);
@@ -363,33 +363,31 @@ describe('the phone’s end shrink (PRD U6, U8, U10)', () => {
     expect(block).toMatch(/--free:[^;]*var\(--board-mid\)/);
     expect(block).toMatch(/--spacer:[^;]*var\(--free\)/);
     expect(block).not.toMatch(/--(spacer|free):[^;]*var\(--board-size\)/);
+    // The three gaps above the board leave room under it for Player 1's nameplate and the result card.
+    expect(block).toMatch(/--spacer:[^;]*\(var\(--free\) - 2 \* var\(--end-gap\) - var\(--end-card\)\) \/ 3/);
     // The gap under the board never drops below the one-line toast's height (short phones).
-    expect(block).toMatch(/--toast-gap:\s*max\(var\(--toast-line\),\s*var\(--spacer\)\)/);
+    expect(block).toMatch(/--toast-gap:\s*max\(var\(--toast-line\),/);
     expect(block).toMatch(/--seat-gap:\s*var\(--toast-gap\)/);
-    expect(block).toMatch(/--board-end:\s*clamp\(\s*var\(--min-board\),[\s\S]*var\(--end-card\),\s*var\(--board-mid\)\s*\)/);
-    expect(block).toMatch(/--min-board:\s*calc\(44px \* 4\.6/);
+    expect(block).not.toMatch(/--board-end|--min-board/);
+    // At the end only Player 1's gap changes; the board's size and the column's overflow stay as they were.
     const ended = /\.match\.ended \{([^}]*)\}/.exec(phone)![1]!;
-    expect(ended).toMatch(/--board-size:\s*var\(--board-end\)/);
     expect(ended).toMatch(/--seat-gap:\s*var\(--end-gap\)/);
-    expect(ended).not.toMatch(/transition|overflow/);
-    // Clipped to the screen only while the shrink runs; a very short phone may scroll to the card after it.
-    const shrinking = /\.match\.ended\[data-end-shrinking\] \{([^}]*)\}/.exec(phone)![1]!;
-    expect(shrinking).toMatch(/overflow:\s*clip/);
-    expect(shrinking).toMatch(/height:\s*100dvh/);
+    expect(ended).not.toMatch(/--board-size|transition|overflow|height/);
+    expect(css).not.toMatch(/data-end-shrinking/);
+    // The result card grows with its content, so it is never clipped.
+    const card = /\.end-screen \{([^}]*)\}/.exec(phone)![1]!;
+    expect(card).toMatch(/min-height:\s*var\(--end-card\)/);
+    expect(card).not.toMatch(/(^|[^-])height:|overflow/);
   });
 
-  it('transitions the board’s size only while the end sequence runs on a phone with motion allowed, within 300 ms, and never the frame’s width or height', () => {
+  it('never transitions the board’s size; only Player 1’s gap eases on a phone while the end sequence runs, within 300 ms, and never the frame’s width or height', () => {
     const transitions = rules.filter(({ body }) => /--board-size/.test(/transition[^:]*:\s*([^;]+)/.exec(body)?.[1] ?? ''));
-    expect(transitions.map(({ selector }) => selector)).toEqual(['.match.ended[data-end-shrinking]']);
-    const scoped = /@media \(max-width: 760px\) and \(prefers-reduced-motion: no-preference\) \{\s*\.match\.ended\[data-end-shrinking\] \{\s*transition:\s*([^;]+);\s*\}\s*\}/.exec(css);
+    expect(transitions).toEqual([]);
+    const scoped = /@media \(max-width: 760px\) and \(prefers-reduced-motion: no-preference\) \{\s*\.match\.ended\[data-end-easing\] \{\s*transition:\s*([^;]+);\s*\}\s*\}/.exec(css);
     expect(scoped).not.toBeNull();
-    expect(scoped![1]).toMatch(/^--board-size \d+ms/);
+    expect(scoped![1]).toMatch(/^--seat-gap \d+ms/);
     expect(times(scoped![1]!)[0]).toBeLessThanOrEqual(300);
     expect(times(scoped![1]!)[0]).toBeGreaterThanOrEqual(200);
-    // Player 1's gap eases with the board, on the same timing, so the nameplate never snaps.
-    expect(scoped![1]).toMatch(/--seat-gap \d+ms/);
-    const [board, gap] = times(scoped![1]!);
-    expect(gap).toBe(board);
     expect(css).toMatch(/@property --seat-gap \{\s*syntax: '<length>';\s*inherits: true;/);
     for (const { selector, body } of rules) expect(/transition[^:]*:[^;]*\b(width|height)\b/.test(body), selector).toBe(false);
   });

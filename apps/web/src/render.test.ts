@@ -163,8 +163,8 @@ describe('the match screen (PRD U1, U2, §5.8)', () => {
       expect(ended).toMatch(mode === normal ? /data-testid="result">(You win|The bot wins|Draw)/ : /data-testid="result">(Player [12] wins|Draw)/);
       expect(ended).toContain('Play again');
       expect(ended).toContain('>Home</button>');
-      // The result card's buttons come first, so they sit in the same places in every ending.
-      expect(ended).toMatch(/data-testid="end-screen"[^>]*><div class="button-row end-buttons"><button[^>]*data-testid="play-again"/);
+      // The result card reads top down: the result, its explanation, then Play again and Home in one footer.
+      expect(ended).toMatch(/data-testid="end-screen"[^>]*><h2 id="result" data-testid="result">[^<]+<\/h2><p data-testid="result-detail">[^<]+<\/p><div class="button-row end-buttons"><button[^>]*data-testid="play-again"[\s\S]*?data-testid="end-home"[^>]*>Home<\/button><\/div><\/section>/);
       // The board plays the end sequence from the end model's marks.
       expect(ended).toContain(`data-end-kind="${by === 'full-board' ? 'draw' : by === 'blockade' ? 'blockade' : 'shape'}"`);
       expect(ended).toContain('data-end-skipped="false"');

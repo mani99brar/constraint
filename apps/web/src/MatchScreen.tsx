@@ -5,7 +5,7 @@ import { TerrainScene } from './art';
 import { Board } from './Board';
 import { boardModel } from './boardModel';
 import { EndScreen } from './EndScreen';
-import { endShrinking, END_SHRINK_LIMIT_MS } from './end';
+import { endEasing, END_EASE_LIMIT_MS } from './end';
 import { takeFeedback } from './feedback';
 import { MatchCard } from './MatchCard';
 import { matchCardModel } from './matchCard';
@@ -68,7 +68,7 @@ export interface MatchScreenProps {
  * The table (PRD U1–U3, U9, U10, §5.8): the board with a slim nameplate for each player beside it, the
  * scoreboard row above it (each seat's score either side of the Match card, the draws under it), a top bar
  * with the menu button, toasts outside the board and, at the end, the result card beside the board (below
- * it on a phone, where the board shrinks to make room while the end sequence plays). Every change of turn
+ * it on a phone, under Player 1's nameplate, with the board keeping its size and place). Every change of turn
  * is announced through an `aria-live` region.
  */
 export function MatchScreen(props: MatchScreenProps) {
@@ -98,17 +98,18 @@ export function MatchScreen(props: MatchScreenProps) {
   // The takes on screen when the game was shown: a new or resumed game starts with no event (PRD U9).
   const [shownAtTakes] = useState(initialState.takes.length);
   const [refusal, setRefusal] = useState<RefusalMark | null>(null);
-  // The phone's end shrink may run only while the end sequence plays, never for a game shown ended or after it.
+  // The phone's end easing (Player 1's nameplate closing up under the board) may run only while the end
+  // sequence plays, never for a game shown ended or after it.
   const [endedAtStart] = useState(initialState.result !== null);
-  const [shrinkDone, setShrinkDone] = useState(false);
+  const [easeDone, setEaseDone] = useState(false);
   const ended = state.result !== null;
-  const shrinking = endShrinking(ended, endedAtStart, shrinkDone);
+  const easing = endEasing(ended, endedAtStart, easeDone);
 
   useEffect(() => {
-    if (!shrinking) return;
-    const timer = setTimeout(() => setShrinkDone(true), END_SHRINK_LIMIT_MS);
+    if (!easing) return;
+    const timer = setTimeout(() => setEaseDone(true), END_EASE_LIMIT_MS);
     return () => clearTimeout(timer);
-  }, [shrinking]);
+  }, [easing]);
 
   useEffect(() => {
     // One sound per new take and the bot's take toast; a resumed game starts quiet.
@@ -155,13 +156,13 @@ export function MatchScreen(props: MatchScreenProps) {
       data-takes={state.takes.length}
       data-accepts-takes={board.acceptsTakes}
       data-ended={ended}
-      data-end-shrinking={shrinking || undefined}
+      data-end-easing={easing || undefined}
       data-timed={clockStart !== null || undefined}
       data-starting={start.counting || undefined}
       data-backdrop={settings.backdrop}
       data-scene-motion={settings.sceneMotion}
       onTransitionEnd={(event) => {
-        if (event.target === event.currentTarget && event.propertyName === '--board-size') setShrinkDone(true);
+        if (event.target === event.currentTarget && event.propertyName === '--seat-gap') setEaseDone(true);
       }}
     >
       {settings.backdrop && (

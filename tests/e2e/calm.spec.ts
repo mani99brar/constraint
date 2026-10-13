@@ -343,8 +343,9 @@ async function resumeBefore(page: Page, ending: Ending) {
 /**
  * Before the ending take: a listener that pauses every CSS animation of the page the moment the end
  * sequence starts, so the checks below see it mid-way whatever the machine's speed (never the phone's
- * board shrink, a transition); a listener that holds the shrink at its very first frame and measures the
- * board there; a record of the cells' data-end changes; and a record of what a tap or a key press meets.
+ * nameplate easing, a transition); a listener that records any transition of the board's size (there must
+ * be none) and holds Player 1's nameplate easing at its very first frame to measure it there; a record of
+ * the cells' data-end changes; and a record of what a tap or a key press meets.
  */
 async function watchTheEnd(page: Page) {
   await page.evaluate(() => {
@@ -381,37 +382,31 @@ async function watchTheEnd(page: Page) {
     document.addEventListener(
       'transitionrun',
       (event) => {
-        if (event.propertyName !== '--board-size') return;
-        const transitions = (event.target as Element).getAnimations().filter((animation) => animation instanceof CSSTransition) as CSSTransition[];
-        const shrink = transitions.find((animation) => animation.transitionProperty === '--board-size');
-        if (!shrink) return;
-        // The board's size and Player 1's gap ease together; both are held at their first frame, where the
-        // board and the nameplate must be exactly at their mid-game size and place.
-        const gap = transitions.find((animation) => animation.transitionProperty === '--seat-gap');
-        for (const animation of [shrink, gap]) {
-          if (!animation) continue;
-          animation.pause();
-          animation.currentTime = 0;
+        // The board's size never transitions; any such transition is recorded so the checks can see it.
+        if (event.propertyName === '--board-size') {
+          v.__shrinks.push({ duration: Number((event as TransitionEvent).elapsedTime), atZero: rect('board-frame') });
+          return;
         }
+        if (event.propertyName !== '--seat-gap') return;
+        const gap = ((event.target as Element).getAnimations().filter((animation) => animation instanceof CSSTransition) as CSSTransition[]).find((animation) => animation.transitionProperty === '--seat-gap');
+        if (!gap) return;
+        // Player 1's nameplate closes up under the board: held at its first frame, where it must be exactly at
+        // its mid-game place, and half-way, where its gap lies between the mid-game and the ended one.
+        gap.pause();
+        gap.currentTime = 0;
         const frame = rect('board-frame');
         const plate = rect('seat-A');
-        v.__shrinks.push({ duration: Number(shrink.effect!.getTiming().duration), atZero: frame });
-        if (gap) {
-          // Half-way the nameplate is still under the board, its gap between the mid-game and the ended one.
-          const half = Number(shrink.effect!.getTiming().duration) / 2;
-          shrink.currentTime = half;
-          gap.currentTime = half;
-          const halfFrame = rect('board-frame');
-          const halfPlate = rect('seat-A');
-          shrink.currentTime = 0;
-          gap.currentTime = 0;
-          v.__plate = {
-            gapDuration: Number(gap.effect!.getTiming().duration),
-            atZero: plate,
-            gapAtZero: plate.top - (frame.top + frame.height),
-            gapAtHalf: halfPlate.top - (halfFrame.top + halfFrame.height),
-          };
-        }
+        const duration = Number(gap.effect!.getTiming().duration);
+        gap.currentTime = duration / 2;
+        const halfFrame = rect('board-frame');
+        const halfPlate = rect('seat-A');
+        gap.currentTime = 0;
+        v.__plate = {
+          gapDuration: duration,
+          atZero: plate,
+          gapAtZero: plate.top - (frame.top + frame.height),
+          gapAtHalf: halfPlate.top - (halfFrame.top + halfFrame.height),
+        };
       },
       true,
     );
@@ -526,58 +521,47 @@ async function steadyBoxes(page: Page): Promise<Record<string, Box>> {
 }
 
 /**
- * The phone's end shrink (PRD U6, U10): one transition of the board's size, at most 300 ms, starting at the
- * mid-game size and place with no first-frame snap; then, let finish, the board's top where it was, its
- * centre on the column's, about 300 px wide, the full result card under Player 1's nameplate, nothing
- * overlapping, nothing above the board moved and no vertical scroll. Returns the ended board's box.
+ * The phone's end (PRD U6, U10): the board keeps its mid-game size and place, with no size transition at
+ * all; Player 1's nameplate closes up under it in one ease of at most 300 ms that starts at its mid-game
+ * place with no first-frame snap; then, let finish, the full result card under the nameplate, nothing
+ * overlapping, nothing above the board moved and, at 390 × 844, no vertical scroll. Returns the ended board's box.
  */
-async function expectShrink(page: Page, mid: Record<string, Box>) {
-  const shrinks = await page.evaluate(() => (window as unknown as { __shrinks: { duration: number; atZero: Box }[] }).__shrinks);
-  expect(shrinks, 'one size transition of the board').toHaveLength(1);
-  const [{ duration, atZero }] = shrinks as [{ duration: number; atZero: Box }];
-  expect(duration).toBeGreaterThan(0);
-  expect(duration).toBeLessThanOrEqual(300);
-  const frame = mid['board-frame']!;
-  for (const key of ['top', 'left', 'width', 'height'] as const) expect(Math.abs(atZero[key] - frame[key]), `at currentTime 0, ${key}`).toBeLessThanOrEqual(1);
-  // Player 1's nameplate follows the board's bottom edge: no snap at the first frame, and half-way its gap
-  // is between the mid-game gap and the ended one, with the same timing as the board.
+async function expectSteady(page: Page, mid: Record<string, Box>) {
+  expect(await page.evaluate(() => (window as unknown as { __shrinks: unknown[] }).__shrinks), 'no size transition of the board').toEqual([]);
   const plate = await page.evaluate(() => (window as unknown as { __plate: { gapDuration: number; atZero: Box; gapAtZero: number; gapAtHalf: number } | null }).__plate);
-  expect(plate, 'the nameplate eases with the board').not.toBeNull();
-  expect(plate!.gapDuration).toBe(duration);
+  expect(plate, 'the nameplate eases up').not.toBeNull();
+  expect(plate!.gapDuration).toBeGreaterThan(0);
+  expect(plate!.gapDuration).toBeLessThanOrEqual(300);
+  const frame = mid['board-frame']!;
   const midPlate = mid['seat-A']!;
   for (const key of ['top', 'left', 'width', 'height'] as const) expect(Math.abs(plate!.atZero[key] - midPlate[key]), `seat-A at currentTime 0, ${key}`).toBeLessThanOrEqual(1);
   const midGap = midPlate.top - (frame.top + frame.height);
   expect(Math.abs(plate!.gapAtZero - midGap)).toBeLessThanOrEqual(1);
   // Let it run to its end.
-  const easing = ['--board-size', '--seat-gap'];
-  await page.evaluate((names) => document.getAnimations().filter((animation) => animation instanceof CSSTransition && names.includes(animation.transitionProperty)).forEach((animation) => animation.finish()), easing);
-  await expect.poll(() => page.evaluate((names) => document.getAnimations().filter((animation) => animation instanceof CSSTransition && names.includes(animation.transitionProperty)).length, easing)).toBe(0);
+  await page.evaluate(() => document.getAnimations().filter((animation) => animation instanceof CSSTransition && animation.transitionProperty === '--seat-gap').forEach((animation) => animation.finish()));
+  await expect.poll(() => page.evaluate(() => document.getAnimations().filter((animation) => animation instanceof CSSTransition && animation.transitionProperty === '--seat-gap').length)).toBe(0);
   const after = await steadyBoxes(page);
   const ended = after['board-frame']!;
-  expect(Math.abs(ended.top - frame.top), 'the board’s top stays put').toBeLessThanOrEqual(1);
-  const column = await page.evaluate(() => window.innerWidth / 2);
-  expect(Math.abs(ended.left + ended.width / 2 - column), 'centred on the column').toBeLessThanOrEqual(1);
-  expect(ended.width).toBeGreaterThanOrEqual(280);
-  expect(ended.width).toBeLessThanOrEqual(320);
-  expect(Math.abs(ended.width - ended.height)).toBeLessThanOrEqual(1);
-  for (const id of ['scoreboard', 'seat-B', 'match-card']) expect(after[id], `${id} never slides`).toEqual(mid[id]);
+  for (const id of ['board-frame', 'scoreboard', 'seat-B', 'match-card']) expect(after[id], `${id} never moves`).toEqual(mid[id]);
   const endGap = after['seat-A']!.top - (ended.top + ended.height);
+  expect(endGap).toBeGreaterThan(0);
   expect(endGap).toBeLessThan(midGap);
   expect(plate!.gapAtHalf, 'half-way, the gap is between the mid-game and ended ones').toBeGreaterThan(endGap + 1);
   expect(plate!.gapAtHalf).toBeLessThan(midGap - 1);
   const layout = await page.evaluate(() => {
     const box = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
-    const [frame, plate, card, detail] = ['board-frame', 'seat-A', 'end-screen', 'result-detail'].map(box) as [DOMRect, DOMRect, DOMRect, DOMRect];
+    const [frame, plate, card, detail, again] = ['board-frame', 'seat-A', 'end-screen', 'result-detail', 'play-again'].map(box) as [DOMRect, DOMRect, DOMRect, DOMRect, DOMRect];
     return {
       plateBelowBoard: plate.top >= frame.bottom,
       cardBelowPlate: card.top >= plate.bottom,
       cardInside: card.top >= 0 && card.bottom <= window.innerHeight && card.left >= 0 && card.right <= window.innerWidth,
-      detailInside: detail.bottom <= card.bottom && detail.height > 0,
+      detailAboveButtons: detail.bottom <= again.top,
+      buttonsInside: again.bottom <= card.bottom,
       scroll: document.documentElement.scrollHeight - window.innerHeight,
       scrolled: window.scrollY,
     };
   });
-  expect(layout).toEqual({ plateBelowBoard: true, cardBelowPlate: true, cardInside: true, detailInside: true, scroll: 0, scrolled: 0 });
+  expect(layout).toEqual({ plateBelowBoard: true, cardBelowPlate: true, cardInside: true, detailAboveButtons: true, buttonsInside: true, scroll: 0, scrolled: 0 });
   return ended;
 }
 
@@ -590,9 +574,9 @@ async function playEnding(page: Page, ending: Ending, finish: 'skip' | 'key' | '
   await page.mouse.click(centre.x + centre.width / 2, centre.y + centre.height / 2);
   await expect(page.getByTestId('end-screen')).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __paused: boolean }).__paused), { message: 'the end sequence started' }).toBe(true);
-  // On a phone the board shrinks to make room for the result card; its positions are compared after it.
+  // On a phone the board stays put and Player 1's nameplate closes up under it; positions are compared after it.
   let ended: Box | null = null;
-  if (viewport === 'phone') ended = await expectShrink(page, mid);
+  if (viewport === 'phone') ended = await expectSteady(page, mid);
   else expect(await page.evaluate(() => (window as unknown as { __shrinks: unknown[] }).__shrinks)).toEqual([]);
 
   // Mid-way: the sequence runs on the board, and the whole of it ends within 700 ms.
@@ -707,7 +691,7 @@ test('[scenario:end-sequence] with motion on, a win lifts its tokens in order an
   }
 
   // Under reduced motion the final frame shows at once: nothing runs on the board, and on a phone the board
-  // takes its ended size with no transition, the same layout as with motion.
+  // keeps its size and Player 1's nameplate closes up with no transition, the same layout as with motion.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await resumeBefore(page, 'shape').then(async ({ cell }) => {
     await watchTheEnd(page);
