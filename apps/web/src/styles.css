@@ -1166,15 +1166,15 @@ button:disabled {
   pointer-events: none;
 }
 
-/* The symbol is printed into the art, not set on a badge: always in the upper-left corner, inset 8%, 42%
-   of the tile and never over 48 px, in the theme's text colour, which reaches 4.5:1 on every terrain's
+/* The symbol is printed into the art, not set on a badge: always in the upper-left corner, inset 7%, 45%
+   of the tile and never over 64 px, in the theme's text colour, which reaches 4.5:1 on every terrain's
    colour in every theme (theme.ts TEXT_PAIRS); each scene keeps that corner clear. */
 .tile-symbol {
   position: absolute;
-  top: 8%;
-  left: 8%;
-  width: 42%;
-  max-width: 48px;
+  top: 7%;
+  left: 7%;
+  width: 45%;
+  max-width: 64px;
   height: auto;
   aspect-ratio: 1;
   line-height: 0;

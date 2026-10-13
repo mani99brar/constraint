@@ -38,8 +38,8 @@ import {
 /** The tiles, tokens, avatars and seats of the game on screen, read from the page, for the theme checks. */
 async function expectDistinguishable(page: Page, neon = false) {
   // Four terrains, each with its own colour and scene; four symbols, each with its own shape, printed into
-  // the art with no badge: at the same place in every tile (its upper-left corner, inset 8%), 42% of the
-  // tile wide up to 48 px, and in one ink for all four, the theme's text colour.
+  // the art with no badge: at the same place in every tile (its upper-left corner, inset 7%), 45% of the
+  // tile wide up to 64 px, and in one ink for all four, the theme's text colour.
   const tiles = await board(page)
     .locator('[data-cell]:not([data-owner])')
     .evaluateAll((elements) =>
@@ -72,10 +72,10 @@ async function expectDistinguishable(page: Page, neon = false) {
     expect(new Set(tiles.filter((other) => other.terrain === cell.terrain).map((other) => other.scene)).size).toBe(1);
     expect(new Set(tiles.filter((other) => other.symbol === cell.symbol).map((other) => other.shape)).size).toBe(1);
     expect(cell.size).toBeGreaterThanOrEqual(20);
-    expect(cell.size).toBeLessThanOrEqual(48.5);
-    if (cell.size < 48) expect(cell.share).toBeCloseTo(0.42, 2);
-    expect(cell.inset[0]).toBeCloseTo(0.08, 2);
-    expect(cell.inset[1]).toBeCloseTo(0.08, 2);
+    expect(cell.size).toBeLessThanOrEqual(64.5);
+    if (cell.size < 64) expect(cell.share).toBeCloseTo(0.45, 2);
+    expect(cell.inset[0]).toBeCloseTo(0.07, 2);
+    expect(cell.inset[1]).toBeCloseTo(0.07, 2);
     expect(cell.badge, `${cell.terrain}–${cell.symbol} has no badge behind its symbol`).toBe(false);
   }
   expect(new Set(tiles.map((cell) => cell.shape)).size).toBe(4);
