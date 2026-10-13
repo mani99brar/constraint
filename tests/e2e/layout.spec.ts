@@ -117,7 +117,7 @@ async function expectDistinguishable(page: Page, neon = false) {
       token: style('[data-testid="board"] [data-testid="token"]').backgroundImage,
     };
   });
-  // The neon themes paint a generated backdrop (grain, aurora, a sunset), so only the classic ground is plain radial gradients.
+  // The neon themes paint a generated backdrop (aurora, stars, a sunset; no grain), so only the classic ground is plain radial gradients.
   expect(materials.ground).toMatch(neon ? /gradient|url\(/ : /radial-gradient/);
   if (!neon) expect(materials.ground).not.toMatch(/repeating-|linear-gradient/);
   // The neon themes draw no frame round the board; the classic ones keep their wood grain.

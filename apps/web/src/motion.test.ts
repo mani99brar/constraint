@@ -431,6 +431,18 @@ describe('a calm ground (PRD U1)', () => {
     // Nothing is laid over the screens: the ground has no pseudo-element overlay.
     expect(rules.some(({ selector: other }) => /(^|,\s*)(body|\.match|\.home)::(before|after)/.test(other))).toBe(false);
   });
+
+  it('lays no grain or noise over the neon backdrops: each layer is drawn once, never tiled', () => {
+    const neonGrounds = rules.filter(({ selector, body }) => /data-palette/.test(selector) && /\b(body|\.match|\.home)\b/.test(selector) && /background-image\s*:/.test(body));
+    expect(neonGrounds).toHaveLength(4);
+    for (const { body } of neonGrounds) {
+      expect(body).not.toMatch(/--art-grain|feTurbulence|background-blend-mode/);
+      // Every layer covers the screen or sits once: no small tile size that would repeat across it.
+      const repeat = /background-repeat\s*:\s*([^;]+)/.exec(body)?.[1]?.trim();
+      const sizes = /background-size\s*:\s*([^;]+)/.exec(body)![1]!;
+      if (repeat !== 'no-repeat') expect(sizes.trim()).toBe('100% 100%');
+    }
+  });
 });
 
 describe('static materials (PRD U1)', () => {

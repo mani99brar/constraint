@@ -42,7 +42,10 @@ test('[scenario:pause-bot] the bot never takes while the menu is open or the pag
   await expect(match(page)).toHaveAttribute('data-takes', '0');
   await page.keyboard.press('Escape');
   await expect(menuDialog(page)).toHaveCount(0);
-  await page.clock.runFor(1_000);
+  // The take is scheduled again from its full pause: not before 600 ms have passed since the resume.
+  await page.clock.runFor(450);
+  await expect(match(page)).toHaveAttribute('data-takes', '0');
+  await page.clock.runFor(550);
   await expect(match(page)).toHaveAttribute('data-takes', '1');
   await expect(match(page)).toHaveAttribute('data-to-move', 'A');
 
@@ -53,7 +56,9 @@ test('[scenario:pause-bot] the bot never takes while the menu is open or the pag
   await page.clock.runFor(10_000);
   await expect(match(page)).toHaveAttribute('data-takes', '2');
   await setPageHidden(page, false);
-  await page.clock.runFor(1_000);
+  await page.clock.runFor(450);
+  await expect(match(page)).toHaveAttribute('data-takes', '2');
+  await page.clock.runFor(550);
   await expect(match(page)).toHaveAttribute('data-takes', '3');
 });
 
