@@ -145,12 +145,15 @@ export function App({ storage: given }: AppProps) {
     setScreen({ kind: 'home' });
   }
 
-  /** Shows a game: a new one (Play, Play again) opens with the countdown when it is on; Continue does not. */
-  function play(state: GameState, mode: GameMode, clockLeft: ClockTimes | null = null, fresh = true) {
+  /**
+   * Shows a game: a new one (Play, Play again) opens with the countdown when it is on; Continue does not.
+   * `savedOk` is false when the game is the one kept only in this tab, which the browser could not save.
+   */
+  function play(state: GameState, mode: GameMode, clockLeft: ClockTimes | null = null, fresh = true, savedOk = true) {
     rememberStarter(storage, state.starter);
     matchKey.current += 1;
     running.current = { state, mode };
-    setLastSaveOk(true);
+    setLastSaveOk(savedOk);
     setScreen({ kind: 'match', state, mode, key: matchKey.current, clockLeft, countdown: fresh && settingsRef.current.countdown });
   }
 
@@ -222,7 +225,7 @@ export function App({ storage: given }: AppProps) {
             const current = unsaved.current ?? loadSavedGame(storage);
             if (!current) return setSaved(null);
             setScore(current.score);
-            play(current.state, current.mode, current.clockLeft, false);
+            play(current.state, current.mode, current.clockLeft, false, current !== unsaved.current);
           }}
           onPlay={() => {
             const { opponent, difficulty, clockA, clockB } = settingsRef.current;

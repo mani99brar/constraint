@@ -56,6 +56,9 @@ test('[scenario:save-fails] a browser that cannot save says so once, keeps the g
   await expect(resume).toContainText(`Easy bot, ${takes} tiles taken, kept only in this tab`);
   await resume.click();
   await expect(match(page)).toHaveAttribute('data-takes', takes!);
+  // The resumed game is still the unsaved one, and the menu still says so.
+  await page.getByTestId('menu-button').click();
+  await expect(note).toHaveAttribute('data-saved', 'false');
 
   // Closing the tab loses it, as the notice said; the older save was removed, so it never comes back.
   await page.reload();

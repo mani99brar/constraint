@@ -627,7 +627,7 @@ export async function continueSaved(page: Page, state: GameState, mode: 'bot' | 
 /** What the rendered pixels of the board say about the move highlights (PRD R2). */
 export interface HighlightPixels {
   /** Each playable tile's ring against the bare well beside it: the contrast and how many well pixels were found. */
-  readonly rings: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number }[];
+  readonly rings: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number; readonly innerBottom: number; readonly innerDelta: number }[];
   /** Each faded tile's edge, read at the same points as a ring, against the bare well beside it. */
   readonly fadedEdges: { readonly cell: string; readonly ratio: number; readonly wellPixels: number; readonly sides: number }[];
   /** Each terrain's mean L* over its playable tiles and over its faded tiles, where both are present. */
@@ -638,7 +638,8 @@ export interface HighlightPixels {
 /**
  * Measures the move highlights from the board's rendered pixels: a `locator.screenshot()` decoded in the
  * page with `createImageBitmap` and a canvas. Ring pixels are read at the ring's mid-width (1 px in from
- * the tile's edge: inside its 3 px ring) along the middle of each side; well pixels along the
+ * the tile's edge: inside its 3 px ring) along the middle of each side, and the inset line's own middle
+ * (2.5 px in) along the top and the bottom; well pixels along the
  * outward normal into the gap or the padding, keeping only those within ΔE*ab 3 of the rendered --well
  * colour, so neither a halo nor a shadow counts. A playable tile with no bare well beside it fails loudly.
  */
@@ -700,6 +701,8 @@ export async function highlightPixels(page: Page): Promise<HighlightPixels> {
     const step = 1 / dpr;
     // Inside the ring: 1 px in, within the cell's 2 px border and its 1 px inset line.
     const RING_MID = 1;
+    // The 1 px inset line's middle, just inside the border: it must cover the art on every side.
+    const LINE_MID = 2.5;
     /** A free tile's edge, at the ring's mid-width, against the bare well beside it. */
     const edgeOf = ({ cell, rect }: (typeof cells)[number]) => {
       const ring: Rgb[] = [];
@@ -732,7 +735,18 @@ export async function highlightPixels(page: Page): Promise<HighlightPixels> {
         }
         if (found > 0) sides += 1;
       }
-      return { cell, ratio: well.length > 0 ? contrast(mean(ring), mean(well)) : 0, wellPixels: well.length, sides };
+      // The inset line at the top and at the bottom, where every scene has opaque bands: the same colour on
+      // both when the line sits above the art.
+      const lineAt = (y: number) => along(rect.left, rect.width).map((x) => pixel(x, y)).filter((sample): sample is Rgb => sample !== null);
+      const [lineTop, lineBottom] = [lineAt(rect.top + LINE_MID), lineAt(rect.bottom - LINE_MID)];
+      return {
+        cell,
+        ratio: well.length > 0 ? contrast(mean(ring), mean(well)) : 0,
+        wellPixels: well.length,
+        sides,
+        innerBottom: well.length > 0 && lineBottom.length > 0 ? contrast(mean(lineBottom), mean(well)) : 0,
+        innerDelta: lineTop.length > 0 && lineBottom.length > 0 ? deltaE(lab(mean(lineTop)), lab(mean(lineBottom))) : Infinity,
+      };
     };
     const rings = cells.filter((cell) => cell.glow).map(edgeOf);
     const fadedEdges = cells.filter((cell) => cell.faded).map(edgeOf);

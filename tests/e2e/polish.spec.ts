@@ -127,6 +127,10 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
           // Fails loudly when no bare well was found beside a ring, rather than measuring a halo or a shadow.
           expect(ring.wellPixels, `${where} ${ring.cell}: bare well beside the ring`).toBeGreaterThan(0);
           expect(ring.ratio, `${where} ${ring.cell}: ring against the well`).toBeGreaterThanOrEqual(3);
+          // The 1 px inset line lies over the art, so the ring is 3 px on the bottom too, where every
+          // scene has opaque bands: there the line matches the top one and holds 3:1 against the well.
+          expect(ring.innerBottom, `${where} ${ring.cell}: inset line along the bottom against the well`).toBeGreaterThanOrEqual(3);
+          expect(ring.innerDelta, `${where} ${ring.cell}: inset line the same colour at the top and the bottom`).toBeLessThan(8);
         }
         // Playable tiles stand apart by their ring: at the same points a faded tile's edge is a quiet one,
         // under half the ring's contrast with the well (measured: rings 5.5–14.9:1, faded edges 1.4–2.8:1,

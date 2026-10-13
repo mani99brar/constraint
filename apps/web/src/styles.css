@@ -1244,14 +1244,20 @@ button:disabled {
   translate: 0 -2px;
   border-color: var(--wash);
   box-shadow:
-    inset 0 0 0 1px var(--wash),
-    inset 0 0 10px 1px color-mix(in srgb, var(--wash) 40%, transparent),
     0 0 6px 1px color-mix(in srgb, var(--wash) 45%, transparent),
     0 4px 0 color-mix(in srgb, var(--shade) 42%, transparent),
     0 8px 6px -4px color-mix(in srgb, var(--shade) 32%, transparent);
   transition: none;
   animation-duration: 140ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The 1 px inner line and the inner glow sit on the art layer's ::before, above the scene, so the ring is
+   3 px on all four sides: an inset shadow on the cell paints under the art, whose bands cover the bottom. */
+.cell[data-glow='true'] .tile-face::before {
+  box-shadow:
+    inset 0 0 0 1px var(--wash),
+    inset 0 0 10px 1px color-mix(in srgb, var(--wash) 40%, transparent);
 }
 
 .board[data-pop-turn='odd'] .cell[data-glow='true'] {
@@ -2461,10 +2467,14 @@ button:disabled {
   border-width: 2px;
   border-color: var(--wash);
   box-shadow:
-    inset 0 0 0 1px var(--wash),
-    inset 0 0 12px 1px color-mix(in srgb, var(--wash) 45%, transparent),
     0 0 7px 1px color-mix(in srgb, var(--wash) 55%, transparent),
     0 6px 7px -3px color-mix(in srgb, var(--shade) 75%, transparent);
+}
+
+:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] .tile-face::before {
+  box-shadow:
+    inset 0 0 0 1px var(--wash),
+    inset 0 0 12px 1px color-mix(in srgb, var(--wash) 45%, transparent);
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board[data-glow-player] .cell:not([data-glow='true']):not(.taken) {

@@ -60,13 +60,14 @@ async function cellLooks(page: Page) {
           faceOpacity: Number(getComputedStyle(face).opacity),
           outline: style.outlineStyle,
           ring: parse(style.borderTopColor),
-          // The ring: the cell's border, plus any inset edge on the art layer ("<colour> 0px 0px 0px 2px inset").
-          ringWidth: parseFloat(style.borderTopWidth) + (edge === 'none' ? 0 : Number(/0px 0px 0px ([\d.]+)px inset/.exec(edge)?.[1] ?? 0)),
-          // A crisp inset line on the cell itself, drawn in the ring's colour just inside the border.
-          ringLine: [...style.boxShadow.matchAll(/((?:rgba?|color)\([^)]*\)) 0px 0px 0px ([\d.]+)px inset/g)].map((match) => ({ colour: parse(match[1]!), width: Number(match[2]) })),
-          shadows: shadowColours(style.boxShadow),
+          border: parseFloat(style.borderTopWidth),
+          // A crisp inset line on the art layer, above the scene, drawn in the ring's colour just inside the
+          // border; the cell itself carries no inset line, which would paint under the art.
+          ringLine: [...edge.matchAll(/((?:rgba?|color)\([^)]*\)) 0px 0px 0px ([\d.]+)px inset/g)].map((match) => ({ colour: parse(match[1]!), width: Number(match[2]) })),
+          cellInset: / inset/.test(style.boxShadow),
+          // The cell's outer glow and drop shadows, then the art layer's inner line and inner glow.
+          shadows: [...shadowColours(style.boxShadow), ...shadowColours(edge)],
           tint: parse(getComputedStyle(face, '::before').backgroundColor),
-          tintEdge: shadowColours(edge),
           badge: badge ? { colour: parse(getComputedStyle(badge).backgroundColor), mark: badge.getAttribute('data-mark') } : null,
           veil: parse(getComputedStyle(face, '::after').backgroundColor),
         };
@@ -91,7 +92,7 @@ const sameColour = (a: Rgba, b: Rgba) => Math.abs(a.r - b.r) < 2 && Math.abs(a.g
 
 /**
  * With highlights on and a person to move: the legal tiles stay slightly raised with a crisp 3 px ring in
- * the mover's colour (the 2 px border and a 1 px inset line) and a soft glow of that colour, never opaque,
+ * the mover's colour (the 2 px border and a 1 px inset line over the art) and a soft glow of that colour, never opaque,
  * with no tint layer or badge over their art; the other free tiles fade under a veil while the cell stays
  * opaque; taken cells never fade; the last take carries a soft ring in its taker's colour.
  */
@@ -108,9 +109,9 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
     if (look.glow) {
       expect(look.translate, look.cell).toMatch(/^0px -[1-9]\d*(\.\d+)?px$/);
       expect(sameColour(look.ring, colour), `${look.cell} is ringed in the mover's colour`).toBe(true);
-      expect(look.ringWidth, look.cell).toBe(2);
-      expect(look.tintEdge, `${look.cell} has one ring, on the cell`).toEqual([]);
-      // The ring is 3 px: the border and one opaque 1 px inset line in the same colour.
+      expect(look.border, look.cell).toBe(2);
+      expect(look.cellInset, `${look.cell}: no inset shadow on the cell, under the art`).toBe(false);
+      // The ring is 3 px: the border and one opaque 1 px inset line in the same colour, over the art.
       const lines = look.ringLine.filter((line) => sameColour(line.colour, colour) && line.colour.a === 1);
       expect(lines.map((line) => line.width), `${look.cell} has a 1 px inset line in the mover's colour`).toEqual([1]);
       // The glow in the mover's colour is soft: every other shadow of that colour is translucent.
