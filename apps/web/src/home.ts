@@ -36,6 +36,8 @@ export interface HomeModel {
   /** Whether Play replaces a saved game; the panel says so. */
   readonly replacesSaved: boolean;
   readonly results: readonly ResultsRow[];
+  /** Whether the results line shows: only once a bot game was counted, so a newcomer sees no row of zeros. */
+  readonly showResults: boolean;
   /** The results in one quiet line: "Easy 2–1–0 · Normal 0–0–0 · Hard 0–0–0 (W–L–D)". */
   readonly resultsLine: string;
   /** The same line in words, for screen readers. */
@@ -45,6 +47,8 @@ export interface HomeModel {
 }
 
 export const REPLACES_NOTE = 'Play replaces your saved game.';
+/** Under the Opponent switch while Friend is chosen: a friend plays on this device, not online. */
+export const FRIEND_NOTE = 'Take turns on this device.';
 
 /** The label of the one Play button for a choice (PRD S1), with a timed game's clocks: "Play · with a friend · 5:00 / 1:00". */
 export function playLabel(opponent: Opponent, difficulty: Difficulty, clockA: ClockChoice = 'off', clockB: ClockChoice = 'off'): string {
@@ -66,6 +70,7 @@ export function resultsLine(rows: readonly ResultsRow[]): { readonly line: strin
 export function homeModel(saved: { readonly mode: GameMode; readonly takes: number } | null, settings: Settings, results: Results): HomeModel {
   const rows = DIFFICULTY_OPTIONS.map(({ id, label }) => ({ difficulty: id, label, ...results[id] }));
   const { line, spoken } = resultsLine(rows);
+  const counted = rows.some((row) => row.wins + row.losses + row.draws > 0);
   return {
     continueGame: saved ? { mode: saved.mode, takes: saved.takes, note: `${modeLabel(saved.mode)}, ${saved.takes} ${saved.takes === 1 ? 'tile' : 'tiles'} taken` } : null,
     opponent: settings.opponent,
@@ -78,9 +83,10 @@ export function homeModel(saved: { readonly mode: GameMode; readonly takes: numb
     playLabel: playLabel(settings.opponent, settings.difficulty, settings.clockA, settings.clockB),
     replacesSaved: saved !== null,
     results: rows,
+    showResults: counted,
     resultsLine: line,
     resultsSpoken: spoken,
-    canReset: rows.some((row) => row.wins + row.losses + row.draws > 0),
+    canReset: counted,
   };
 }
 

@@ -26,7 +26,7 @@ function MatchingExample() {
           <li key={tileName(tile)} className="example-tile">
             <TileArt terrain={tile.terrain} symbol={tile.symbol} className="example-art" variant="icon" />
             <span className="example-name">{tileName(tile)}</span>
-            <strong className="verdict">{tile.matches ? `✓ matches (${tile.why})` : `✗ no match (${tile.why})`}</strong>
+            <strong className="verdict">{tile.matches ? `✓ ${tile.why}` : '✗ no match'}</strong>
           </li>
         ))}
       </ul>

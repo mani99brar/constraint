@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { difficultyAfterKey, homeModel, opponentAfterKey, playLabel, REPLACES_NOTE, resultsLine } from './home';
+import { difficultyAfterKey, FRIEND_NOTE, homeModel, opponentAfterKey, playLabel, REPLACES_NOTE, resultsLine } from './home';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { emptyResults, recordResult } from './results';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from './settings';
@@ -53,7 +53,11 @@ describe('home model (PRD S1, E1, E5)', () => {
     expect(model()).toMatchObject({ opponent: 'bot', difficulty: 'normal' });
   });
 
-  it('gives the results in one quiet line, and enables the reset once a bot game was counted', () => {
+  it('says a friend plays on this device', () => {
+    expect(FRIEND_NOTE).toContain('this device');
+  });
+
+  it('gives the results in one quiet line, shown, and the reset enabled, only once a bot game was counted', () => {
     const empty = homeModel(null, DEFAULT_SETTINGS, emptyResults());
     expect(empty.results.map((row) => [row.difficulty, row.label, row.wins, row.losses, row.draws])).toEqual([
       ['easy', 'Easy', 0, 0, 0],
@@ -62,6 +66,7 @@ describe('home model (PRD S1, E1, E5)', () => {
     ]);
     expect(empty.resultsLine).toBe('Easy 0–0–0 · Normal 0–0–0 · Hard 0–0–0 (W–L–D)');
     expect(empty.canReset).toBe(false);
+    expect(empty.showResults).toBe(false);
     const storage = memoryStorage();
     recordResult(storage, 'normal', 'win');
     recordResult(storage, 'normal', 'loss');
@@ -72,6 +77,7 @@ describe('home model (PRD S1, E1, E5)', () => {
     expect(counted.resultsLine).not.toContain('\n');
     expect(resultsLine(counted.results).line).toBe(counted.resultsLine);
     expect(counted.canReset).toBe(true);
+    expect(counted.showResults).toBe(true);
   });
 
   it('moves both switches with the arrow keys as a radio group does, wrapping round', () => {

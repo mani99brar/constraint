@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { TILES, type Player } from '@okiya/game';
 import { TileArt, TokenMark } from './art';
 import { Avatar } from './Avatar';
 import { DIFFICULTY_OPTIONS, type Difficulty } from './difficulty';
 import type { ClockChoice } from './clock';
 import { ClockSlider } from './ClockSlider';
-import { difficultyAfterKey, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
+import { difficultyAfterKey, FRIEND_NOTE, opponentAfterKey, REPLACES_NOTE, type HomeModel } from './home';
+import { INTRO_TEXT } from './howto';
 import { MenuDialog } from './MenuDialog';
 import { UpdateNotice } from './UpdateNotice';
 import type { HapticsPlayer } from './haptics';
@@ -26,6 +27,10 @@ export interface HomeScreenProps {
   readonly onHowTo: (opener: HTMLElement) => void;
   readonly onResetResults: () => void;
   readonly onSettings: (settings: Settings) => void;
+  /** Shows the first-game intro above the play panel, for a newcomer. */
+  readonly intro?: boolean;
+  /** Dismisses the first-game intro for good. */
+  readonly onDismissIntro?: () => void;
   readonly haptics?: HapticsPlayer;
   /** A newer build is being served: offer a reload. */
   readonly updateReady?: boolean;
@@ -59,12 +64,14 @@ function HeroBoard() {
 
 /**
  * The home screen (PRD S1, E1, E5): a hero with the drawn wordmark over a board in its frame and both
- * avatars, Continue for a saved game, one play panel (the opponent, the bot's difficulty while the bot is
- * chosen, each player's clock while a friend is chosen, and one Play button labelled with the choice), one quiet line of results, and How to Play and
- * Settings, which holds the results' reset. One tap on Play starts a game.
+ * avatars, a newcomer's one-line first-game intro, Continue for a saved game, one play panel (the opponent,
+ * the bot's difficulty while the bot is chosen, a note and each player's clock while a friend is chosen,
+ * and one Play button labelled with the choice), one quiet line of results once a bot game was counted,
+ * and How to Play and Settings, which holds the results' reset. One tap on Play starts a game.
  */
-export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings, haptics, updateReady = false }: HomeScreenProps) {
+export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, onDifficulty, onClock, onHowTo, onResetResults, onSettings, intro = false, onDismissIntro, haptics, updateReady = false }: HomeScreenProps) {
   const [menu, setMenu] = useState<{ opener: HTMLElement } | null>(null);
+  const play = useRef<HTMLButtonElement>(null);
   return (
     <main className="home" data-testid="home-screen">
       {updateReady && <UpdateNotice />}
@@ -76,6 +83,23 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
         </div>
         <Avatar player="B" expression="idle" testId="hero-avatar-B" />
       </header>
+
+      {intro && (
+        <aside className="intro" aria-label="Your first game" data-testid="intro">
+          <p>{INTRO_TEXT}</p>
+          <button
+            type="button"
+            data-testid="intro-dismiss"
+            onClick={() => {
+              // The intro leaves the page, so focus moves on to Play rather than to nowhere.
+              play.current?.focus();
+              onDismissIntro?.();
+            }}
+          >
+            Got it
+          </button>
+        </aside>
+      )}
 
       {model.continueGame && (
         <button type="button" className="primary continue" data-testid="continue" onClick={onContinue}>
@@ -89,12 +113,17 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
           <span className="panel-label" aria-hidden="true">
             Opponent
           </span>
-          <RadioSwitch label="Opponent" testId="opponent-switch" options={OPPONENTS} value={model.opponent} afterKey={opponentAfterKey} onChange={onOpponent} />
+          <RadioSwitch label="Opponent" testId="opponent-switch" options={OPPONENTS} value={model.opponent} afterKey={opponentAfterKey} describedBy={model.opponent === 'friend' ? 'friend-note' : undefined} onChange={onOpponent} />
+          {model.opponent === 'friend' && (
+            <p className="panel-note" id="friend-note" data-testid="friend-note">
+              {FRIEND_NOTE}
+            </p>
+          )}
         </div>
         {model.showDifficulty && (
           <div className="panel-row">
             <span className="panel-label" aria-hidden="true">
-              Bot
+              Difficulty
             </span>
             <RadioSwitch label="Bot difficulty" testId="difficulty-switch" options={DIFFICULTY_OPTIONS} value={model.difficulty} afterKey={difficultyAfterKey} onChange={onDifficulty} />
           </div>
@@ -113,12 +142,12 @@ export function HomeScreen({ model, settings, onContinue, onPlay, onOpponent, on
             {REPLACES_NOTE}
           </p>
         )}
-        <button type="button" className="primary play" data-testid="play" aria-describedby={model.replacesSaved ? 'play-replaces' : undefined} onClick={onPlay}>
+        <button ref={play} type="button" className="primary play" data-testid="play" aria-describedby={model.replacesSaved ? 'play-replaces' : undefined} onClick={onPlay}>
           {model.playLabel}
         </button>
       </section>
 
-      <p className="results-line" data-testid="results">
+      <p className="results-line" data-testid="results" hidden={!model.showResults}>
         <span aria-hidden="true">{model.resultsLine}</span>
         <span className="visually-hidden">{model.resultsSpoken}</span>
         {model.results.map((row) => (

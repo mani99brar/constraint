@@ -361,14 +361,15 @@ async function expectNoEmptyBand(page: Page) {
 test.describe('phone viewport', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling; in the game the scoreboard row is the top row with the menu at its end, Player 2 above the board and Player 1 below, no empty strip over 56 px and at most 48 px at the bottom mid-game, no scrolling mid-game or with the end card shown, every tile and button at least 44 px', async ({ page }, testInfo) => {
+  test('[scenario:phone-layout] at 390 × 844 the home screen fits without scrolling and How to Play’s first page shows its example without scrolling; in the game the scoreboard row is the top row with the menu at its end, Player 2 above the board and Player 1 below, no empty strip over 56 px and at most 48 px at the bottom mid-game, no scrolling mid-game or with the end card shown, every tile and button at least 44 px', async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     const ending = nearWin('B');
     await seedSavedGame(page, ending.state, 'bot');
     await openHome(page);
 
-    // The home screen: the hero, Continue, the play panel, the results line, How to play and Settings fit with no scrolling.
-    const home = ['hero', 'title', 'hero-board', 'hero-avatar-A', 'hero-avatar-B', 'continue', 'play-panel', 'opponent-switch', 'difficulty-switch', 'play', 'results', 'open-how-to-play', 'open-settings'];
+    // The home screen: the hero, Continue, the play panel, How to play and Settings fit with no scrolling (no
+    // bot game is counted yet, so no results line).
+    const home = ['hero', 'title', 'hero-board', 'hero-avatar-A', 'hero-avatar-B', 'continue', 'play-panel', 'opponent-switch', 'difficulty-switch', 'play', 'open-how-to-play', 'open-settings'];
     expect(await overflow(page)).toEqual({ x: 0, y: 0 });
     await expectInside(page, home);
     expect(await smallTargets(page)).toEqual([]);
@@ -376,6 +377,14 @@ test.describe('phone viewport', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
     expect((await overflow(page)).x).toBeLessThanOrEqual(0);
     expect(await smallTargets(page)).toEqual([]);
+    // Its first page shows its one example, the tiles and the board after the same last take, without scrolling.
+    const body = page.locator('.howto-page');
+    expect(await body.evaluate((element) => element.scrollTop)).toBe(0);
+    const bodyBox = (await body.boundingBox())!;
+    for (const id of ['matching-example', 'diagram-matching']) {
+      const box = (await page.getByTestId(id).boundingBox())!;
+      expect(box.y + box.height, id).toBeLessThanOrEqual(bodyBox.y + bodyBox.height);
+    }
     await page.getByRole('button', { name: 'Close How to play' }).tap();
 
     // A game: the whole table fits with no scrolling in either direction and no empty band at the bottom.
