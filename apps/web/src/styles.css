@@ -1841,7 +1841,7 @@ button:disabled {
 
 .confirm-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(96px, auto) 1fr;
   gap: 10px;
   padding: 18px 16px 16px;
 }
@@ -1874,8 +1874,12 @@ button:disabled {
   padding: 8px 16px 14px;
 }
 
+/* Rows keep their content's height while the list scrolls, so a button with a two-line note (Quit to
+   title when the game is not saved) never spills out of its border. */
 .menu-items {
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 10px;
   padding: 8px 16px 16px;
   overflow: auto;

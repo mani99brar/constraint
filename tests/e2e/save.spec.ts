@@ -10,6 +10,8 @@ import { BOT_REPLY_MS, chooseDifficulty, match, nearEnding, openHome, takeGlowin
 const NOTICE = 'This browser couldn’t save your game. Keep this tab open to continue.';
 
 test('[scenario:save-fails] a browser that cannot save says so once, keeps the game for Continue in this tab, and never brings back an older save', async ({ page }) => {
+  // A phone, where the menu's longer note wraps to two lines inside Quit to title.
+  await page.setViewportSize({ width: 390, height: 844 });
   // An older save from an earlier visit, then a quota that refuses every new save of the game.
   const older = nearEnding('shape', 'A').state;
   const olderSave = JSON.stringify({ version: 3, mode: 'bot', difficulty: 'easy', score: { A: 0, B: 0, draws: 0 }, log: gameLogOf(older) });
@@ -44,6 +46,9 @@ test('[scenario:save-fails] a browser that cannot save says so once, keeps the g
   await expect(note).toHaveAttribute('data-saved', 'false');
   await expect(note).toHaveText('Not saved in this browser; Continue picks it up while this tab stays open.');
   await expect(page.getByRole('dialog', { name: 'Menu' })).not.toContainText('Your game is saved');
+  // The two-line note stays inside its button's border while the menu scrolls.
+  const fits = await page.getByTestId('menu-quit').evaluate((button) => button.scrollHeight <= button.clientHeight + 1);
+  expect(fits).toBe(true);
 
   // Quit to title: Continue picks up this game from memory, never the older save.
   await page.getByRole('button', { name: /^Quit to title/ }).click();
