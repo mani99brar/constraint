@@ -427,7 +427,7 @@ test('[scenario:scoreboard] the scoreboard row sits above the board holding the 
   }
 });
 
-test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols move inside a still box while the faded tiles’ symbols rest; the Scene motion setting and reduced motion keep them all still', async ({ browser }, testInfo) => {
+test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols and scenes move, the symbols inside a still box, while the faded tiles’ symbols and scenes rest; the Scene motion setting and reduced motion keep them all still', async ({ browser }, testInfo) => {
   /** Each free tile's symbol: whether its tile is legal, the scene animations on its ink, and its box. */
   const symbols = (page: Page) =>
     board(page)
@@ -440,6 +440,7 @@ test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols move i
             cell: cell.getAttribute('data-cell')!,
             glow: cell.getAttribute('data-glow') === 'true',
             moves: (ink.getAnimations() as CSSAnimation[]).filter((animation) => animation.playState === 'running').map((animation) => animation.animationName),
+            scene: [...cell.querySelectorAll('.scene *')].flatMap((part) => (part.getAnimations() as CSSAnimation[]).filter((animation) => animation.playState === 'running')).length,
             box: [box.left, box.top, box.width, box.height].map((value) => Math.round(value * 10) / 10),
           };
         }),
@@ -457,6 +458,9 @@ test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols move i
   for (const symbol of before) {
     if (symbol.glow) expect(symbol.moves, `${symbol.cell}: a legal tile's symbol moves`).toEqual([expect.stringMatching(/^scene-(spin|twinkle|rock|slide)$/)]);
     else expect(symbol.moves, `${symbol.cell}: a faded tile's symbol rests`).toEqual([]);
+    // Its scene too: only the tiles a person may take move while they choose.
+    if (symbol.glow) expect(symbol.scene, `${symbol.cell}: a legal tile's scene moves`).toBeGreaterThan(0);
+    else expect(symbol.scene, `${symbol.cell}: a faded tile's scene rests`).toBe(0);
   }
   // Only the ink moves: the symbol's box stays where the tile prints it.
   await page.waitForTimeout(700);
@@ -469,7 +473,10 @@ test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols move i
   await expect(page.getByTestId('setting-scene-motion')).toHaveAttribute('aria-checked', 'false');
   await page.getByTestId('menu-resume').click();
   await expect(match(page)).toHaveAttribute('data-scene-motion', 'false');
-  for (const symbol of await symbols(page)) expect(symbol.moves, `${symbol.cell}: still with Scene motion off`).toEqual([]);
+  for (const symbol of await symbols(page)) {
+    expect(symbol.moves, `${symbol.cell}: still with Scene motion off`).toEqual([]);
+    expect(symbol.scene, `${symbol.cell}: its scene still with Scene motion off`).toBe(0);
+  }
   await motion.close();
 
   // Under reduced motion nothing moves either.

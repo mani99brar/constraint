@@ -1168,7 +1168,9 @@ button:disabled {
 
 /* The symbol is printed into the art, not set on a badge: always in the upper-left corner, inset 7%, 45%
    of the tile and never over 64 px, in the theme's text colour, which reaches 4.5:1 on every terrain's
-   colour in every theme (theme.ts TEXT_PAIRS); each scene keeps that corner clear. */
+   colour in every theme (theme.ts TEXT_PAIRS). Each scene keeps the upper-left 56% square (36 of its 64
+   units) clear, so the symbol, even at a legal tile's largest twinkle, only ever sits on the tile's own
+   colour and never touches the art (art.tsx). */
 .tile-symbol {
   position: absolute;
   top: 7%;
@@ -2532,8 +2534,9 @@ button:disabled {
 
 /* ----- Scene motion: the art itself moves, inside its tile -----
    Swells roll under a bobbing boat, mist drifts across the slopes, pines sway and heat lines flicker, on
-   every tile that still shows its scene. The same small motions play in the Match card's chips (the
-   terrain's scene, the symbol) and in the legal tiles' symbols; the reason marks keep still. Only
+   every tile that still shows its scene, except a faded one while a person chooses. The same small
+   motions play in the Match card's chips (the terrain's scene, the symbol) and in the legal tiles'
+   symbols; the reason marks keep still. Only
    transform and opacity change, each tile on its own negative delay (by its index) so no two neighbours
    move together. A tile under a token has no scene to move. The scenes rest while the tab is hidden and
    under reduced motion. The legal tile's outline is never animated, so nothing washes it out. */
@@ -2631,6 +2634,11 @@ button:disabled {
   .board .cell[data-glow='true'] [data-shape='wave'] .symbol-ink {
     animation: scene-slide 2.8s ease-in-out infinite;
     animation-delay: calc(var(--i, 0) * -0.9s);
+  }
+
+  /* While a person chooses, only the legal tiles move: a faded tile's scene rests with its symbol. */
+  .board .cell[data-faded='true'] .scene * {
+    animation: none;
   }
 
   :root[data-hidden] .board .cell .scene *,
@@ -2838,8 +2846,8 @@ button:disabled {
   }
 }
 
-/* Final round (critique): the turn's colour reaches the top of the screen, faded tiles rest their scenes
-   (fewer loops while it is your move), the win line sits a little back so the tokens' marks read through
+/* Final round (critique): the turn's colour reaches the top of the screen (faded tiles rest their scenes
+   in the Scene motion block above, for fewer loops while it is your move), the win line sits a little back so the tokens' marks read through
    it, and the countdown has a scrim. */
 .match[data-to-move='A'] .match-card {
   border-color: color-mix(in srgb, var(--p1) 55%, var(--border));

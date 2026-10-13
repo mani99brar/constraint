@@ -80,11 +80,14 @@ describe('the motion inside the tile art', () => {
     }
     // Every animation here is one of those keyframes, and a board tile's scene part has a negative delay by the tile's index.
     for (const { selector, body } of idleRules) {
-      for (const value of declarations('animation', [{ selector, body }])) expect(names.some((name) => value.startsWith(name)), `${selector}: ${value}`).toBe(true);
+      for (const value of declarations('animation', [{ selector, body }])) expect(value === 'none' || names.some((name) => value.startsWith(name)), `${selector}: ${value}`).toBe(true);
       if (/animation-delay/.test(body)) expect(body, selector).toMatch(/animation-delay:\s*calc\(var\(--i, 0\) \* -\d/);
     }
     // The scenes rest while the tab is hidden; the card has no sweep over it, and the outline no loop.
     expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \*,/);
+    // While a person chooses, a faded tile's scene rests with its symbol: only the legal tiles move.
+    expect(block).toContain(".board .cell[data-faded='true'] .scene *");
+    expect(rule(".board .cell[data-faded='true'] .scene *")).toMatch(/animation:\s*none/);
     // A legal tile's symbol moves as the Match card's does, one rule per shape, and rests with the scenes.
     for (const [shape, name] of [['sun', 'scene-spin'], ['star', 'scene-twinkle'], ['moon', 'scene-rock'], ['wave', 'scene-slide']]) {
       expect(rule(`.board .cell[data-glow='true'] [data-shape='${shape}'] .symbol-ink`), shape).toMatch(new RegExp(`animation:\\s*${name} `));
@@ -245,7 +248,8 @@ describe('reduced motion (PRD U8)', () => {
 
 describe('the legal-tile look and the last take (PRD R2, I2)', () => {
   const glowRules = rules.filter(({ selector }) => /data-glow/.test(selector) && /\.cell/.test(selector) && !isSymbolMotionRule(selector));
-  const fadedRules = rules.filter(({ selector }) => /data-faded/.test(selector));
+  // The veil's rules; a faded tile's resting scene is the motion's (above).
+  const fadedRules = rules.filter(({ selector }) => /data-faded/.test(selector) && !/\.scene \*$/.test(selector));
 
   it('raises a legal tile slightly with a crisp 3 px ring and a soft glow in the mover’s colour, and no tint or badge over its art', () => {
     expect(rule(".board[data-glow-player='A']")).toMatch(/--wash:\s*var\(--p1\)/);

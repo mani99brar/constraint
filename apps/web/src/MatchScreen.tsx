@@ -216,6 +216,7 @@ export function MatchScreen(props: MatchScreenProps) {
           onHowTo={onHowTo}
           onQuit={onLeave}
           saved={saved}
+          ended={ended}
         />
       )}
     </main>

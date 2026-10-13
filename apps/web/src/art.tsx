@@ -8,9 +8,10 @@ const glyph = { 'aria-hidden': true, focusable: false, viewBox: '0 0 24 24' } as
 /**
  * A terrain's scene, filling its tile behind the token: pines on a ridge, a sailboat on swells, a
  * snow-capped range or dunes with a cactus. Drawn in three tones of the terrain's ink (`--sa` the lit
- * face, `--sb` the shade, `--sc` the highlight, set per terrain in styles.css). Each keeps its upper-left
- * corner quiet, the tile's own colour only, because the tile's symbol is printed there (SymbolMark); the
- * shapes that name the terrain sit low and to the right. Parts of each scene move slowly inside the tile
+ * face, `--sb` the shade, `--sc` the highlight, set per terrain in styles.css). Each keeps the upper-left
+ * square of 36 units (of 64) quiet, the tile's own colour only, because the tile's symbol is printed there
+ * (SymbolMark), and a legal tile's moving symbol swells up to that edge; the shapes that name the terrain
+ * sit low and to the right, and anything that drifts across the tile stays below it. Parts of each scene move slowly inside the tile
  * on a board (styles.css): swells and a boat, mist over the peaks, swaying pines, heat lines.
  */
 export function TerrainScene({ terrain }: { terrain: Terrain }) {
@@ -24,19 +25,19 @@ export function TerrainScene({ terrain }: { terrain: Terrain }) {
     case 'Forest':
       return (
         <svg {...props} data-shape="pines">
-          <path d="M-4 50 12 40 24 45 38 28 52 39 68 32V68H-4z" style={c} opacity=".5" />
+          <path d="M-4 52 12 44 24 48 40 36 52 41 68 34V68H-4z" style={c} opacity=".5" />
           <g className="sc-tree">
-            <path d="M16 33 22 44H10zM16 39 24 52H8zM42 11 54 34H30zM42 24 57 50H27z" style={a} />
+            <path d="M15 38 21 48H9zM15 43 23 55H7zM45 16 56 36H34zM45 27 59 50H31z" style={a} />
             <path d="M57 30 63 42H51zM57 38 64 52H50z" style={b} />
           </g>
-          <path d="M40 50h4v8h-4zM14.5 52h3v4h-3z" style={b} />
+          <path d="M43 50h4v8h-4zM13.5 55h3v3h-3z" style={b} />
           <path d="M-4 56Q32 47 68 56V68H-4z" style={b} />
         </svg>
       );
     case 'Water':
       return (
         <svg {...props} data-shape="waves">
-          <g transform="translate(13 4)">
+          <g transform="translate(22 8) scale(.85)">
             <g className="sc-boat">
               <path d="M29 10v24H17zM33 14v20h12z" style={c} />
               <path d="M14 36h34l-4 6H18z" style={b} />
@@ -50,15 +51,15 @@ export function TerrainScene({ terrain }: { terrain: Terrain }) {
     case 'Mountain':
       return (
         <svg {...props} data-shape="peaks">
-          <path d="M-4 60 16 36l12 14 28-30 12 12V68H-4z" style={a} />
-          <path d="M8 68 40 18l32 50z" style={b} />
-          <path d="M40 18 32.5 33 37 31l3 6 4-6 4.5 2z" style={c} />
-          <path d="M40 18 54 42 46 68h-6z" fill="#000" opacity=".18" />
+          <path d="M-4 62 14 42l12 12 30-28 12 12V68H-4z" style={a} />
+          <path d="M14 76 46 26l32 50z" style={b} />
+          <path d="M46 26 38.5 41 43 39l3 6 4-6 4.5 2z" style={c} />
+          <path d="M46 26 60 50 52 76h-6z" fill="#000" opacity=".18" />
           <g className="sc-cloud sc-cloud-1" style={c}>
-            <path d="M0 40q1-5 6-3 2-4 7 0 5-1 5 4z" opacity=".7" />
+            <path d="M0 46q1-5 6-3 2-4 7 0 5-1 5 4z" opacity=".7" />
           </g>
           <g className="sc-cloud sc-cloud-2" style={c}>
-            <path d="M0 52q1-4 5-2.5 2-3 6 0 4-1 4 3z" opacity=".5" />
+            <path d="M0 57q1-4 5-2.5 2-3 6 0 4-1 4 3z" opacity=".5" />
           </g>
         </svg>
       );
@@ -66,7 +67,7 @@ export function TerrainScene({ terrain }: { terrain: Terrain }) {
       return (
         <svg {...props} data-shape="dunes">
           <path d="M-4 44Q20 32 40 40T68 36V68H-4z" style={a} />
-          <path className="sc-heat" d="M34 26q5-3 10 0t10 0M40 18q4-3 8 0t8 0" fill="none" stroke="var(--sc)" strokeWidth="1.2" strokeLinecap="round" />
+          <path className="sc-heat" d="M40 25q5-3 10 0t10 0M46 17q4-3 8 0t8 0" fill="none" stroke="var(--sc)" strokeWidth="1.2" strokeLinecap="round" />
           <path d="M45 52V32a3 3 0 0 1 6 0v20zM45 42h-6v-6a3 3 0 0 1 6 0zM51 40h6v-7a3 3 0 0 0-6 0z" style={c} />
           <path d="M-4 54Q24 40 68 56V68H-4z" style={b} />
         </svg>

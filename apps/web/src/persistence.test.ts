@@ -6,7 +6,7 @@ import { App } from './App';
 import { afterTakes, endings } from './playouts.test-helper';
 import { TWO_PLAYERS, versusBot } from './mode';
 import { emptyResults, loadResults, outcomeOf, recordFinishedGame, recordResult, resetResults, RESULTS_KEY } from './results';
-import { clearSavedGame, loadSavedGame, quitNote, restoreSavedGame, SAVE_FAILED_NOTICE, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
+import { clearSavedGame, ENDED_NOTE, loadSavedGame, quitNote, restoreSavedGame, SAVE_FAILED_NOTICE, SAVE_KEY, SAVE_VERSION, saveGame } from './save';
 import { MenuDialog } from './MenuDialog';
 import { NO_SCORE } from './score';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from './settings';
@@ -176,6 +176,14 @@ describe('saved game (PRD L2)', () => {
     expect(menu(true)).toContain('data-saved="true"');
     expect(menu(false)).toContain(quitNote(false));
     expect(menu(false)).not.toContain(quitNote(true));
+    // A finished game has no save, so its menu promises nothing either way.
+    const over = (saved: boolean) =>
+      renderToStaticMarkup(createElement(MenuDialog, { title: 'Menu', settings: DEFAULT_SETTINGS, onSettings: () => {}, onClose: () => {}, returnFocusTo: null, onQuit: () => {}, saved, ended: true }));
+    for (const saved of [true, false]) {
+      expect(over(saved)).toContain(ENDED_NOTE);
+      expect(over(saved)).not.toContain('Continue picks it up');
+      expect(over(saved)).not.toContain('data-saved=');
+    }
   });
 
   it('offers Continue on the home screen when a save restores', () => {

@@ -40,6 +40,9 @@ export function saveGame(storage: KeyValueStorage | null, state: GameState, mode
 /** The one quiet notice when the browser refuses to save the running game, which stays in memory. */
 export const SAVE_FAILED_NOTICE = 'This browser couldn’t save your game. Keep this tab open to continue.';
 
+/** The menu's note under Quit to title once the game has ended: a finished game is never saved. */
+export const ENDED_NOTE = 'This game is over.';
+
 /** The menu's note under Quit to title, honest about whether the running game is saved. */
 export function quitNote(saved: boolean): string {
   return saved ? 'Your game is saved; Continue picks it up.' : 'Not saved in this browser; Continue picks it up while this tab stays open.';
