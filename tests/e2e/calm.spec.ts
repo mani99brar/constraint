@@ -62,6 +62,8 @@ async function cellLooks(page: Page) {
           ring: parse(style.borderTopColor),
           // The ring: the cell's border, plus any inset edge on the art layer ("<colour> 0px 0px 0px 2px inset").
           ringWidth: parseFloat(style.borderTopWidth) + (edge === 'none' ? 0 : Number(/0px 0px 0px ([\d.]+)px inset/.exec(edge)?.[1] ?? 0)),
+          // A crisp inset line on the cell itself, drawn in the ring's colour just inside the border.
+          ringLine: [...style.boxShadow.matchAll(/((?:rgba?|color)\([^)]*\)) 0px 0px 0px ([\d.]+)px inset/g)].map((match) => ({ colour: parse(match[1]!), width: Number(match[2]) })),
           shadows: shadowColours(style.boxShadow),
           tint: parse(getComputedStyle(face, '::before').backgroundColor),
           tintEdge: shadowColours(edge),
@@ -88,10 +90,10 @@ async function playerColours(page: Page): Promise<Record<'A' | 'B', Rgba>> {
 const sameColour = (a: Rgba, b: Rgba) => Math.abs(a.r - b.r) < 2 && Math.abs(a.g - b.g) < 2 && Math.abs(a.b - b.b) < 2;
 
 /**
- * With highlights on and a person to move: the legal tiles stay slightly raised with a crisp 2 px ring in
- * the mover's colour and nothing over their art (no halo, tint or badge); the other free tiles fade under
- * a light veil while the cell stays opaque; taken cells never fade; the last take carries a soft ring in
- * its taker's colour.
+ * With highlights on and a person to move: the legal tiles stay slightly raised with a crisp 3 px ring in
+ * the mover's colour (the 2 px border and a 1 px inset line) and a soft glow of that colour, never opaque,
+ * with no tint layer or badge over their art; the other free tiles fade under a veil while the cell stays
+ * opaque; taken cells never fade; the last take carries a soft ring in its taker's colour.
  */
 async function expectLegalLook(page: Page, mover: 'A' | 'B') {
   const { legal } = await legalFromPage(page);
@@ -107,9 +109,15 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
       expect(look.translate, look.cell).toMatch(/^0px -[1-9]\d*(\.\d+)?px$/);
       expect(sameColour(look.ring, colour), `${look.cell} is ringed in the mover's colour`).toBe(true);
       expect(look.ringWidth, look.cell).toBe(2);
-      expect(look.tintEdge, `${look.cell} has one ring, the border`).toEqual([]);
-      // No halo: none of the cell's own shadows is in the mover's colour.
-      expect(look.shadows.some((shadow) => sameColour(shadow, colour)), `${look.cell} has no halo of the mover's colour`).toBe(false);
+      expect(look.tintEdge, `${look.cell} has one ring, on the cell`).toEqual([]);
+      // The ring is 3 px: the border and one opaque 1 px inset line in the same colour.
+      const lines = look.ringLine.filter((line) => sameColour(line.colour, colour) && line.colour.a === 1);
+      expect(lines.map((line) => line.width), `${look.cell} has a 1 px inset line in the mover's colour`).toEqual([1]);
+      // The glow in the mover's colour is soft: every other shadow of that colour is translucent.
+      const glows = look.shadows.filter((shadow) => sameColour(shadow, colour) && shadow.a < 1);
+      expect(glows.length, `${look.cell} glows in the mover's colour`).toBeGreaterThan(0);
+      for (const glow of glows) expect(glow.a, `${look.cell}: the glow stays soft`).toBeLessThanOrEqual(0.6);
+      expect(look.shadows.filter((shadow) => sameColour(shadow, colour) && shadow.a === 1), `${look.cell}: only the ring line is opaque`).toHaveLength(1);
       // The art untouched: no tint, no badge, no veil.
       expect(look.tint.a, look.cell).toBe(0);
       expect(look.badge, look.cell).toBeNull();
@@ -125,9 +133,9 @@ async function expectLegalLook(page: Page, mover: 'A' | 'B') {
       expect(look.veil.a, look.cell).toBe(0);
     } else if (!look.glow) {
       expect(look.faded, look.cell).toBe(true);
-      // A light veil of the ground quiets the art, keeping its terrain and symbol readable.
-      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.1);
-      expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.15);
+      // A veil of the ground quiets the art, keeping its terrain and symbol readable.
+      expect(look.veil.a, look.cell).toBeGreaterThanOrEqual(0.25);
+      expect(look.veil.a, look.cell).toBeLessThanOrEqual(0.4);
     }
   }
   // The last take: a soft ring in its taker's colour on its slot, the other taken cells without one.
@@ -159,7 +167,7 @@ async function recordHighlights(page: Page) {
   });
 }
 
-test('[scenario:legal-tiles] with highlights on and a person to move, the legal tiles stay slightly raised with a crisp ring in the mover’s colour and no halo, tint or badge, the others fade under a light veil, taken cells do not, and the last take carries a soft ring in its taker’s colour, wide and at 390 × 844; in a two-player game the ring’s colour follows the mover, and on the bot’s turn nothing is highlighted', async ({ page }, testInfo) => {
+test('[scenario:legal-tiles] with highlights on and a person to move, the legal tiles stay slightly raised with a crisp 3 px ring and a soft glow in the mover’s colour and no tint or badge, the others fade under a veil, taken cells do not, and the last take carries a soft ring in its taker’s colour, wide and at 390 × 844; in a two-player game the ring’s colour follows the mover, and on the bot’s turn nothing is highlighted', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await startGame(page);
   await recordHighlights(page);

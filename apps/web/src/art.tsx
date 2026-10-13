@@ -80,11 +80,12 @@ const rays = (width: number, from: number, length: number) =>
 
 /**
  * A symbol, printed into a tile's art in one ink (the theme's text colour, `currentColor`), with no badge
- * behind it: a solid sun with six short rays, a broad crescent, a five-point star, or one curling wave
- * crest with an open hollow. Shape alone tells them apart, in greyscale too. The board variant is for a
- * tile of about 40 px and up; the icon variant draws the same shapes bolder and simpler for a thumbnail.
- * Every place that shows a symbol draws it with this: the board, the home hero, the Match card and How
- * to Play.
+ * behind it: a solid sun with six short rays, a broad crescent, a five-point star, or a breaking wave
+ * with a round hollow under its lip. Shape alone tells them apart, in greyscale too. The shapes sit in
+ * one group (symbol-ink) that moves on a board's legal tiles (styles.css) while the box keeps still. The
+ * board variant is for a tile of about 40 px and up; the icon variant draws the same shapes bolder and
+ * simpler for a thumbnail. Every place that shows a symbol draws it with this: the board, the home hero,
+ * the Match card and How to Play.
  */
 export function SymbolMark({ symbol, variant = 'board' }: { symbol: TileSymbol; variant?: 'board' | 'icon' }) {
   const icon = variant === 'icon';
@@ -112,23 +113,15 @@ export function SymbolMark({ symbol, variant = 'board' }: { symbol: TileSymbol; 
       mark = <path d={icon ? 'm12 1.8 3.2 6.4 7 .9-5.1 4.9 1.3 7L12 17.6 5.6 21l1.3-7L1.8 9.1l7-.9z' : 'm12 2.2 2.95 6.2 6.8.85-5 4.7 1.3 6.75L12 17.4l-6.05 3.3 1.3-6.75-5-4.7 6.8-.85z'} {...soften} />;
       break;
     case 'Wave':
-      // The crest rises from the left, curls over to the right and hooks back, leaving a round hollow
-      // under the curl; the icon drops the foot and keeps the curl.
-      mark = (
-        <path
-          d={
-            icon
-              ? 'M2 21.5C5.5 21.5 6.6 17.6 7.4 13.6 8.6 7.6 12.2 2.6 17.4 2.6 20.8 2.6 23 5.3 23 8.6c0 3.1-2.4 5-4.9 4.6-2-.3-2.9-2.5-1.7-4-2.4.3-3.9 2.5-3.9 5.3 0 3 1.9 5.5 5.4 5.5H23v1.5z'
-              : 'M1.5 21.5v-2.4c2.6 0 4-2.2 4.9-5.6C7.9 8 11.6 3 17.2 3 20.6 3 23 5.6 23 8.8c0 3-2.2 4.9-4.6 4.6-2-.3-2.8-2.4-1.7-3.9-2.5 0-4.3 2.1-4.3 4.9 0 2.6 1.8 4.7 4.6 4.7H23v2.4z'
-          }
-          {...soften}
-        />
-      );
+      // A breaking wave: its back rises from the left to a crest that curls over to the right, the lip
+      // hanging down over a round hollow, all on a rolling swell. Solid, so it carries the same weight as
+      // the moon and the star; the board and the icon draw the same shape.
+      mark = <path d="M1.2 21.2C4 22.6 7 22.6 10 21.6S16 20.6 19 21.6C20.6 22.1 22 22 23 21.4 23 20 21.6 19 19.6 19 15.8 19 12.6 16.9 12.6 13.2A3.9 3.9 0 0 1 20.2 11.8C20.3 13.8 21.5 15 22.5 14 23.4 12.6 23.5 10.6 23.3 8.8 22.9 5.2 20.2 2.8 16.8 2.8 12.6 2.8 9.8 5.8 8.6 9.4 7.4 13 5.4 18 1.8 18.7 0.7 18.9 0.5 20.6 1.2 21.2Z" {...soften} />;
       break;
   }
   return (
     <svg {...glyph} className="symbol-mark" data-shape={symbol.toLowerCase()} data-variant={variant} fill="currentColor">
-      {mark}
+      <g className="symbol-ink">{mark}</g>
     </svg>
   );
 }

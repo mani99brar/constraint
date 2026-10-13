@@ -1166,15 +1166,15 @@ button:disabled {
   pointer-events: none;
 }
 
-/* The symbol is printed into the art, not set on a badge: always in the upper-left corner, inset 8%, about
-   a third of the tile and never over 40 px, in the theme's text colour, which reaches 4.5:1 on every
-   terrain's colour in every theme (theme.ts TEXT_PAIRS); each scene keeps that corner clear. */
+/* The symbol is printed into the art, not set on a badge: always in the upper-left corner, inset 8%, 42%
+   of the tile and never over 48 px, in the theme's text colour, which reaches 4.5:1 on every terrain's
+   colour in every theme (theme.ts TEXT_PAIRS); each scene keeps that corner clear. */
 .tile-symbol {
   position: absolute;
   top: 8%;
   left: 8%;
-  width: 36%;
-  max-width: 40px;
+  width: 42%;
+  max-width: 48px;
   height: auto;
   aspect-ratio: 1;
   line-height: 0;
@@ -1217,11 +1217,12 @@ button:disabled {
   display: flex;
 }
 
-/* Legal tiles (PRD R2): with highlights on and a person to move, each legal tile stays slightly raised
-   with a crisp 2 px ring in the mover's colour (the cell's own border, one primitive with no seam, at the
-   tile's edge so it meets the bare well at 3:1 or more) and its art untouched: no tint, no halo and no
-   badge. Whose move it is stays in the seats' words and token marks. The other free
-   tiles fade back under a light veil of the ground, never by opacity, so their terrain and symbol stay
+/* Legal tiles (PRD R2): with highlights on and a person to move, each legal tile stays raised with a
+   crisp 3 px ring in the mover's colour (the cell's 2 px border and a 1 px inset line in the same colour,
+   so no tile's art moves when it turns legal, at the tile's edge so it meets the bare well at 3:1 or
+   more), a soft glow of that colour just inside the ring and a short one outside it that leaves most of
+   the gap bare, and no badge. Whose move it is stays in the seats' words and token marks. The other free
+   tiles fade back under a veil of the ground, never by opacity, so their terrain and symbol stay
    readable; a taken cell never fades. When the turn starts the legal tiles rise together once, in 140 ms:
    two identical keyframes, picked by the turn's parity on the board's data-pop-turn, so every turn
    restarts the rise, even for a tile that stays legal, while a re-render never does; and no transition on
@@ -1241,8 +1242,9 @@ button:disabled {
   translate: 0 -2px;
   border-color: var(--wash);
   box-shadow:
-    inset 0 2px 0 color-mix(in srgb, var(--shine) 45%, transparent),
-    inset 0 -4px 0 color-mix(in srgb, var(--shade) 18%, transparent),
+    inset 0 0 0 1px var(--wash),
+    inset 0 0 10px 1px color-mix(in srgb, var(--wash) 40%, transparent),
+    0 0 6px 1px color-mix(in srgb, var(--wash) 45%, transparent),
     0 4px 0 color-mix(in srgb, var(--shade) 42%, transparent),
     0 8px 6px -4px color-mix(in srgb, var(--shade) 32%, transparent);
   transition: none;
@@ -1271,7 +1273,7 @@ button:disabled {
 }
 
 .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 12%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 30%, transparent);
 }
 
 /* Keyboard focus: an outline in the focus colour, set off from the tile by a strip of the well, so it
@@ -2451,13 +2453,16 @@ button:disabled {
 }
 
 /* Legal tiles are the clearest thing on the board and look the same in every row and column: lifted, with
-   a crisp 2 px ring in the mover's colour (the cell's own border) and nothing over the art: no wash, no
-   glow and no halo. The other free tiles keep their art under a light veil and quieter rims. The outline
-   itself never animates. */
+   a crisp 3 px ring in the mover's colour, its glow just inside and a short neon glow outside. The other
+   free tiles sit under a veil with quieter rims. The outline itself never animates. */
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true'] {
   border-width: 2px;
   border-color: var(--wash);
-  box-shadow: 0 6px 7px -3px color-mix(in srgb, var(--shade) 75%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--wash),
+    inset 0 0 12px 1px color-mix(in srgb, var(--wash) 45%, transparent),
+    0 0 7px 1px color-mix(in srgb, var(--wash) 55%, transparent),
+    0 6px 7px -3px color-mix(in srgb, var(--shade) 75%, transparent);
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .board[data-glow-player] .cell:not([data-glow='true']):not(.taken) {
@@ -2465,7 +2470,7 @@ button:disabled {
 }
 
 :root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-faded='true'] .tile-face::after {
-  background-color: color-mix(in srgb, var(--ground) 14%, transparent);
+  background-color: color-mix(in srgb, var(--ground) 34%, transparent);
 }
 
 /* Flat glowing tokens. */
@@ -2528,7 +2533,7 @@ button:disabled {
 /* ----- Scene motion: the art itself moves, inside its tile -----
    Swells roll under a bobbing boat, mist drifts across the slopes, pines sway and heat lines flicker, on
    every tile that still shows its scene. The same small motions play in the Match card's chips (the
-   terrain's scene, the symbol); the legal tiles' reason marks keep still. Only
+   terrain's scene, the symbol) and in the legal tiles' symbols; the reason marks keep still. Only
    transform and opacity change, each tile on its own negative delay (by its index) so no two neighbours
    move together. A tile under a token has no scene to move. The scenes rest while the tab is hidden and
    under reduced motion. The legal tile's outline is never animated, so nothing washes it out. */
@@ -2601,7 +2606,35 @@ button:disabled {
     animation: scene-slide 2.8s ease-in-out infinite;
   }
 
+  /* On the board the legal tiles' symbols move the same way while a person chooses, each on its tile's
+     own delay; the symbol's box keeps still, only its ink moves. Faded tiles' symbols rest. */
+  .board .cell[data-glow='true'] .symbol-ink {
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+  }
+
+  .board .cell[data-glow='true'] [data-shape='sun'] .symbol-ink {
+    animation: scene-spin 14s linear infinite;
+    animation-delay: calc(var(--i, 0) * -1.9s);
+  }
+
+  .board .cell[data-glow='true'] [data-shape='star'] .symbol-ink {
+    animation: scene-twinkle 2.4s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -0.7s);
+  }
+
+  .board .cell[data-glow='true'] [data-shape='moon'] .symbol-ink {
+    animation: scene-rock 3.6s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -1.1s);
+  }
+
+  .board .cell[data-glow='true'] [data-shape='wave'] .symbol-ink {
+    animation: scene-slide 2.8s ease-in-out infinite;
+    animation-delay: calc(var(--i, 0) * -0.9s);
+  }
+
   :root[data-hidden] .board .cell .scene *,
+  :root[data-hidden] .board .cell .symbol-ink,
   :root[data-hidden] .terrain-thumb .scene *,
   :root[data-hidden] .chip-emblem .symbol-mark {
     animation-play-state: paused;
@@ -2773,9 +2806,10 @@ button:disabled {
   --sa: color-mix(in srgb, var(--desert-ink) 55%, var(--grey));
 }
 
-/* Scene motion off (Settings): the scenes, the chips and the reason marks keep still. */
+/* Scene motion off (Settings): the scenes, the chips, the board's symbols and the reason marks keep still. */
 .match[data-scene-motion='false'] .scene *,
 .match[data-scene-motion='false'] .chip-emblem .symbol-mark,
+.match[data-scene-motion='false'] .symbol-ink,
 .match[data-scene-motion='false'] .reason-bar,
 .match[data-scene-motion='false'] .tile-symbol::after {
   animation: none !important;

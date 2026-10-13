@@ -97,7 +97,7 @@ function expectOneRise(pops: PopRecord[], cells: string[]) {
   expect(new Set(pops.map((pop) => pop.name)).size).toBe(1);
 }
 
-test('[scenario:move-highlight] in every colour theme, light and dark, wide and at 390 × 844, the rendered 2 px ring reaches 3:1 against the bare well and twice the contrast of a faded tile’s edge, and the faded tiles sit under a light veil of 10 to 15%, 1.5 to 12 L* from playable ones; with motion on the playable tiles rise together once in 120–160 ms when a person’s turn starts, never on the bot’s turn, and again for every legal tile on the next turn of a two-player game', async ({ browser }, testInfo) => {
+test('[scenario:move-highlight] in every colour theme, light and dark, wide and at 390 × 844, the rendered 3 px ring reaches 3:1 against the bare well and twice the contrast of a faded tile’s edge, and the faded tiles sit under a veil of 25 to 40%, 5 to 22 L* from playable ones; with motion on the playable tiles rise together once in 120–160 ms when a person’s turn starts, never on the bot’s turn, and again for every legal tile on the next turn of a two-player game', async ({ browser }, testInfo) => {
   test.setTimeout(240_000);
   // One seeded two-player position with Player 1 to move, where faded and taken tiles sit beside the rings.
   const position = seededPosition(4);
@@ -137,10 +137,11 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
           expect(edge.wellPixels, `${where} ${edge.cell}: bare well beside the faded edge`).toBeGreaterThan(0);
           expect(edge.ratio * 2, `${where} ${edge.cell}: faded edge against the weakest ring`).toBeLessThanOrEqual(weakestRing);
         }
-        // The veil only quiets the other free tiles, so their terrain and symbol stay readable: 10 to 15% of
-        // the ground in every theme, and a step of L* that shows yet stays well short of a blackout (measured
-        // 5.7–11.7 L*, the playable tiles' lit symbols and reason bars included; the old 33–58% veil gave
-        // 12 or more by rule).
+        // The veil quiets the other free tiles, so the playable ones stand out at a glance while every
+        // terrain and symbol stays readable: 25 to 40% of the ground in every theme (30% in the classic
+        // themes, 34% in the neon ones), and a step of L* that clearly shows yet stays short of a blackout
+        // (measured at least 7.3 L* in every theme, the playable tiles' lit symbols, reason bars and inner
+        // glow included; the operator found the earlier 12–14% veil and its 5.7–11.7 L* too weak).
         const veils = await board(page).locator('[data-faded="true"] .tile-face').evaluateAll((faces) =>
           faces.map((face) => {
             const value = getComputedStyle(face, '::after').backgroundColor;
@@ -149,14 +150,14 @@ test('[scenario:move-highlight] in every colour theme, light and dark, wide and 
           }),
         );
         for (const alpha of veils) {
-          expect(alpha, `${where}: the veil's strength`).toBeGreaterThanOrEqual(0.1);
-          expect(alpha, `${where}: the veil's strength`).toBeLessThanOrEqual(0.15);
+          expect(alpha, `${where}: the veil's strength`).toBeGreaterThanOrEqual(0.25);
+          expect(alpha, `${where}: the veil's strength`).toBeLessThanOrEqual(0.4);
         }
         expect(pixels.lightness.length, `${where}: a terrain with playable and faded tiles`).toBeGreaterThan(0);
         for (const { terrain, playable, faded } of pixels.lightness) {
           const apart = Math.abs(playable - faded);
-          expect(apart, `${where} ${terrain}: ${playable.toFixed(1)} against ${faded.toFixed(1)} L*`).toBeGreaterThanOrEqual(1.5);
-          expect(apart, `${where} ${terrain}: the veil stays light`).toBeLessThan(12);
+          expect(apart, `${where} ${terrain}: ${playable.toFixed(1)} against ${faded.toFixed(1)} L*`).toBeGreaterThanOrEqual(5);
+          expect(apart, `${where} ${terrain}: the veil stays short of a blackout`).toBeLessThan(22);
         }
         report.push(`${where}: rings ≥ ${Math.min(...pixels.rings.map((ring) => ring.ratio)).toFixed(2)}:1, faded edges ≤ ${Math.max(...pixels.fadedEdges.map((edge) => edge.ratio)).toFixed(2)}:1, L* apart ≥ ${Math.min(...pixels.lightness.map(({ playable, faded }) => Math.abs(playable - faded))).toFixed(1)}`);
       }
@@ -424,4 +425,58 @@ test('[scenario:scoreboard] the scoreboard row sits above the board holding the 
     await expectScoreboard(page, viewport.width > 760 ? 'wide' : 'phone', 'Player 1 0, Player 2 0, 1 draw');
     await expect(seat(page, 'A')).toHaveAttribute('data-score', '0');
   }
+});
+
+test('[scenario:symbol-motion] with motion on, the legal tiles’ symbols move inside a still box while the faded tiles’ symbols rest; the Scene motion setting and reduced motion keep them all still', async ({ browser }, testInfo) => {
+  /** Each free tile's symbol: whether its tile is legal, the scene animations on its ink, and its box. */
+  const symbols = (page: Page) =>
+    board(page)
+      .locator('[data-cell]:not([data-owner])')
+      .evaluateAll((cells) =>
+        cells.map((cell) => {
+          const ink = cell.querySelector('.tile-symbol .symbol-ink')!;
+          const box = cell.querySelector('.tile-symbol svg.symbol-mark')!.getBoundingClientRect();
+          return {
+            cell: cell.getAttribute('data-cell')!,
+            glow: cell.getAttribute('data-glow') === 'true',
+            moves: (ink.getAnimations() as CSSAnimation[]).filter((animation) => animation.playState === 'running').map((animation) => animation.animationName),
+            box: [box.left, box.top, box.width, box.height].map((value) => Math.round(value * 10) / 10),
+          };
+        }),
+      );
+
+  const motion = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'no-preference' });
+  const page = await motion.newPage();
+  await startGame(page, { seed: HUMAN_STARTS, difficulty: 'Easy' });
+  await expect(glowing(page).first()).toBeVisible();
+  // The opening's rise is over, so every legal tile rests at its lift.
+  await page.waitForTimeout(400);
+  const before = await symbols(page);
+  expect(before.some((symbol) => symbol.glow)).toBe(true);
+  expect(before.some((symbol) => !symbol.glow)).toBe(true);
+  for (const symbol of before) {
+    if (symbol.glow) expect(symbol.moves, `${symbol.cell}: a legal tile's symbol moves`).toEqual([expect.stringMatching(/^scene-(spin|twinkle|rock|slide)$/)]);
+    else expect(symbol.moves, `${symbol.cell}: a faded tile's symbol rests`).toEqual([]);
+  }
+  // Only the ink moves: the symbol's box stays where the tile prints it.
+  await page.waitForTimeout(700);
+  expect((await symbols(page)).map((symbol) => symbol.box)).toEqual(before.map((symbol) => symbol.box));
+  await attachScreenshot(page, testInfo, 'symbol-motion');
+
+  // Scene motion off in the menu: every symbol keeps still.
+  await page.getByTestId('menu-button').click();
+  await page.getByTestId('setting-scene-motion').click();
+  await expect(page.getByTestId('setting-scene-motion')).toHaveAttribute('aria-checked', 'false');
+  await page.getByTestId('menu-resume').click();
+  await expect(match(page)).toHaveAttribute('data-scene-motion', 'false');
+  for (const symbol of await symbols(page)) expect(symbol.moves, `${symbol.cell}: still with Scene motion off`).toEqual([]);
+  await motion.close();
+
+  // Under reduced motion nothing moves either.
+  const reduced = await browser.newContext({ baseURL: testInfo.project.use.baseURL!, reducedMotion: 'reduce' });
+  const still = await reduced.newPage();
+  await startGame(still, { seed: HUMAN_STARTS, difficulty: 'Easy' });
+  await expect(glowing(still).first()).toBeVisible();
+  for (const symbol of await symbols(still)) expect(symbol.moves, `${symbol.cell}: still under reduced motion`).toEqual([]);
+  await reduced.close();
 });

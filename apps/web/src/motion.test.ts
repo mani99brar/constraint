@@ -19,8 +19,11 @@ const rules = [...css.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g,
 /** The end sequence's rules (PRD U10): the cells' and the stroke's data-end parts. */
 const isEndRule = (selector: string) => /\[data-end=/.test(selector);
 const endRules = rules.filter(({ selector }) => isEndRule(selector));
+/** The legal tiles' symbols, moving inside their still boxes: their ink group alone. */
+const isSymbolMotionRule = (selector: string) => /^\.board \.cell\[data-glow='true'\]( \[data-shape='[a-z]+'\])? \.symbol-ink$/.test(selector);
 /** The scenes' motion inside the tiles: the only animations that loop, each in the no-preference block. */
-const isIdleRule = (selector: string) => /^(\.board \.cell|\.terrain-thumb|\.chip-emblem \[|:root\[data-hidden\])/.test(selector) && !/^\.board \.cell(\.|\[data-glow|:)/.test(selector) && !/^\.board \.cell \.(tile|token)/.test(selector);
+const isIdleRule = (selector: string) =>
+  isSymbolMotionRule(selector) || (/^(\.board \.cell|\.terrain-thumb|\.chip-emblem \[|:root\[data-hidden\])/.test(selector) && !/^\.board \.cell(\.|\[data-glow|:)/.test(selector) && !/^\.board \.cell \.(tile|token)/.test(selector));
 const idleRules = rules.filter(({ selector }) => isIdleRule(selector));
 /** The terrain backdrop's one slow crossfade (600 ms, opacity only), the other exception to the 400 ms rule. */
 const backdropRules = rules.filter(({ selector }) => selector === '.backdrop-layer');
@@ -42,6 +45,18 @@ function parts(value: string): { duration: number; delay: number; rest: string }
 /** Every time in a value, in milliseconds. */
 function times(text: string): number[] {
   return [...text.matchAll(/(-?\d*\.?\d+)(ms|s)\b/g)].map(([, value, unit]) => Number(value) * (unit === 's' ? 1000 : 1));
+}
+
+/** A comma-separated value's top-level parts, commas inside parentheses kept. */
+function topLevel(value: string): string[] {
+  const out = [''];
+  let depth = 0;
+  for (const char of value) {
+    depth += char === '(' ? 1 : char === ')' ? -1 : 0;
+    if (char === ',' && depth === 0) out.push('');
+    else out[out.length - 1] += char;
+  }
+  return out.map((part) => part.replace(/\s+/g, ' ').trim());
 }
 
 /** The declarations of the rule with exactly this selector. */
@@ -70,6 +85,12 @@ describe('the motion inside the tile art', () => {
     }
     // The scenes rest while the tab is hidden; the card has no sweep over it, and the outline no loop.
     expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.scene \*,/);
+    // A legal tile's symbol moves as the Match card's does, one rule per shape, and rests with the scenes.
+    for (const [shape, name] of [['sun', 'scene-spin'], ['star', 'scene-twinkle'], ['moon', 'scene-rock'], ['wave', 'scene-slide']]) {
+      expect(rule(`.board .cell[data-glow='true'] [data-shape='${shape}'] .symbol-ink`), shape).toMatch(new RegExp(`animation:\\s*${name} `));
+    }
+    expect(css).toMatch(/:root\[data-hidden\] \.board \.cell \.symbol-ink,/);
+    expect(css).toMatch(/\.match\[data-scene-motion='false'\] \.symbol-ink,/);
     expect(css).not.toMatch(/idle-shimmer|idle-drift|legal-breathe/);
     // The legal tiles' reason marks keep still: only the art moves.
     for (const { selector, body } of rules) if (/reason-bar|tile-symbol::after/.test(selector)) expect(body, selector).not.toMatch(/animation(-name)?:(?!\s*none)/);
@@ -223,10 +244,10 @@ describe('reduced motion (PRD U8)', () => {
 });
 
 describe('the legal-tile look and the last take (PRD R2, I2)', () => {
-  const glowRules = rules.filter(({ selector }) => /data-glow/.test(selector) && /\.cell/.test(selector));
+  const glowRules = rules.filter(({ selector }) => /data-glow/.test(selector) && /\.cell/.test(selector) && !isSymbolMotionRule(selector));
   const fadedRules = rules.filter(({ selector }) => /data-faded/.test(selector));
 
-  it('raises a legal tile slightly with a crisp 2 px ring in the mover’s colour, and no halo, tint or badge over its art', () => {
+  it('raises a legal tile slightly with a crisp 3 px ring and a soft glow in the mover’s colour, and no tint or badge over its art', () => {
     expect(rule(".board[data-glow-player='A']")).toMatch(/--wash:\s*var\(--p1\)/);
     expect(rule(".board[data-glow-player='B']")).toMatch(/--wash:\s*var\(--p2\)/);
     const glow = rule(".cell[data-glow='true']");
@@ -236,12 +257,21 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     expect(glow).toMatch(/border-color:\s*var\(--wash\)/);
     expect(glow).not.toMatch(/border-width|border:/);
     expect(rule('.cell')).toMatch(/border:\s*2px solid/);
-    // No wash of the mover's colour over the art, and no zero-offset halo round the tile: the only colour
-    // the glowing cell's own shadows carry is the shine and the shade of its lift.
+    // No wash layer over the art. The ring is 3 px: the border and a 1 px inset line of the same colour,
+    // a shadow, so it changes no size. Every other shadow in the mover's colour is a soft glow, at most
+    // 60% of it, just inside the ring or a few pixels outside it.
     expect(rules.filter(({ selector }) => /data-glow='true'\][^,]*\.tile-face/.test(selector))).toEqual([]);
-    const shadows = /box-shadow:\s*([^;]+)/.exec(glow)![1]!;
-    expect(shadows).not.toMatch(/--wash/);
-    expect(shadows).not.toMatch(/(^|,)\s*0 0 /);
+    for (const glowRule of [glow, rule(`:root:is([data-palette='night-circuit'], [data-palette='neon-frost'], [data-palette='synth-horizon'], [data-palette='midnight-aurora']) .cell[data-glow='true']`)]) {
+      const shadows = topLevel(/box-shadow:\s*([^;]+)/.exec(glowRule)![1]!);
+      expect(shadows[0]).toBe('inset 0 0 0 1px var(--wash)');
+      const glows = shadows.slice(1).filter((part) => /--wash/.test(part));
+      expect(glows.length).toBeGreaterThan(0);
+      for (const part of glows) {
+        expect(part).toMatch(/^(inset )?0 0 \d+px 1px color-mix\(in srgb, var\(--wash\) (\d+)%, transparent\)$/);
+        expect(Number(/var\(--wash\) (\d+)%/.exec(part)![1])).toBeLessThanOrEqual(60);
+        if (!part.startsWith('inset')) expect(Number(/^0 0 (\d+)px/.exec(part)![1])).toBeLessThanOrEqual(8);
+      }
+    }
     // No badge.
     expect(css).not.toMatch(/move-badge/);
     // No outline anywhere on a glowing tile: keyboard focus has its own.
@@ -281,11 +311,11 @@ describe('the legal-tile look and the last take (PRD R2, I2)', () => {
     for (const { selector, body } of glowRules) expect(body, selector).not.toMatch(/animation-delay/);
   });
 
-  it('fades the other free tiles by a light veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
-    // A light veil, 10 to 15%, so a faded tile's terrain and symbol stay readable.
+  it('fades the other free tiles by a veil of the ground over the art, never by opacity on the cell, and only free tiles', () => {
+    // A veil of 25 to 40%: the playable tiles stand out, and a faded tile's terrain and symbol stay readable.
     const veil = /background-color:\s*color-mix\(in srgb, var\(--ground\) (\d+)%, transparent\)/.exec(rule(".cell[data-faded='true'] .tile-face::after"));
-    expect(Number(veil?.[1])).toBeGreaterThanOrEqual(10);
-    expect(Number(veil?.[1])).toBeLessThanOrEqual(15);
+    expect(Number(veil?.[1])).toBeGreaterThanOrEqual(25);
+    expect(Number(veil?.[1])).toBeLessThanOrEqual(40);
     for (const { selector, body } of fadedRules) {
       expect(selector).toMatch(/\.tile-face::(before|after)$/);
       expect(body, selector).not.toMatch(/(^|[;\s])opacity\s*:/);

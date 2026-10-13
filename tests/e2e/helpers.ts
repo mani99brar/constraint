@@ -638,7 +638,7 @@ export interface HighlightPixels {
 /**
  * Measures the move highlights from the board's rendered pixels: a `locator.screenshot()` decoded in the
  * page with `createImageBitmap` and a canvas. Ring pixels are read at the ring's mid-width (1 px in from
- * the tile's edge: its 2 px border) along the middle of each side; well pixels along the
+ * the tile's edge: inside its 3 px ring) along the middle of each side; well pixels along the
  * outward normal into the gap or the padding, keeping only those within ΔE*ab 3 of the rendered --well
  * colour, so neither a halo nor a shadow counts. A playable tile with no bare well beside it fails loudly.
  */
@@ -698,7 +698,7 @@ export async function highlightPixels(page: Page): Promise<HighlightPixels> {
     // The gap between tiles, the same as the board's padding.
     const gap = boardElement.querySelector('[role="gridcell"]')!.getBoundingClientRect().left - box.left;
     const step = 1 / dpr;
-    // The ring's mid-width: the middle of the cell's 2 px border.
+    // Inside the ring: 1 px in, within the cell's 2 px border and its 1 px inset line.
     const RING_MID = 1;
     /** A free tile's edge, at the ring's mid-width, against the bare well beside it. */
     const edgeOf = ({ cell, rect }: (typeof cells)[number]) => {
